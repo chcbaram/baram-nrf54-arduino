@@ -18,9 +18,11 @@ probers.path={runtime.tools.probe-rs-0.32.0.path}/bin
 
 nordic.path={build.core.path}/nordic
 rtos.path={build.core.path}/freertos
-# SoftDevice 헤더 경로는 boards.txt 의 sd_name / sd_soc / sd_version 으로 조립한다.
-# 나중에 S115를 추가할 때 boards.txt 한 줄만 늘리면 되게 하기 위함.
-sd.path={nordic.path}/softdevice/{build.sd_name}_{build.sd_soc}_{build.sd_version}_API/include
+# SoftDevice API 헤더는 **SoC 와 무관하게 동일**하다.
+# nRF54L15 와 nRF54LM20 의 s145_API 를 전부 비교했고 nrf_sd_def.h / nrf_sd_isr.h /
+# ble_gap.h / nrf_soc.h / nrf_sdm.h 가 모두 같았다. 그래서 헤더는 한 벌만 둔다.
+# 반면 hex 는 SoC 별로 다르다 (아래 sd.hex).
+sd.path={nordic.path}/softdevice/{build.sd_name}_{build.sd_version}_API/include
 sd.hex={runtime.platform.path}/softdevice/{build.sd_name}_{build.sd_soc}_{build.sd_version}_softdevice.hex
 
 # ─────────────────────────────────────────────────────────────────────

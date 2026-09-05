@@ -237,6 +237,48 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 
 상세는 `docs/NU54-DK.md`.
 
+### 4.2 nRF54LM20A 조사 결과 (M6 대비)
+
+**베어메탈 지원됨.** sdk-nrf-bm v2.0.1 에 S115/S145 v10.0.1 hex 가 있다 (같은 5-Clause).
+
+| | nRF54L15 | nRF54LM20A |
+|---|---|---|
+| RRAM / RAM | 1.5MB / 256KB | 2MB / 512KB |
+| GPIO 포트 | P0 P1 P2 (3개) | P0 P1 P2 **P3** (4개) |
+| SERIAL 인스턴스 | ~22 | **~24** (SPIM/TWIM/UARTE 23·24 추가) |
+| USB | 없음 | **USBHS** + USBHSCORE + VREGUSB (High-Speed) |
+| 오디오 | I2S20 | **TDM** |
+
+**SoftDevice 파일 — 중요:**
+- **hex 는 다르다** (L15 389583 B / LM20 389951 B, sha256 상이). SoC 별 빌드다
+- **API 헤더는 완전히 동일하다.** `nrf_sd_def.h` `nrf_sd_isr.h` `ble_gap.h`
+  `nrf_soc.h` `nrf_sdm.h` 를 전부 비교했고 차이가 없었다
+  → **헤더는 한 벌만 vendoring 한다** (`softdevice/s145_10.0.1_API/`).
+    hex 만 SoC 별로 둔다
+- `nrf_sd_def.h` 가 같다는 것은 **SD 예약 자원이 동일**하다는 뜻이다.
+  §7 F2(우선순위 0·4) / F3(GRTC CC7~11, GRTC_3) 분석이 그대로 유효하다
+
+**구조 변경이 필요 없는 것** (확인함):
+- GPIO — `nrf_gpio_*` 가 절대 핀 번호를 받아 포트를 알아서 푼다. 4포트 자동 지원
+- `NRF54L_PORT_OF` (>>5) 도 그대로
+- FreeRTOS / GRTC 포트, SVC 디스패처, SoftDevice 헤더
+
+**이미 조건부로 바꿔 둔 것:**
+- `Uart.cpp` 가 UARTE 인스턴스를 하드코딩하지 않는다.
+  variant 의 `SERIAL_UARTE_INSTANCE` 로 고른다
+- `nrfx_config.h` 의 UARTE23/24 가 `#if defined(NRF54LM20A_XXAA)` 로 분기
+
+**M6 에서 해야 할 것:**
+- variant + 링커 스크립트 + 메모리 맵 (LM20 DTS 에서 뽑는다)
+- `nrf54l_domains.h` 에 LM20A 도메인 표 추가.
+  ⚠ **규칙이 그대로인지 확인 필요** — P3 가 P1 과 같은 대역(0x500D)에 있고,
+  SPIM/TWIM/UARTE **23·24 는 GRTC 와 같은 0x500E 대역**이라 L15 의
+  "첫 자리 = 도메인, 도메인당 포트 하나" 규칙이 단순 확장되지 않을 수 있다
+- **USB 는 별개 대공사다.** nrfx 에 `nrf_usbhs.h` HAL 은 있으나
+  **`nrfx_usbhs` 드라이버가 없다** (`nrfx_usbd` 는 nRF52 용).
+  디바이스 스택(TinyUSB 등)의 nRF54L USBHS 포트 유무부터 조사해야 한다.
+  **R10 은 "nRF54L15 에 USB 가 없다" 는 사실 그대로 유지한다.** LM20A 는 별개 판단이다
+
 ### SPI 주의 (L15)
 외부 노출 Arduino SPI 핀은 SPIM00 하나만 사용 가능. P2 고속 라우팅, E0/E1 출력 드라이브, HSBIAS slew, SPIM anomaly 8 워크어라운드가 필요하다. `lolren/nrf54-arduino-core`에 구현 사례가 있다.
 
@@ -322,7 +364,7 @@ SoftDevice가 NVIC를 가상화할 이유가 사라진 결과다 (§7 F1 참조)
 | `nrf_nvic.h` | **헤더 자체가 없음** | 앱이 NVIC 소유 |
 | `sd_power_system_off()` | **없음** | `nrf_regulators_system_off()` |
 | `NRF_POWER->RESETREAS` | **없음** | `nrf_resetinfo` / `nrfx_reset_reason_*` |
-| `NRF_POWER->GPREGRET` | **없음** | `.noinit` RAM (F7 방법 2) |
+| `NRF_POWER->GPREGRET` | **있다** — 내가 없다고 적었던 건 오류 (`POWER_GPREGRET[2]` @ 0x500) | 그대로 쓴다. F7 참조 |
 | — | `sd_power_mode_set()` 은 **있음** | `NRF_POWER_MODE_LOWPWR` |
 
 **근거로 삼을 소스 3종. 추측하지 말고 이걸 읽고 짜라:**
@@ -406,6 +448,12 @@ SysTick은 저전력 모드에서 정지하므로 못 쓴다. **GRTC SYSCOUNTER�
   tickless가 특수 경로가 아니라 기본 동작의 연장이 된다
 - `configTICK_RATE_HZ = 1000` — 1 MHz라 틱당 정확히 1000 µs. `millis()`가 오차 없이 떨어진다
 - `micros()`는 틱이 아니라 SYSCOUNTER를 직접 읽는다
+- **⚠ 채널 마스크와 개수를 함께 고쳐라 (실기에서 겪음)**:
+  `nrfx_grtc_init()` 은 `popcount(NRFX_GRTC_CONFIG_ALLOWED_CC_CHANNELS_MASK)` 와
+  `NRFX_GRTC_CONFIG_NUM_OF_CC_CHANNELS` 가 다르면 `-ECANCELED` 로 실패한다.
+  마스크만 바꾸면 안 된다. 우리는 `0x7F` / `7`.
+  참고로 nrfx 템플릿 기본값 `0x0f0f` / `8` 은 **CC8~11 을 포함해 SoftDevice 영역과 겹치므로**
+  절대 그대로 쓰면 안 된다
 - **⚠ `safe_setting`**: CC를 현재보다 **뒤로 미룰 때**(tickless 진입이 정확히 이 경우) 직전 CC가 가까우면
   **가짜 COMPARE 이벤트가 뜬다.** Zephyr는 `(int64_t)(prev_cc - now) < LATENCY_THR_TICKS`일 때
   `nrfx_grtc_syscounter_cc_abs_set(..., safe_setting=true)`를 쓴다. **같은 판정을 반드시 넣어라.**
@@ -427,7 +475,9 @@ NeoPixel, DHT, OneWire, SoftwareSerial 등. SoftDevice가 최상위 인터럽트
 ### F7. UART 공유 / 부트로더 진입
 스케치의 `Serial`과 부트로더 진입이 같은 UART를 공유한다 (M4 이후). 진입 방법:
 1. GPIO strap (**기본 채택** — 커스텀 보드이므로)
-2. retained RAM(`.noinit`) 플래그 + 리셋 → `reboot_to_bootloader()` API 제공
+2. **`NRF_POWER->GPREGRET` + 리셋** → `reboot_to_bootloader()` API 제공.
+   nRF52 방식이 그대로 통한다 (`POWER_GPREGRET[2]` @ 0x500 실재 확인).
+   `.noinit` RAM 보다 낫다 — `systemOff()` 의 RAM 리텐션 해제와 충돌하지 않는다
 3. 매직 시퀀스 감지 (오검출 위험, 보조 수단)
 
 **⚠ Arduino 의 1200bps touch 는 여기서 동작하지 않는다.**
@@ -464,6 +514,137 @@ nRF54L에는 그 SD API가 없고(§6.1), `__disable_irq()`(PRIMASK)로 대체�
 **이 가정은 BLE가 붙는 M3 전까지 검증할 수 없다.** M3 진입 직후
 advertising 유지 + tickless 동시 동작을 최우선으로 확인하라.
 깨지면 슬립 창에서만 BASEPRI를 0으로 낮추고 레이스는 `eTaskConfirmSleepModeStatus()` 재확인으로 처리한다.
+
+### F10. nrfx 4.x 사용 규칙 — **M2 착수 전에 반드시 읽어라**
+
+M1 에서 UARTE 와 GRTC 를 붙이며 세 시간을 태운 함정들이다.
+**M2 에서 SPIM / TWIM / PWM / SAADC / GPIOTE 를 붙일 때 똑같이 반복된다.**
+nrfx 3.x 예제나 인터넷 코드를 그대로 옮기면 전부 걸린다.
+
+#### ① 반환값은 POSIX errno 다
+
+```c
+int err = nrfx_grtc_init(...);
+if (err == 0 || err == -EALREADY) { /* ok */ }
+```
+
+`nrfx_err_t` / `NRFX_SUCCESS` / `NRFX_ERROR_ALREADY` 는 **nrfx 3.x 것이다.**
+4.x 는 `int` 를 돌려주고 0 이 성공, 음수가 `-EALREADY` `-ECANCELED` `-EINVAL` `-ENOMEM` 등이다.
+
+#### ② `NRFX_xxx_INSTANCE()` 는 번호가 아니라 **베이스 포인터**를 받는다
+
+```c
+static nrfx_uarte_t u = NRFX_UARTE_INSTANCE(NRF_UARTE30);   /* O */
+static nrfx_uarte_t u = NRFX_UARTE_INSTANCE(30);            /* X */
+```
+
+매크로가 `{ .p_reg = (NRF_UARTE_Type *)reg, ... }` 라서 숫자를 넘기면 **그 숫자가 곧 주소**가 된다.
+실제 증상: `p_reg = 30` → 레지스터 접근에서 BusFault, `BFAR = 0x21E`.
+컴파일도 경고 없이 통과한다.
+
+#### ③ IRQ 벡터 연결 방식이 페리페럴마다 다르다 — **양방향으로 틀릴 수 있다**
+
+| 유형 | 예 | 해야 할 일 |
+|---|---|---|
+| 단일 인스턴스 | GRTC | **아무것도 하지 마라.** nrfx 가 정의하는 함수의 심볼 이름이 매크로 체인으로 벡터 이름(`GRTC_2_IRQHandler`)까지 치환된다. 직접 정의하면 **무한 재귀** (`-Winfinite-recursion` 으로 잡힌다) |
+| 다중 인스턴스 | UARTE, SPIM, TWIM, PWM | **직접 연결하라.** nrfx 가 `NRFX_INSTANCE_IRQ_HANDLERS` 를 호출하지 않아 벡터 심볼이 MDK 의 weak `Default_Handler` 로 남는다. 인터럽트가 뜨는 순간 무한루프 |
+
+다중 인스턴스는 이렇게 잇는다:
+
+```c
+extern "C" void SERIAL30_IRQHandler(void) { nrfx_uarte_irq_handler(&_uarte30); }
+```
+
+> nRF54L 에서 UARTE/SPIM/TWIM 은 같은 SERIAL 인스턴스를 공유하므로 벡터 이름이
+> `UARTE30_IRQHandler` 가 아니라 **`SERIAL30_IRQHandler`** 다 (`UARTE30_IRQn == SERIAL30_IRQn`).
+
+**확인 방법**: 링크 후 `arm-none-eabi-nm` 으로 심볼 타입을 본다.
+`T` 면 연결됨, **`W`(weak) 면 미연결**이다.
+
+```
+00001384 T SERIAL30_IRQHandler   <- OK
+00003294 W SERIAL30_IRQHandler   <- Default_Handler. 인터럽트 뜨면 죽는다
+```
+
+#### ④ 페리페럴 추가 체크리스트 (M2)
+
+- [ ] `nrfx_config.h` 에 `NRFX_xxx_ENABLED` 와 `NRFX_xxxNN_ENABLED` **둘 다**
+- [ ] 채널/인스턴스 마스크를 바꿨다면 개수 매크로도 같이 (F3 ①)
+- [ ] IRQ 우선순위는 **5~7** (F2). `...FromISR` 을 부르면 필수
+- [ ] `NRFX_xxx_INSTANCE(NRF_xxxNN)` — 포인터로
+- [ ] 다중 인스턴스면 `SERIALnn_IRQHandler` 등을 직접 연결
+- [ ] 링크 후 `nm | grep IRQHandler` 로 `T` 인지 확인
+- [ ] SoftDevice 예약 자원(`nrf_sd_def.h`)과 겹치지 않는지 (§7 F2 표, DPPI/PPIB 포함)
+
+### F11. 부트로더를 넣으면 앱이 0x0 에서 밀려난다 — **nRF52 와 정반대**
+
+M4 착수 전에 반드시 읽어라. 실측으로 확정된 제약이다.
+
+| | nRF52 | **nRF54L15** |
+|---|---|---|
+| 0x0 에 있는 것 | MBR | **애플리케이션** (부트로더 생기면 부트로더) |
+| 부트로더 위치 | 상단. MBR 이 `UICR.BOOTLOADERADDR` 로 찾아감 | **0x0** (CPU 가 거기서 부팅) |
+| MBR | 있음 | **없음** (MDK 에 심볼 자체가 없다) |
+| `UICR.BOOTLOADERADDR` | 있음 | **없음** |
+| SoftDevice | 하단 (앱 아래) | **상단, `0x0015A800` 고정** |
+
+**SoftDevice 주소는 hex 에 절대 주소로 박혀 있다** (실측: `0x0015A800` ~ `0x0017C4F8`,
+135.2 KB). 옮길 수 없다.
+
+M4 의 레이아웃은 이렇게 된다:
+
+```
+0x00000000  Bootloader              <- CPU 가 여기서 부팅
+0x000?????  Application             <- 부트로더가 점프. VTOR 재배치 필요
+0x00158800  peer_manager  4 KB      <- 앱 파티션 밖. 앱 업데이트해도 본딩 유지
+0x00159800  storage0      4 KB
+0x0015A800  SoftDevice  137 KB      <- 고정
+```
+
+**이미 처리해 둔 것:**
+- `peer_manager` / `storage0` 가 앱 파티션 **밖**에 있다. single-bank 업데이트로
+  본딩이 날아가지 않는다 (Nordic DTS 를 따른 결과)
+- `cores/nrf54l/wiring.c` 의 `init()` 이 `SCB->VTOR` 을 링커 심볼
+  `__vectors_start` 로 설정한다. **앱 시작 주소가 바뀌어도 자동으로 따라간다.**
+  MDK 스타트업은 VTOR 을 건드리지 않으므로, 없으면 앱이 밀리는 순간
+  인터럽트가 부트로더 벡터로 간다
+
+**M4 에서 정하면 되는 것** (지금 정할 근거가 없다):
+- 부트로더 크기 → 앱 시작 주소. 실제로 만들어 봐야 안다
+- dual-bank 여부. RRAM 은 erase 가 없어 swap 특성이 flash 와 다르다 (R9)
+
+바뀌는 것은 링커 스크립트의 `FLASH ORIGIN` 한 줄과 `boards.txt` 의
+`upload.maximum_size` 한 줄뿐이다. 미리 숫자를 찍어두는 것보다 제약을 아는 게 중요하다.
+
+### F12. LFCLK 소스를 설정하지 않으면 조용히 0.9% 틀린다
+
+**실측으로 잡은 문제다. 크래시도 없고 로그도 정상으로 보인다.**
+
+리셋 직후 GRTC 의 `CLKCFG.CLKSEL`(bit **16**, bit0 아님)은 SystemLFCLK 이고,
+시스템 LFCLK 는 아무 설정도 안 하면 내부 RC 로 돈다.
+
+| 설정 | 실측 오차 |
+|---|---|
+| 미설정 (내부 RC) | **+9000 ppm** (0.9%) |
+| LFXO 선택 후 | **+25 ppm** (측정 잡음 ±3 ppm) |
+
+10분 시험에서 `millis` 델타는 전부 정확히 2000 이었고 `micros` 와도 완벽히 일치했다.
+**타깃 내부에서는 아무 이상이 없다.** 호스트 시계와 비교해야만 드러난다.
+
+BLE 는 보통 ±250 ppm 이하를 요구하므로 **RC 로는 M3 에서 연결이 끊긴다.**
+
+구현: `cores/nrf54l/freertos/port_grtc.c` 의 `lfclk_start()`.
+`variant.h` 의 `USE_LFXO` / `USE_LFRC` 로 분기한다.
+
+> **크리스털 없는 보드**: `USE_LFRC` 로 빌드된다. 다만 위 수치대로 정확도가
+> 두 자릿수 나빠지므로 **BLE(M3)에는 쓸 수 없다.** LED/UART 수준의 용도만 가능하다.
+> variant 를 만들 때 이 트레이드오프를 README 에 명시하라.
+
+**측정 방법 주의**: 시리얼로 정확도를 잴 때 `read(n)` 은 타임아웃까지 블록해서
+도착 시각이 양자화된다. `readline()` 으로 받고 즉시 타임스탬프를 찍어라.
+처음에 이걸 틀려서 -3432 ppm 이라는 무의미한 값을 얻었다.
+
+---
 
 ---
 
@@ -605,12 +786,18 @@ baram-nrf54-arduino/                 # 저장소 루트
 
 업로드는 **CMSIS-DAP/probe-rs 또는 J-Link SWD**. 부트로더 없음 (§3). 보드는 **NU54-DK (nRF54L15)**.
 
-- [ ] FreeRTOS 포팅: `ARM_CM33_NTZ`, GRTC 틱, SVC 조정(F1), 우선순위 설정(F2)
-- [ ] `setup()`/`loop()` 태스크 기동
-- [ ] GPIO: `pinMode` / `digitalWrite` / `digitalRead`
-- [ ] `millis` / `micros` / `delay` (tickless)
-- [ ] UART `Serial`
-- [ ] `boards.txt` + `platform.txt`에 SWD 업로드 recipe (**프로브 UID 지정 옵션 포함**)
+- [x] FreeRTOS 포팅: `ARM_CM33_NTZ`, GRTC 틱, SVC 조정(F1), 우선순위 설정(F2)
+- [x] `setup()`/`loop()` 태스크 기동 — `Scheduler.startLoop()` 두 번째 태스크까지 실기 확인
+- [x] GPIO: `pinMode` / `digitalWrite` / `digitalRead` — LED 4 / 버튼 4 확인
+- [x] `millis` / `micros` / `delay` — 실기에서 델타 정확 (tickless 는 아래 별도)
+- [x] UART `Serial` — UARTE30, CP2102N 경유 수신 확인
+- [x] `boards.txt` + `platform.txt`에 SWD 업로드 recipe (프로브 UID 지정 옵션 포함)
+- [ ] **tickless idle 켜기** — 틱이 안정된 것을 확인했으므로 이제 진행 가능
+- [ ] **Arduino IDE / arduino-cli 로 업로드** — 지금까지는 probe-rs 를 직접 호출해 검증했다.
+      `platform.txt` 의 recipe 가 실제로 도는지는 아직 확인하지 않았다
+- [ ] 10분 연속 실행 무크래시
+
+실기 검증 기록은 `docs/HIL/M1-nu54dk.md`.
 
 **DoD**: Arduino IDE Upload 버튼으로 blink + `Serial.println()` 업로드·동작. 10분 연속 실행 시 크래시 없음.
 tickless는 **틱이 안정된 뒤에 켠다.** 둘을 동시에 켜면 틱 버그와 슬립 버그가 섞여 원인 분리가 안 된다.
@@ -633,6 +820,9 @@ UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터
 
 ### M3 — BLE
 
+> **`BLEDfu` 를 빠뜨리지 마라.** Adafruit 예제 대부분이 `bledfu.begin()` 을 포함하므로
+> 클래스가 없으면 **컴파일이 실패한다** (R12: 호환 우선).
+
 - [ ] SoftDevice S145 활성화 + 이벤트 처리 태스크
 - [ ] `Bluefruit.begin()`, advertising
 - [ ] `BLEService` / `BLECharacteristic`
@@ -642,6 +832,12 @@ UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터
       enable/disable, 인터럽트 우선순위 처리를 `cores/nrf54l/ble/sd_event_pump.c`
       한 파일에 모은다. 백엔드를 바꾸면 통째로 버려질 코드이므로 흩뿌리지 마라.
       **추상화가 아니라 코드 배치 규칙이다** (R11 위반 아님)
+- [ ] **`BLEDfu` 클래스 제공** — M3 시점에는 부트로더가 없다. `begin()` 이 서비스를
+      등록하되 실제 DFU 트리거는 M4 에서 연결한다.
+      **명확한 에러를 반환하고 로그를 남겨라. 조용히 성공한 척하지 마라.**
+      (`lolren/nrf54-arduino-core` 가 `ERROR_NOT_SUPPORTED` 를 반환하는 방식을 쓴다)
+- [ ] `enterOTADfu()` 상당 API 의 시그니처 확보
+      (Adafruit `examples/Hardware/dfu_ota/dfu_ota.ino` 참조)
 
 **DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본 스케치가 수정 없이 컴파일·동작하고, 폰에서 연결·송수신된다.
 
@@ -655,13 +851,32 @@ UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터
 
 CMSIS-DAP 업로드 경로는 **제거하지 말고 병행 유지**한다 (§3).
 
-- [ ] RRAM 레이아웃 확정 (부트로더 / SoftDevice / 앱 / 스토리지) → `docs/MEMORY-MAP.md`
-- [ ] UART DFU (또는 sdk-nrf-bm DFU 활용 — M0 결과에 따름)
-- [ ] 부트로더 진입: GPIO strap + `reboot_to_bootloader()`
-- [ ] 호스트 업로드 툴
+- [ ] **`caveman99/nRF54_Bootloader` 를 DK 에서 빌드·플래시하고 serial/OTA DFU 동작 확인
+      → 채택 여부 결정.** 밑바닥부터 만들기 전에 이것부터 본다.
+      nRF54L 에서 MBR 없이 부트로더를 기동하는 유일한 공개 선례다 (MIT, S145).
+      단 스타 1개 단일 메인테이너이므로 그대로 의존하지 말고 구조만 참고할 수도 있다
+- [ ] RRAM 레이아웃 확정 → `docs/MEMORY-MAP.md`. **제약은 §7 F11 에 이미 정리돼 있다**
+      (부트로더가 0x0, SD 는 0x0015A800 고정, VTOR 은 코어가 이미 처리)
+- [ ] dual-bank 여부 결정. RRAM 은 erase 가 없어 swap 특성이 flash 와 다르다 (R9).
+      실기 검증 후 결정
+- [ ] **부트로더 전송 계층을 UART / BLE 교체 가능하게 분리** — UART 하나로 하드코딩하지 마라.
+      USB 가 없는 보드에서 최종 사용자에게는 폰 OTA 가 더 자연스러운 경로다
+- [ ] UART DFU
+- [ ] **BLE OTA DFU** — nRF Connect / nRF Toolbox 로 업로드 가능
+- [ ] 부트로더 진입: GPIO strap + `reboot_to_bootloader()`(GPREGRET, F7) + 더블 리셋
+- [ ] `BLEDfu` 서비스를 실제 DFU 트리거에 연결 (M3 에서 만든 것)
+- [ ] 호스트 업로드 툴 (`adafruit-nrfutil` zip 포맷 호환 검토)
 - [ ] `boards.txt` 업로드 방식 메뉴: `CMSIS-DAP (probe-rs)` / `CMSIS-DAP + Probe UID` / `J-Link` / `UART DFU`
 
-**DoD**: UART DFU로 20회 연속 업로드 실패 0회. 업로드 중 전원 차단 후에도 부트로더가 살아 복구 가능. CMSIS-DAP 경로도 여전히 동작.
+**DoD**:
+- UART DFU 로 20회 연속 업로드 실패 0회
+- **nRF Connect 앱으로 BLE OTA 업로드 성공**
+- 업로드 중 전원 차단 후에도 부트로더가 살아 복구 가능
+- CMSIS-DAP 경로도 여전히 동작
+- **본딩 키가 앱 업데이트 후에도 유지됨** (peer_manager 가 앱 파티션 밖이므로 구조적으로 보장되나 실측할 것)
+
+OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt Notification(PRN)이 8 이하**여야 한다.
+초과하면 부트로더가 메모리 부족에 빠진다. nRF54L 포팅에서도 유효한지 확인하고 README 에 명시하라.
 
 ### M5 — 패키징 / 배포
 
@@ -725,6 +940,8 @@ CMSIS-DAP 업로드 경로는 **제거하지 말고 병행 유지**한다 (§3).
 - Bluefruit FAQ (FreeRTOS 근거): https://learn.adafruit.com/bluefruit-nrf52-feather-learning-guide/faqs
 - Adafruit 부트로더: https://github.com/adafruit/Adafruit_nRF52_Bootloader
 - lolren nRF54L 코어 (페리페럴 참조): https://github.com/lolren/nrf54-arduino-core
+- nRF54L 부트로더 (BLE+Serial DFU, S145, MIT): https://github.com/caveman99/nRF54_Bootloader
+  - M4 착수 전 반드시 검증. nRF54L 에서 MBR 없이 부트로더를 기동하는 유일한 공개 선례
 
 **대안 아키텍처 사례 (배제, 참조용)**
 - NU54DK Arduino Core (NCS 전체 빌드 방식, nRF54L15, MIT): https://github.com/EIDOSDATA/NU54DK_Arduino_Core

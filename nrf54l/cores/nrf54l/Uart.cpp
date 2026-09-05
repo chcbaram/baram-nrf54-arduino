@@ -24,13 +24,25 @@
  *   nrfx 3.x 는 번호를 받았다. 숫자를 넘기면 p_reg 가 그 숫자 자체가 되어
  *   레지스터 접근에서 BusFault 가 난다 (실제로 겪었다: p_reg=30 -> BFAR 0x21E).
  */
-static nrfx_uarte_t _uarte30 = NRFX_UARTE_INSTANCE(NRF_UARTE30);
+/*
+ * 어떤 UARTE 를 쓸지는 **variant 가 정한다**. SoC 마다 인스턴스 구성이 다르고
+ * (nRF54LM20A 는 UARTE23/24 가 더 있다), 핀이 속한 도메인의 인스턴스여야
+ * 하기 때문이다 (nrf54l_domains.h).
+ */
+#ifndef SERIAL_UARTE_INSTANCE
+  #error "variant.h 에서 SERIAL_UARTE_INSTANCE 를 정의해야 한다 (예: NRF_UARTE30)"
+#endif
 
-Uart Serial(&_uarte30, PIN_SERIAL_RX, PIN_SERIAL_TX);
+static nrfx_uarte_t _uarte_serial = NRFX_UARTE_INSTANCE(SERIAL_UARTE_INSTANCE);
+
+Uart Serial(&_uarte_serial, PIN_SERIAL_RX, PIN_SERIAL_TX);
 
 #if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
-static nrfx_uarte_t _uarte20 = NRFX_UARTE_INSTANCE(NRF_UARTE20);
-Uart Serial1(&_uarte20, PIN_SERIAL1_RX, PIN_SERIAL1_TX);
+  #ifndef SERIAL1_UARTE_INSTANCE
+    #error "Serial1 을 쓰려면 variant.h 에서 SERIAL1_UARTE_INSTANCE 도 정의해야 한다"
+  #endif
+static nrfx_uarte_t _uarte_serial1 = NRFX_UARTE_INSTANCE(SERIAL1_UARTE_INSTANCE);
+Uart Serial1(&_uarte_serial1, PIN_SERIAL1_RX, PIN_SERIAL1_TX);
 #endif
 
 /* ── nrfx 이벤트 → 인스턴스 디스패치 ─────────────────────────────────── */
@@ -252,13 +264,13 @@ size_t Uart::write(const uint8_t *buffer, size_t size)
  */
 extern "C" void SERIAL30_IRQHandler(void)
 {
-  nrfx_uarte_irq_handler(&_uarte30);
+  nrfx_uarte_irq_handler(&_uarte_serial);
 }
 
 #if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
 extern "C" void SERIAL20_IRQHandler(void)
 {
-  nrfx_uarte_irq_handler(&_uarte20);
+  nrfx_uarte_irq_handler(&_uarte_serial1);
 }
 #endif
 

@@ -15,6 +15,13 @@
 #ifndef _VARIANT_NU54DK_H_
 #define _VARIANT_NU54DK_H_
 
+#include <stdint.h>
+
+/* 아래 도메인 검증 매크로(NRF54L_ASSERT_*)를 제공한다.
+ * variant.h 는 Arduino.h 를 거치지 않고 직접 include 되기도 하므로
+ * 여기서 스스로 챙긴다. */
+#include "nrf54l_domains.h"
+
 #define _PINNUM(port, pin)    ( ( (port) * 32 ) + (pin) )
 
 /* ── 클럭 ─────────────────────────────────────────────────────────────
@@ -72,6 +79,13 @@
 #define PIN_SERIAL_CTS        _PINNUM(0, 2)   /* 미사용. CP2102N RTS 배선 */
 #define PIN_SERIAL_RTS        _PINNUM(0, 3)   /* 미사용. CP2102N CTS 배선 */
 
+/*
+ * Serial 이 쓸 UARTE 인스턴스. 코어가 아니라 variant 가 고른다.
+ * SoC 마다 인스턴스 구성이 다르다 (예: nRF54LM20A 는 UARTE23/24 도 있다).
+ * 반드시 핀이 속한 도메인의 인스턴스여야 한다 (nrf54l_domains.h).
+ */
+#define SERIAL_UARTE_INSTANCE     NRF_UARTE30
+
 #define SERIAL_PORT_MONITOR       Serial
 #define SERIAL_PORT_HARDWARE      Serial
 #define SERIAL_PORT_HARDWARE_OPEN Serial
@@ -104,11 +118,12 @@ static const uint8_t A7 = PIN_A7;
 #define PIN_NFC1              _PINNUM(1, 2)
 #define PIN_NFC2              _PINNUM(1, 3)
 
-/* ── SPI (M2) ─────────────────────────────────────────────────────────
- * SPIM00 은 P2 고속 도메인에 있다 (CLAUDE.md §4).
- * ⚠ 아래 배정은 잠정값이다. M2 에서 nRF54L15 Product Spec 의 GPIO 배치표로
- *   확인하고 실기 검증한 뒤 확정할 것. 고속 신호라 OUTPUT_H0H1 또는
- *   OUTPUT_E0E1 드라이브가 필요할 수 있다. */
+/* ── SPI — SPIM00 (M2) ────────────────────────────────────────────────
+ * SPIM00 은 고속 도메인이라 **P2 핀만** 쓸 수 있다 (nrf54l_domains.h).
+ * ⚠ 도메인은 맞지만 P2 안에서 어느 핀이 어느 신호로 갈 수 있는지는 미확정이다.
+ *   M2 에서 Product Spec 의 GPIO 배치표로 확인하고 실기 검증할 것.
+ *   고속 신호라 OUTPUT_H0H1 또는 OUTPUT_E0E1 드라이브가 필요할 수 있다
+ *   (CLAUDE.md §4 SPI 주의사항). */
 #define PIN_SPI_SCK           _PINNUM(2, 1)
 #define PIN_SPI_MOSI          _PINNUM(2, 2)
 #define PIN_SPI_MISO          _PINNUM(2, 4)
@@ -117,11 +132,44 @@ static const uint8_t SCK  = PIN_SPI_SCK;
 static const uint8_t MOSI = PIN_SPI_MOSI;
 static const uint8_t MISO = PIN_SPI_MISO;
 
-/* ── I2C (M2) ─────────────────────────────────────────────────────────
- * ⚠ 잠정값. SPI 와 같은 이유로 M2 에서 확정한다. */
-#define PIN_WIRE_SDA          _PINNUM(1, 5)
-#define PIN_WIRE_SCL          _PINNUM(1, 6)
+/* ── I2C — TWIM30 (M2) ────────────────────────────────────────────────
+ * P0.02 / P0.03 을 쓴다. TWIM30 은 P0 도메인이다.
+ *
+ * 이 핀들은 원래 CP2102N 의 RTS/CTS 인데 **흐름제어를 쓰지 않기로 해서**
+ * 비었다 (Uart.h 주석). P1 을 쓰면 AIN 이나 버튼/LED 와 반드시 겹치는데
+ * (P1 15핀이 전부 무언가에 배정돼 있다) 여기로 오면 충돌이 없다.
+ * 게다가 P1 헤더의 4번·5번으로 물리적으로 인접해 있다.
+ *
+ * Wire1 이 필요하면 TWIM20~22(P1 도메인)로 별도 배정한다. */
+#define PIN_WIRE_SDA          _PINNUM(0, 2)
+#define PIN_WIRE_SCL          _PINNUM(0, 3)
 static const uint8_t SDA = PIN_WIRE_SDA;
 static const uint8_t SCL = PIN_WIRE_SCL;
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 전원 도메인 검증 (nrf54l_domains.h)
+ * ═══════════════════════════════════════════════════════════════════
+ * nRF54L 은 페리페럴 인스턴스가 자기 도메인의 GPIO 포트만 쓸 수 있다.
+ * 잘못 배정하면 런타임에 조용히 동작하지 않으므로 여기서 빌드를 막는다.
+ * 새 보드 variant 를 만들 때 이 블록을 반드시 복사해 오라.
+ */
+NRF54L_ASSERT_DOMAIN30_PIN(PIN_SERIAL_TX,  "Serial(UARTE30) TX");
+NRF54L_ASSERT_DOMAIN30_PIN(PIN_SERIAL_RX,  "Serial(UARTE30) RX");
+
+NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_SCK,      "SPI SCK");
+NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MOSI,     "SPI MOSI");
+NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MISO,     "SPI MISO");
+
+NRF54L_ASSERT_DOMAIN30_PIN(PIN_WIRE_SDA,   "Wire(TWIM30) SDA");
+NRF54L_ASSERT_DOMAIN30_PIN(PIN_WIRE_SCL,   "Wire(TWIM30) SCL");
+
+NRF54L_ASSERT_ANALOG_PIN(PIN_A0, "A0"); NRF54L_ASSERT_ANALOG_PIN(PIN_A1, "A1");
+NRF54L_ASSERT_ANALOG_PIN(PIN_A2, "A2"); NRF54L_ASSERT_ANALOG_PIN(PIN_A3, "A3");
+NRF54L_ASSERT_ANALOG_PIN(PIN_A4, "A4"); NRF54L_ASSERT_ANALOG_PIN(PIN_A5, "A5");
+NRF54L_ASSERT_ANALOG_PIN(PIN_A6, "A6"); NRF54L_ASSERT_ANALOG_PIN(PIN_A7, "A7");
+
+/* NFC 는 NFCT(P1 도메인) 전용 핀이다. */
+NRF54L_ASSERT_DOMAIN20_PIN(PIN_NFC1, "NFC1");
+NRF54L_ASSERT_DOMAIN20_PIN(PIN_NFC2, "NFC2");
 
 #endif /* _VARIANT_NU54DK_H_ */

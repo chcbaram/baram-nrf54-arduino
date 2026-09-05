@@ -32,8 +32,29 @@
 
 static uint32_t _reset_reason = 0;
 
+/* 링커 스크립트(MDK nrf_common.ld)가 주는 벡터 테이블 시작 심볼 */
+extern uint32_t __vectors_start;
+
 void init(void)
 {
+    /*
+     * 벡터 테이블 위치를 명시한다.
+     *
+     * ⚠ MDK 스타트업은 VTOR 을 건드리지 않는다. 지금은 앱이 0x0 에 있어
+     *   VTOR 기본값 0 으로 우연히 맞지만, M4 에서 부트로더가 들어오면
+     *   상황이 뒤집힌다.
+     *
+     *   nRF54L 에는 MBR 도 UICR.BOOTLOADERADDR 도 없어서 CPU 가 0x0 에서
+     *   바로 부팅한다. 따라서 **부트로더가 0x0 을 차지하고 앱이 위로 밀린다**
+     *   (nRF52 와 정반대다. nRF52 는 MBR 이 0x0 에 있고 SoftDevice 가 그 위였다).
+     *   그때 VTOR 을 안 옮기면 앱의 인터럽트가 부트로더 벡터로 간다.
+     *
+     *   링커 심볼에서 가져오므로 앱 시작 주소가 바뀌어도 자동으로 따라간다.
+     */
+    SCB->VTOR = (uint32_t)&__vectors_start;
+    __DSB();
+    __ISB();
+
     /* 리셋 원인을 읽어 두고 지운다. 지우지 않으면 다음 부팅에 섞인다. */
     _reset_reason = nrfx_reset_reason_get();
     nrfx_reset_reason_clear(_reset_reason);

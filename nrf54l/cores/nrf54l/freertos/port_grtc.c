@@ -33,6 +33,10 @@
 #include <nrfx.h>
 #include <nrfx_grtc.h>
 #include <hal/nrf_grtc.h>
+#include <hal/nrf_clock.h>
+#include <hal/nrf_oscillators.h>
+
+#include "variant.h"   /* USE_LFXO / USE_LFRC */
 
 /* 틱 하나가 몇 SYSCOUNTER 카운트인가.
  * configSYSTICK_CLOCK_HZ = 1000000 (GRTC), configTICK_RATE_HZ = 1000
@@ -88,9 +92,63 @@ static void grtc_tick_handler(int32_t id, uint64_t cc_value, void * p_context)
  * 틱 설정 — 포트의 weak 정의(port.c:847, SysTick 기반)를 대체한다.
  * 패치 불필요. freertos/PATCHES.md §2 참조.
  * ───────────────────────────────────────────────────────────────────── */
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ * LFCLK 소스 설정
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ * ⚠ 이걸 빠뜨리면 조용히 부정확해진다. 실측으로 잡은 문제다.
+ *
+ * 리셋 직후 GRTC 의 CLKCFG.CLKSEL 은 SystemLFCLK(=1) 이고, 시스템 LFCLK 는
+ * 아무 설정도 하지 않으면 내부 RC 로 돈다. 10분 연속 시험에서 타깃 시계가
+ * 호스트보다 **약 0.9% (9000 ppm) 빨랐다.** 크래시도 없고 millis/micros 가
+ * 서로 완벽히 일치해서 로그만 봐서는 정상으로 보인다.
+ *
+ * BLE 는 더 심각하다. 연결 유지에 보통 ±250 ppm 이하가 요구되므로
+ * RC 로는 M3 에서 연결이 끊긴다.
+ *
+ * NU54-DK 는 Y1 32.768 kHz 크리스털에 **외부 13pF 캡(C13/C14)** 이 달려 있다.
+ * 따라서 내부 캡은 꺼야 한다 (NRF_OSCILLATORS_LFXO_CAP_EXTERNAL).
+ */
+static void lfclk_start(void)
+{
+#if defined(USE_LFXO)
+    /* 외부 캡이 실장돼 있으므로 내부 캡을 끈다.
+     * 내부 캡을 켜면 총 부하용량이 커져 발진 주파수가 낮아진다. */
+    nrf_oscillators_lfxo_cap_set(NRF_OSCILLATORS, NRF_OSCILLATORS_LFXO_CAP_EXTERNAL);
+    nrf_clock_lf_src_set(NRF_CLOCK, NRF_CLOCK_LFCLK_XTAL);
+#elif defined(USE_LFRC)
+    nrf_clock_lf_src_set(NRF_CLOCK, NRF_CLOCK_LFCLK_RC);
+#endif
+
+    nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_LFCLKSTART);
+
+    /* 안정될 때까지 기다린다. 부팅 경로라 블로킹해도 된다.
+     * LFXO 는 기동에 보통 수백 ms 가 걸린다. */
+    while (!nrf_clock_is_running(NRF_CLOCK, NRF_CLOCK_DOMAIN_LFCLK, NULL))
+    {
+        /* wait */
+    }
+}
+
 void vPortSetupTimerInterrupt(void)
 {
     int err;
+
+    /* GRTC 를 만지기 전에 LFCLK 부터 세운다. */
+    lfclk_start();
+
+    /*
+     * GRTC 가 쓸 클럭을 명시한다.
+     * CLKSEL 기본값은 SystemLFCLK 이고 위에서 그걸 LFXO 로 맞췄지만,
+     * LFXO 를 직접 지정해 두면 의도가 코드에 남고 시스템 LFCLK 설정이
+     * 나중에 바뀌어도 틱은 영향받지 않는다.
+     */
+#if defined(USE_LFXO)
+    nrf_grtc_clksel_set(NRF_GRTC, NRF_GRTC_CLKSEL_LFXO);
+#else
+    nrf_grtc_clksel_set(NRF_GRTC, NRF_GRTC_CLKSEL_LFCLK);
+#endif
 
     /* nrfx_config.h 의 NRFX_GRTC_CONFIG_IRQ_PRIORITY(=6)를 쓰지 않고
      * 커널 우선순위(7, 최저)를 명시한다. 틱 핸들러가 xTaskIncrementTick()

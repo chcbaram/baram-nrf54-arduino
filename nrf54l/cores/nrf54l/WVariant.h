@@ -15,6 +15,9 @@
 #include "nrf.h"
 #include "hal/nrf_gpio.h"
 
+/* GPIO 전원 도메인 규칙과 variant 검증 매크로 */
+#include "nrf54l_domains.h"
+
 #ifdef SOFTDEVICE_PRESENT
   #include "nrf_sdm.h"
   #include "nrf_soc.h"

@@ -47,6 +47,14 @@ Adafruit nRF52 코어의 기본값(`LED_STATE_ON 0`, active LOW)과 **반대**�
 | **P0.02** | CTS ← | RTS (pin 19) |
 | **P0.03** | RTS → | CTS (pin 18) |
 
+> **⚠ 하드웨어 흐름제어(RTS/CTS)는 쓰지 않는다.** 프로젝트 결정 사항이다.
+> HWFC 를 켜면 UARTE 가 상대의 CTS 어서트를 기다려 한 바이트도 내보내지 않는데,
+> 호스트 터미널이 RTS 를 올리지 않는 것이 보통이라 `Serial.println()` 이 그대로 멈춘다.
+> 실기에서 실제로 겪었다.
+> **결과적으로 P0.02 / P0.03 이 비어 `Wire`(TWIM30) 에 배정됐다** — docs/PERIPHERAL-PINMAP.md 참조.
+>
+> UARTE30 PSEL 레지스터 필드 순서는 **TXD, CTS, RXD, RTS** 다 (nRF52 와 다르다).
+
 **인스턴스는 `UARTE30`.** Nordic DK의 `BOARD_APP_UARTE_INST` / `BOARD_APP_UARTE_PIN_*`와 동일하다.
 P0.x는 항상 켜져 있는 저전력 도메인에 속하고 UARTE30/SPIM30/TWIM30이 이 포트를 담당한다.
 
@@ -92,6 +100,10 @@ P0.x는 항상 켜져 있는 저전력 도메인에 속하고 UARTE30/SPIM30/TWI
 `1 = VMCU`, `2 = SWDIO`, `3 = GND`, `4 = SWDCLK`, `5 = RESET`
 
 업로드는 **probe-rs** (CLAUDE.md §3).
+
+검증에 쓴 프로브: **NU-DAP** — CMSIS-DAP, VID:PID `0d28:0204` (Arm).
+`probe-rs list` 로 인식되고 `--chip nRF54L15` 로 접속·플래시·verify 모두 정상.
+33 KB hex 쓰기 + verify 에 약 3.3 초. `--connect-under-reset` 은 이 프로브에서 실패하니 쓰지 마라.
 
 ---
 
@@ -147,4 +159,7 @@ VIN (J2, 5~14V) ─ D1 ─┴─ AZ1117CR-3.3 (U1) ─ 3V3 ─ VMCU
 | 5 | `Serial` = **UARTE30** (P0.00/P0.01, 흐름제어 P0.02/P0.03) |
 | 6 | **포트가 3개**(P0/P1/P2) — Adafruit의 2포트 `digitalPinToPort()`를 확장해야 함 |
 | 7 | 온보드 프로브 없음 — 외부 CMSIS-DAP 필요 |
-| 8 | `USE_LFXO` 정의 |
+| 8 | **`USE_LFXO` 정의 필수** — 빠뜨리면 내부 RC 로 돌아 클럭이 0.9% 틀린다 (CLAUDE.md §7 F12) |
+| 9 | **흐름제어 미사용** → P0.02 / P0.03 은 `Wire`(TWIM30) 가 쓴다 |
+| 10 | **레지스터 오프셋이 nRF52 와 다르다** — GPIO `OUT` 이 `0x504` 가 아니라 **`0x000`**. 리셋 원인은 `NRF_RESET`. 상세는 [HIL/M1-nu54dk.md](HIL/M1-nu54dk.md) §3 |
+| 11 | 페리페럴은 **전원 도메인이 소유한 GPIO 포트만** 쓸 수 있다 — [PERIPHERAL-PINMAP.md](PERIPHERAL-PINMAP.md) |

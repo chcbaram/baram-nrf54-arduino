@@ -52,6 +52,11 @@
 #define NRFX_UARTE20_ENABLED                     1
 #define NRFX_UARTE21_ENABLED                     1
 #define NRFX_UARTE22_ENABLED                     1
+/* nRF54LM20A 는 UARTE23/24 가 더 있다. SoC 별로 조건부. */
+#if defined(NRF54LM20A_XXAA)
+  #define NRFX_UARTE23_ENABLED                   1
+  #define NRFX_UARTE24_ENABLED                   1
+#endif
 #define NRFX_UARTE_DEFAULT_CONFIG_IRQ_PRIORITY   NRFX_DEFAULT_IRQ_PRIORITY
 
 /* ── M2에서 켠다 ──────────────────────────────────────────────────────

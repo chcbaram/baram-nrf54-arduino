@@ -26,6 +26,12 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 | `0x20000000` | `0x4780` (18,304 B) | **SoftDevice** |
 | `0x20004780` | `0x3B880` (~237 KB) | **application** |
 
+> **✅ 2026-09-05 실기 확인.** 실제 링크 결과가 아래와 일치한다:
+> `.vectors @ 0x00000000`, `.text @ 0x00000E08`, `.data @ 0x20004780`,
+> `.bss @ 0x20004A80`, `__StackTop = 0x20040000`, `__StackLimit = 0x2003F800`.
+> 힙 가용 232 KB (`__HeapBase 0x200055C4` ~ `__StackLimit`).
+> 검증 기록: [HIL/M1-nu54dk.md](HIL/M1-nu54dk.md)
+
 ### 링커 스크립트 값
 
 ```
@@ -71,12 +77,40 @@ Adafruit 코어의 `nrf52840_s140_v6.ld`(`FLASH ORIGIN = 0x26000`)를 그대로 
 
 ---
 
-## M4(부트로더) 진입 시 재검토할 것
+## M4(부트로더) 레이아웃 — 제약은 이미 확정됐다
 
-부트로더를 넣으면 이 맵이 바뀐다. 확정 전에 다음을 정해야 한다:
+**결정된 것** (조사·실측 완료. CLAUDE.md §7 F11):
 
-- 부트로더 위치 — 앱이 `0x0`을 쓰고 있으므로 부트로더를 `0x0`에 두고 앱을 밀지, 상단에 둘지
-- nRF54L의 부트로더 진입 주소 메커니즘 (nRF52 `UICR.NRFFW[0]` 상당물) 존재 여부
-- RRAM write block **16바이트** 정렬 (R9 / F5)
-- single-bank 또는 overwrite-only. swap 알고리즘 금지
-- `.noinit` 리텐션 영역 — `systemOff()`의 RAM 리텐션 해제와 충돌하지 않게 (CLAUDE.md §6.1)
+- **부트로더는 `0x0` 에 와야 한다.** nRF54L 에는 MBR 도 `UICR.BOOTLOADERADDR` 도 없어서
+  (MDK 에 심볼 자체가 없다) CPU 가 `0x0` 에서 바로 부팅한다.
+  nRF52 처럼 "MBR 이 상단의 부트로더를 찾아가는" 구조가 불가능하다
+- **애플리케이션은 위로 밀린다.** nRF52 와 정반대다
+- **SoftDevice 는 `0x0015A800` 고정.** hex 파일에 절대 주소로 박혀 있다
+  (실측: `0x0015A800` ~ `0x0017C4F8`, 135.2 KB). 옮길 수 없다
+- **본딩·스토리지는 이미 앱 파티션 밖이다** (`0x158800` ~ `0x15A800`).
+  single-bank 업데이트로 날아가지 않는다. Nordic DTS 를 따른 결과다
+- **VTOR 재배치는 코어가 이미 처리한다.** `cores/nrf54l/wiring.c` 의 `init()` 이
+  링커 심볼 `__vectors_start` 에서 `SCB->VTOR` 을 설정하므로 앱 시작 주소가
+  바뀌어도 자동으로 따라간다. MDK 스타트업은 VTOR 을 건드리지 않으므로 이게 없으면
+  앱이 밀리는 순간 인터럽트가 부트로더 벡터로 간다
+
+```
+0x00000000  Bootloader              <- CPU 가 여기서 부팅 (크기 미정)
+0x000?????  Application             <- 부트로더가 점프
+0x00158800  peer_manager  4 KB      <- 앱 밖. 본딩 유지
+0x00159800  storage0      4 KB
+0x0015A800  SoftDevice  137 KB      <- 고정
+0x0017C4F8  (끝)
+```
+
+**M4 에서 정할 것** (지금 정할 근거가 없다):
+
+- 부트로더 크기 → 앱 시작 주소. 실제로 만들어 봐야 안다.
+  `caveman99/nRF54_Bootloader` 를 먼저 빌드해 보면 현실적인 숫자가 나온다
+- dual-bank 여부. **RRAM 은 erase 개념이 없어 swap 알고리즘 특성이 flash 와 다르다** (R9).
+  실기 검증 전에는 확정하지 마라
+- RRAM write block **16바이트** 정렬 (R9 / F5). 파티션 경계에 별도 정렬 요구가
+  있는지는 미확인
+
+바뀌는 것은 링커 스크립트의 `FLASH ORIGIN` 한 줄과 `boards.txt` 의
+`upload.maximum_size` 한 줄뿐이다. 숫자를 미리 찍어두는 것보다 위 제약을 아는 게 중요하다.
