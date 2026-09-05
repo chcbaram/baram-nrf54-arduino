@@ -6,43 +6,115 @@ menu.upload_method=Upload method
 menu.debug=Debug Level
 
 # =====================================================================
-# NU54-DK (nRF54L15)
+# NU54V-DK (nRF54L15)
 #   회로도 분석 결과는 docs/NU54-DK.md 참조.
 #   Nordic nRF54L15 DK 와 LED/버튼/UART 핀이 동일하다.
 # =====================================================================
-nu54dk.name=NU54-DK (nRF54L15)
+nu54vdk.name=NU54V-DK (nRF54L15)
 
-nu54dk.build.arch=NRF54L
-nu54dk.build.board=NU54DK
-nu54dk.build.core=nrf54l
-nu54dk.build.variant=nu54dk
-nu54dk.build.chip=NRF54L15_XXAA
-nu54dk.build.extra_flags=
+nu54vdk.build.arch=NRF54L
+nu54vdk.build.board=NU54VDK
+nu54vdk.build.core=nrf54l
+nu54vdk.build.variant=nu54dk
+nu54vdk.build.chip=NRF54L15_XXAA
+nu54vdk.build.extra_flags=
 
 # probe-rs 의 타깃 이름. `probe-rs chip list` 로 확인한 값이며
 # NRF54L15_XXAA(컴파일러 define)와는 표기가 다르다.
-nu54dk.build.chip_probers=nRF54L15
+nu54vdk.build.chip_probers=nRF54L15
 
 # 메모리 (docs/MEMORY-MAP.md)
 #   application 0x00000000 ~ 0x00158800 (1378 KB)
 #   app RAM     0x20004780 ~ 0x20040000 (0x3B880)
-nu54dk.upload.maximum_size=1411072
-nu54dk.upload.maximum_data_size=243328
+nu54vdk.upload.maximum_size=1411072
+nu54vdk.upload.maximum_data_size=243328
 
 # ── SoftDevice ────────────────────────────────────────────────────────
 # S145 고정. 메뉴 형태로 둔 이유는 S115 를 추가할 때 여기 한 항목과
 # variant 의 링커 스크립트 하나만 늘리면 되게 하기 위함이다 (CLAUDE.md §8).
-nu54dk.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)
-nu54dk.menu.softdevice.s145v10.build.sd_name=s145
-nu54dk.menu.softdevice.s145v10.build.sd_soc=nrf54l15
-nu54dk.menu.softdevice.s145v10.build.sd_version=10.0.1
-nu54dk.menu.softdevice.s145v10.build.sd_define=S145
-nu54dk.menu.softdevice.s145v10.build.ldscript=nrf54l15_s145_v10.ld
+nu54vdk.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)
+nu54vdk.menu.softdevice.s145v10.build.sd_name=s145
+nu54vdk.menu.softdevice.s145v10.build.sd_soc=nrf54l15
+nu54vdk.menu.softdevice.s145v10.build.sd_version=10.0.1
+nu54vdk.menu.softdevice.s145v10.build.sd_define=S145
+nu54vdk.menu.softdevice.s145v10.build.ldscript=nrf54l15_s145_v10.ld
 
 # ── 업로드 방식 ───────────────────────────────────────────────────────
 # 모든 항목에 upload.protocol 을 반드시 설정한다.
 # 빠뜨리면 arduino-cli 가 upload.tool.<protocol> 을 못 찾고
 # "A programmer is required to upload" 라는 엉뚱한 오류를 낸다.
+nu54vdk.menu.upload_method.cmsisdap=CMSIS-DAP (probe-rs)
+nu54vdk.menu.upload_method.cmsisdap.upload.protocol=probers
+nu54vdk.menu.upload_method.cmsisdap.upload.tool=probers
+nu54vdk.menu.upload_method.cmsisdap.upload.tool.default=probers
+nu54vdk.menu.upload_method.cmsisdap.upload.use_1200bps_touch=false
+nu54vdk.menu.upload_method.cmsisdap.upload.wait_for_upload_port=false
+nu54vdk.menu.upload_method.cmsisdap.upload.native_usb=false
+
+nu54vdk.menu.upload_method.cmsisdapuid=CMSIS-DAP + Probe UID (probe-rs)
+nu54vdk.menu.upload_method.cmsisdapuid.upload.protocol=probers
+nu54vdk.menu.upload_method.cmsisdapuid.upload.tool=probers_uid
+nu54vdk.menu.upload_method.cmsisdapuid.upload.tool.default=probers_uid
+nu54vdk.menu.upload_method.cmsisdapuid.upload.use_1200bps_touch=false
+nu54vdk.menu.upload_method.cmsisdapuid.upload.wait_for_upload_port=false
+nu54vdk.menu.upload_method.cmsisdapuid.upload.native_usb=false
+
+# ── 디버그 레벨 ───────────────────────────────────────────────────────
+nu54vdk.menu.debug.l0=Level 0 (Release)
+nu54vdk.menu.debug.l0.build.debug_flags=-DCFG_DEBUG=0
+nu54vdk.menu.debug.l1=Level 1 (Errors)
+nu54vdk.menu.debug.l1.build.debug_flags=-DCFG_DEBUG=1
+nu54vdk.menu.debug.l2=Level 2 (Full)
+nu54vdk.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
+
+# 부트로더 굽기 자리 (M4 이전에는 SoftDevice 굽기로 쓴다)
+nu54vdk.bootloader.tool=bootburn
+
+
+# =====================================================================
+# NU54-DK (nRF54L05)
+#   NU54V-DK 와 회로도·핀맵이 완전히 동일하고 실장 모듈만 다르다.
+#   따라서 variant 는 nu54dk 하나를 두 보드가 공유한다.
+#
+#   nRF54L05 는 nRF54L15 와 같은 다이를 비닝한 것이라, L15 설정으로 구워도
+#   실기에서는 동작해 버린다(사양 밖 RRAM/RAM 이 물리적으로 존재하기 때문).
+#   보드를 잘못 고르면 오류 없이 조용히 사양을 넘게 되므로 주의한다.
+#   실장 칩 확인: FICR INFO.PART @ 0x00FFC31C
+#     0x00054B05 = nRF54L05   /   0x00054B15 = nRF54L15
+# =====================================================================
+nu54dk.name=NU54-DK (nRF54L05)
+
+nu54dk.build.arch=NRF54L
+nu54dk.build.board=NU54DK
+nu54dk.build.core=nrf54l
+nu54dk.build.variant=nu54dk
+nu54dk.build.chip=NRF54L05_XXAA
+nu54dk.build.extra_flags=
+
+# probe-rs 에는 nRF54L05 타깃이 없다 (`probe-rs chip list` = nRF54L15 / nRF54LM20A).
+# L15 와 동일한 다이·동일한 RRAM 컨트롤러라 nRF54L15 타깃으로 플래시된다.
+# 앱이 0x58800 을 넘지 않도록 막는 것은 아래 upload.maximum_size 와 링커
+# 스크립트의 역할이지 probe-rs 가 아니다.
+nu54dk.build.chip_probers=nRF54L15
+
+# 메모리 (docs/MEMORY-MAP.md)
+#   application 0x00000000 ~ 0x00058800 (354 KB)
+#   app RAM     0x20004780 ~ 0x20018000 (0x13880)
+nu54dk.upload.maximum_size=362496
+nu54dk.upload.maximum_data_size=80000
+
+# ── SoftDevice ────────────────────────────────────────────────────────
+# S145 hex 는 SoC 별로 재배치된 별도 빌드다. L05 용은 0x0005A800 에 로드된다.
+# sd_soc 가 platform.txt 의 sd.hex 경로를 고르는 유일한 변수이므로
+# 여기를 nrf54l15 로 두면 SoftDevice 가 RRAM 밖에 써진다.
+nu54dk.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)
+nu54dk.menu.softdevice.s145v10.build.sd_name=s145
+nu54dk.menu.softdevice.s145v10.build.sd_soc=nrf54l05
+nu54dk.menu.softdevice.s145v10.build.sd_version=10.0.1
+nu54dk.menu.softdevice.s145v10.build.sd_define=S145
+nu54dk.menu.softdevice.s145v10.build.ldscript=nrf54l05_s145_v10.ld
+
+# ── 업로드 방식 ───────────────────────────────────────────────────────
 nu54dk.menu.upload_method.cmsisdap=CMSIS-DAP (probe-rs)
 nu54dk.menu.upload_method.cmsisdap.upload.protocol=probers
 nu54dk.menu.upload_method.cmsisdap.upload.tool=probers
@@ -67,5 +139,4 @@ nu54dk.menu.debug.l1.build.debug_flags=-DCFG_DEBUG=1
 nu54dk.menu.debug.l2=Level 2 (Full)
 nu54dk.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
 
-# 부트로더 굽기 자리 (M4 이전에는 SoftDevice 굽기로 쓴다)
 nu54dk.bootloader.tool=bootburn
