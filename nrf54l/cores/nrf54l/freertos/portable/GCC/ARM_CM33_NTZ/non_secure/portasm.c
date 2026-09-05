@@ -517,6 +517,16 @@ void vClearInterruptMask( __attribute__( ( unused ) ) uint32_t ulMask ) /* __att
 #endif /* configENABLE_MPU */
 /*-----------------------------------------------------------*/
 
+/* [baram-nrf54l-arduino 패치] ------------------------------------------
+ * configOVERRIDE_SVC_HANDLER 가 정의되면 이 포트의 SVC_Handler 를 빌드하지
+ * 않는다. nRF54L 에서는 SoftDevice 도 SVC 를 쓰므로, 코어가
+ * cores/nrf54l/nordic/sd_svc_dispatch.S 에서 자체 SVC_Handler 를 정의해
+ * SVC 번호로 분기한다 (0x00~0x0F -> vPortSVCHandler_C, 그 이상 -> SoftDevice).
+ * 근거: CLAUDE.md §7 F1, freertos/PATCHES.md
+ * 원본 코드는 지우지 않고 조건부로만 감쌌다.
+ * -------------------------------------------------------------------- */
+#if !defined( configOVERRIDE_SVC_HANDLER )
+
 #if ( ( configENABLE_MPU == 1 ) && ( configUSE_MPU_WRAPPERS_V1 == 0 ) )
 
     void SVC_Handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
@@ -574,3 +584,5 @@ void vClearInterruptMask( __attribute__( ( unused ) ) uint32_t ulMask ) /* __att
 
 #endif /* ( configENABLE_MPU == 1 ) && ( configUSE_MPU_WRAPPERS_V1 == 0 ) */
 /*-----------------------------------------------------------*/
+
+#endif /* !defined( configOVERRIDE_SVC_HANDLER ) — [baram 패치] */
