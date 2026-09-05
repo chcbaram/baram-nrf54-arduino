@@ -1,0 +1,26 @@
+# BARAM nRF54L Boards — programmers.txt
+# SPDX-License-Identifier: MIT
+#
+# 일반 업로드(Tools > Upload)는 여기를 타지 않는다.
+# mass erase 나 SoftDevice 굽기처럼 파괴적인 동작을 별도로 분리해 둔 것이다
+# (CLAUDE.md §3: "일반 업로드는 mass erase 나 recover 를 자동 실행하지 않는다").
+
+# ── SoftDevice 굽기 ───────────────────────────────────────────────────
+# Tools > Burn Bootloader 로 실행된다. RRAM 상단의 SoftDevice 파티션에
+# S145 hex 를 쓴다. 애플리케이션 영역(0x0~)은 건드리지 않는다.
+sd_burn.name=Burn SoftDevice (probe-rs)
+sd_burn.program.tool=bootburn
+sd_burn.program.tool.default=bootburn
+sd_burn.program.extra_params=
+sd_burn.program.burn_pattern="{probers.path}/probe-rs" download --chip {build.chip_probers} --binary-format hex --non-interactive --disable-progressbars --verify "{sd.hex}"
+sd_burn.program.pattern="{probers.path}/probe-rs" download {probers.opts} "{build.path}/{build.project_name}.hex"
+
+# ── 전체 지우기 / 복구 ────────────────────────────────────────────────
+# ⚠ SoftDevice 를 포함해 RRAM 전체가 지워진다. 굽기 전에 SoftDevice 를
+#   다시 써야 BLE 가 동작한다. APPROTECT 로 잠긴 칩을 되살릴 때도 쓴다.
+mass_erase.name=Mass erase / recover (probe-rs)
+mass_erase.program.tool=bootburn
+mass_erase.program.tool.default=bootburn
+mass_erase.program.extra_params=
+mass_erase.program.burn_pattern="{probers.path}/probe-rs" erase --chip {build.chip_probers} --non-interactive --allow-erase-all
+mass_erase.program.pattern="{probers.path}/probe-rs" erase --chip {build.chip_probers} --non-interactive --allow-erase-all

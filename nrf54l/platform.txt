@@ -1,0 +1,164 @@
+# BARAM nRF54L Boards — platform.txt
+# SPDX-License-Identifier: MIT
+#
+# 지원 보드: NU54-DK (nRF54L15)
+# 베이스: nrfconnect/sdk-nrf-bm v2.0.1 (베어메탈) + SoftDevice S145 v10.0.1 + FreeRTOS
+# 설계 근거는 저장소 루트 CLAUDE.md 를 볼 것.
+
+name=BARAM nRF54L Boards
+version=0.1.0
+
+# ─────────────────────────────────────────────────────────────────────
+# 경로
+# ─────────────────────────────────────────────────────────────────────
+tool_suffix.windows=.exe
+
+toolchain.path={runtime.tools.xpack-arm-none-eabi-gcc-14.2.1-1.1.path}
+probers.path={runtime.tools.probe-rs-0.32.0.path}/bin
+
+nordic.path={build.core.path}/nordic
+rtos.path={build.core.path}/freertos
+# SoftDevice 헤더 경로는 boards.txt 의 sd_name / sd_soc / sd_version 으로 조립한다.
+# 나중에 S115를 추가할 때 boards.txt 한 줄만 늘리면 되게 하기 위함.
+sd.path={nordic.path}/softdevice/{build.sd_name}_{build.sd_soc}_{build.sd_version}_API/include
+sd.hex={runtime.platform.path}/softdevice/{build.sd_name}_{build.sd_soc}_{build.sd_version}_softdevice.hex
+
+# ─────────────────────────────────────────────────────────────────────
+# 컴파일러
+# ─────────────────────────────────────────────────────────────────────
+compiler.path={toolchain.path}/bin/
+compiler.c.cmd=arm-none-eabi-gcc
+compiler.cpp.cmd=arm-none-eabi-g++
+compiler.S.cmd=arm-none-eabi-gcc
+compiler.ar.cmd=arm-none-eabi-gcc-ar
+compiler.objcopy.cmd=arm-none-eabi-objcopy
+compiler.elf2hex.cmd=arm-none-eabi-objcopy
+compiler.size.cmd=arm-none-eabi-size
+
+compiler.warning_flags=-Werror=return-type
+compiler.warning_flags.none=-Werror=return-type
+compiler.warning_flags.default=-Werror=return-type
+compiler.warning_flags.more=-Wall -Werror=return-type
+compiler.warning_flags.all=-Wall -Wextra -Werror=return-type -Wno-unused-parameter -Wno-missing-field-initializers
+
+compiler.optimization_flag=-Os
+
+# nRF54L15 = Cortex-M33 + FPU(single precision). TrustZone 미사용 (CLAUDE.md R5)
+build.mcu=cortex-m33
+build.float_flags=-mfloat-abi=hard -mfpu=fpv5-sp-d16
+build.f_cpu=128000000
+
+# 스택/힙 (링커 스크립트 주석 참조)
+#   MSP 는 ISR 과 SoftDevice 전용. FreeRTOS 태스크 스택은 힙에서 잡는다.
+#   __HEAP_SIZE=0 으로 MDK 의 고정 .heap 블록을 비우고,
+#   _sbrk 가 __HeapBase ~ __StackLimit 전체를 힙으로 쓴다.
+build.stack_size=2048
+build.heap_size=0
+
+# include 경로
+compiler.nrf.includes="-I{build.core.path}" "-I{build.core.path}/avr" "-I{build.variant.path}" "-I{nordic.path}" "-I{nordic.path}/nrfx" "-I{nordic.path}/nrfx/drivers/include" "-I{nordic.path}/bsp" "-I{nordic.path}/bsp/mdk" "-I{nordic.path}/cmsis/Include" "-I{sd.path}" "-I{rtos.path}/include" "-I{rtos.path}/config" "-I{rtos.path}/portable/GCC/ARM_CM33_NTZ/non_secure"
+
+# 공통 define
+#   NRF_APPLICATION : nRF54L15 는 application 코어와 FLPR 코어가 있다. FLPR 은 범위 밖 (CLAUDE.md R6)
+#   SOFTDEVICE_PRESENT / S145 : SoftDevice 공존 코드 경로
+compiler.nrf.defines=-D{build.chip} -DNRF_APPLICATION -DSOFTDEVICE_PRESENT -D{build.sd_define} -D__STACK_SIZE={build.stack_size} -D__HEAP_SIZE={build.heap_size}
+
+build.flags.nrf={compiler.nrf.defines} {compiler.nrf.includes} {build.extra_flags}
+
+compiler.common.flags=-mcpu={build.mcu} -mthumb {build.float_flags} -c -g {compiler.warning_flags} {compiler.optimization_flag} -ffunction-sections -fdata-sections -fmessage-length=0 -MMD
+
+compiler.c.flags={compiler.common.flags} -std=gnu17
+compiler.cpp.flags={compiler.common.flags} -std=gnu++17 -fno-rtti -fno-exceptions -fno-threadsafe-statics -fno-use-cxa-atexit
+compiler.S.flags=-mcpu={build.mcu} -mthumb {build.float_flags} -c -g -x assembler-with-cpp -MMD
+compiler.ar.flags=rcs
+compiler.objcopy.eep.flags=-O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0
+compiler.elf2hex.flags=-O ihex
+compiler.elf2bin.flags=-O binary
+
+compiler.ldflags=-mcpu={build.mcu} -mthumb {build.float_flags} {compiler.optimization_flag} --specs=nano.specs --specs=nosys.specs -Wl,--gc-sections -Wl,--no-warn-rwx-segments -Wl,--warn-common
+compiler.size.flags=-A
+
+# platform.local.txt 훅
+compiler.c.extra_flags=
+compiler.cpp.extra_flags=
+compiler.S.extra_flags=
+compiler.ar.extra_flags=
+compiler.objcopy.eep.extra_flags=
+compiler.elf2hex.extra_flags=
+compiler.ldflags.extra_flags=
+
+# ─────────────────────────────────────────────────────────────────────
+# 레시피
+# ─────────────────────────────────────────────────────────────────────
+recipe.c.o.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} '-DARDUINO_BSP_VERSION="{version}"' {compiler.c.extra_flags} {includes} "{source_file}" -o "{object_file}"
+recipe.cpp.o.pattern="{compiler.path}{compiler.cpp.cmd}" {compiler.cpp.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} '-DARDUINO_BSP_VERSION="{version}"' {compiler.cpp.extra_flags} {includes} "{source_file}" -o "{object_file}"
+recipe.S.o.pattern="{compiler.path}{compiler.S.cmd}" {compiler.S.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.S.extra_flags} {includes} "{source_file}" -o "{object_file}"
+
+recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} {compiler.ar.extra_flags} "{archive_file_path}" "{object_file}"
+
+recipe.c.combine.pattern="{compiler.path}{compiler.c.cmd}" {compiler.ldflags} {compiler.ldflags.extra_flags} -T"{build.variant.path}/{build.ldscript}" -L"{build.core.path}/linker" -L"{nordic.path}/bsp/mdk/common" -Wl,-Map,"{build.path}/{build.project_name}.map" -Wl,--entry=Reset_Handler -o "{build.path}/{build.project_name}.elf" {object_files} -Wl,--start-group "{build.path}/{archive_file}" {compiler.libraries.ldflags} -lm -lstdc++ -Wl,--end-group
+
+recipe.objcopy.hex.pattern="{compiler.path}{compiler.elf2hex.cmd}" {compiler.elf2hex.flags} {compiler.elf2hex.extra_flags} "{build.path}/{build.project_name}.elf" "{build.path}/{build.project_name}.hex"
+recipe.objcopy.bin.pattern="{compiler.path}{compiler.objcopy.cmd}" {compiler.elf2bin.flags} "{build.path}/{build.project_name}.elf" "{build.path}/{build.project_name}.bin"
+
+recipe.size.pattern="{compiler.path}{compiler.size.cmd}" -A "{build.path}/{build.project_name}.elf"
+recipe.size.regex=^(?:\.vectors|\.text|\.rodata|\.ARM\.exidx|\.copy\.table|\.zero\.table|\.data)\s+([0-9]+).*
+recipe.size.regex.data=^(?:\.data|\.bss|\.noinit)\s+([0-9]+).*
+
+build.preferred_out_format=hex
+recipe.output.tmp_file={build.project_name}.hex
+recipe.output.save_file={build.project_name}.{build.board}.hex
+
+# ─────────────────────────────────────────────────────────────────────
+# 업로드 — probe-rs 단독 (CLAUDE.md §3)
+# ─────────────────────────────────────────────────────────────────────
+#   --non-interactive       : IDE 에서 프로브 선택 프롬프트가 뜨면 업로드가 멈춘다
+#   --disable-progressbars  : IDE 콘솔은 \r 를 해석하지 못해 진행바가 쓰레기로 찍힌다
+#   --verify                : RRAM 쓰기 후 읽어 검증
+#   --reset                 : 쓰기 후 리셋해 스케치를 바로 실행
+#   probe-rs 하나가 CMSIS-DAP 과 J-Link 를 모두 지원하므로 툴이 하나로 끝난다.
+probers.opts=--chip {build.chip_probers} --binary-format hex --non-interactive --disable-progressbars --verify --reset
+
+# 1) CMSIS-DAP / 자동 프로브 선택 (기본)
+tools.probers.path={probers.path}
+tools.probers.cmd=probe-rs
+tools.probers.cmd.windows=probe-rs.exe
+tools.probers.upload.params.verbose=
+tools.probers.upload.params.quiet=
+tools.probers.upload.pattern="{path}/{cmd}" download {probers.opts} "{build.path}/{build.project_name}.hex"
+
+# 2) 프로브 UID 지정 — 프로브가 여러 대 꽂혀 있을 때 (CLAUDE.md §3)
+#    IDE 가 값을 입력받아 {upload.field.probe_id} 로 치환한다.
+#    형식은 VID:PID 또는 VID:PID:Serial. `probe-rs list` 로 확인할 수 있다.
+tools.probers_uid.path={probers.path}
+tools.probers_uid.cmd=probe-rs
+tools.probers_uid.cmd.windows=probe-rs.exe
+tools.probers_uid.upload.params.verbose=
+tools.probers_uid.upload.params.quiet=
+tools.probers_uid.upload.field.probe_id=Probe UID (VID:PID[:Serial])
+tools.probers_uid.upload.pattern="{path}/{cmd}" download {probers.opts} --probe "{upload.field.probe_id}" "{build.path}/{build.project_name}.hex"
+
+# 3) programmers.txt 위임 — SoftDevice 굽기 / mass erase
+#    일반 업로드에서 erase 가 자동 실행되지 않도록 분리해 둔다 (CLAUDE.md §3).
+tools.bootburn.path={probers.path}
+tools.bootburn.cmd=probe-rs
+tools.bootburn.cmd.windows=probe-rs.exe
+tools.bootburn.bootloader.params.verbose=
+tools.bootburn.bootloader.params.quiet=
+tools.bootburn.bootloader.pattern={program.burn_pattern}
+tools.bootburn.erase.params.verbose=
+tools.bootburn.erase.params.quiet=
+tools.bootburn.erase.pattern=
+tools.bootburn.upload.params.verbose=
+tools.bootburn.upload.params.quiet=
+tools.bootburn.upload.pattern={program.pattern}
+
+# ─────────────────────────────────────────────────────────────────────
+# 디버그
+# ─────────────────────────────────────────────────────────────────────
+debug.executable={build.path}/{build.project_name}.elf
+debug.toolchain=gcc
+debug.toolchain.path={toolchain.path}/bin/
+debug.toolchain.prefix=arm-none-eabi-
+debug.server=probe-rs
+debug.server.probe-rs.path={probers.path}/probe-rs
