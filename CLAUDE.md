@@ -646,6 +646,48 @@ BLE 는 보통 ±250 ppm 이하를 요구하므로 **RC 로는 M3 에서 연결�
 
 ---
 
+### F13. Arduino 빌드 시스템 함정 — **수동 빌드로는 절대 안 드러난다**
+
+`arduino-cli` 로 실제 업로드해 보고서야 잡은 것들이다.
+`.o` 를 직접 링크하는 수동 빌드에서는 전부 정상이었다.
+
+#### ① weak 심볼 오버라이드가 아카이브 경계를 넘지 못한다 — **가장 위험**
+
+Arduino 는 `cores/` 전체를 **`core.a` 아카이브**로 묶는다.
+MDK 스타트업은 벡터 테이블과 **weak 기본 핸들러를 같은 오브젝트에** 정의한다.
+그 오브젝트가 링크되는 순간 `SVC_Handler` 등이 이미 정의된 상태가 되고,
+**아카이브 멤버는 "미해결 심볼"이 있을 때만 추출**되므로 우리의 강한 정의는
+영영 링크되지 않는다.
+
+증상: **빌드는 성공하는데** SVC 가 `Default_Handler` 로 가서 FreeRTOS 가
+시작조차 못 한다. 폴트도 안 나고 로그도 없고 LED 도 안 켜진다.
+`nm` 으로 보면 우리 심볼(`g_fault` 등)이 ELF 에 아예 없다.
+
+→ `platform.txt` 의 링크 recipe 에서 **`-Wl,--whole-archive`** 로 core.a 를 감쌌다.
+  `-ffunction-sections` + `--gc-sections` 이 있어 크기 손해는 거의 없다.
+
+**진단법**: 링크 후 `nm <elf> | grep <핸들러>`.
+없거나 `W` 면 미링크다. `T` 여야 한다.
+
+#### ② `cores/` 아래 모든 소스가 무조건 컴파일된다
+
+파일을 빌드에서 빼는 방법이 없다. 그래서:
+- **가드 없는 nrfx 소스**가 빌드를 깨뜨린다 (`nrfx_adc.c` 등 21개 제거)
+- **서로 배타적인 대안 구현**이 중복 정의를 낸다
+  (스타트업 2벌, GPPI 3벌, COMP/LPCOMP 공유 IRQ)
+
+내역과 판정 방법은 `cores/nrf54l/nordic/nrfx/VENDORING.md`.
+
+#### ③ `-T"path"` 가 아니라 `"-Tpath"` 로 써야 한다
+
+arduino-cli 는 recipe 를 셸 없이 토큰 단위로 실행한다.
+`-T"{path}"` 는 **따옴표가 파일명에 포함**되어 `cannot open linker script file` 이 난다.
+`-L` `-I` `-Wl,-Map,` 도 마찬가지다. **인자 전체를 감싸라.**
+
+#### ④ `compiler.libraries.ldflags` 기본값을 선언해야 한다
+
+선언하지 않으면 라이브러리가 없을 때 치환되지 않고 문자열 그대로 링커에 넘어간다.
+
 ---
 
 ## 8. 참조 구현 매핑
@@ -793,8 +835,8 @@ baram-nrf54-arduino/                 # 저장소 루트
 - [x] UART `Serial` — UARTE30, CP2102N 경유 수신 확인
 - [x] `boards.txt` + `platform.txt`에 SWD 업로드 recipe (프로브 UID 지정 옵션 포함)
 - [ ] **tickless idle 켜기** — 틱이 안정된 것을 확인했으므로 이제 진행 가능
-- [ ] **Arduino IDE / arduino-cli 로 업로드** — 지금까지는 probe-rs 를 직접 호출해 검증했다.
-      `platform.txt` 의 recipe 가 실제로 도는지는 아직 확인하지 않았다
+- [x] **arduino-cli 로 컴파일·업로드** — FQBN `baram-nrf54-arduino:nrf54l:nu54dk`.
+      실기 확인 완료. 이 과정에서 §7 F13 의 함정 네 개를 잡았다
 - [ ] 10분 연속 실행 무크래시
 
 실기 검증 기록은 `docs/HIL/M1-nu54dk.md`.

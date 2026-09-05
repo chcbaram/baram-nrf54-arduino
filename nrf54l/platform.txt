@@ -77,8 +77,25 @@ compiler.objcopy.eep.flags=-O ihex -j .eeprom --set-section-flags=.eeprom=alloc,
 compiler.elf2hex.flags=-O ihex
 compiler.elf2bin.flags=-O binary
 
+# ⚠ --whole-archive 가 core.a 에 필요하다 (recipe.c.combine.pattern).
+#
+#   Arduino 는 cores/ 전체를 core.a 아카이브로 묶는다. 그런데 MDK 스타트업은
+#   벡터 테이블과 **weak 기본 핸들러를 같은 오브젝트에** 정의한다. 그 오브젝트가
+#   먼저 링크되는 순간 SVC_Handler / HardFault_Handler 등이 이미 정의된 상태가
+#   되어, 우리의 강한 정의를 담은 아카이브 멤버를 링커가 **끌어오지 않는다.**
+#   (아카이브 멤버는 "미해결 심볼"이 있을 때만 추출된다. weak 정의도 해결로 친다.)
+#
+#   증상: 빌드는 성공하는데 SVC 가 Default_Handler 로 가서 FreeRTOS 가 시작조차
+#   못 한다. 폴트도 안 나고 로그도 없다. 실기에서 겪었다.
+#
+#   .o 를 직접 링크하면 강한 정의가 이기므로 수동 빌드에서는 드러나지 않는다.
+#   -ffunction-sections + --gc-sections 이 있어 크기 손해는 거의 없다.
 compiler.ldflags=-mcpu={build.mcu} -mthumb {build.float_flags} {compiler.optimization_flag} --specs=nano.specs --specs=nosys.specs -Wl,--gc-sections -Wl,--no-warn-rwx-segments -Wl,--warn-common
 compiler.size.flags=-A
+
+# arduino-cli 가 라이브러리 링크 플래그를 여기에 넣는다.
+# 기본값을 선언하지 않으면 라이브러리가 없을 때 치환되지 않고 그대로 남는다.
+compiler.libraries.ldflags=
 
 # platform.local.txt 훅
 compiler.c.extra_flags=
@@ -98,7 +115,7 @@ recipe.S.o.pattern="{compiler.path}{compiler.S.cmd}" {compiler.S.flags} {build.f
 
 recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} {compiler.ar.extra_flags} "{archive_file_path}" "{object_file}"
 
-recipe.c.combine.pattern="{compiler.path}{compiler.c.cmd}" {compiler.ldflags} {compiler.ldflags.extra_flags} -T"{build.variant.path}/{build.ldscript}" -L"{build.core.path}/linker" -L"{nordic.path}/bsp/mdk/common" -Wl,-Map,"{build.path}/{build.project_name}.map" -Wl,--entry=Reset_Handler -o "{build.path}/{build.project_name}.elf" {object_files} -Wl,--start-group "{build.path}/{archive_file}" {compiler.libraries.ldflags} -lm -lstdc++ -Wl,--end-group
+recipe.c.combine.pattern="{compiler.path}{compiler.c.cmd}" {compiler.ldflags} {compiler.ldflags.extra_flags} "-T{build.core.path}/linker/{build.ldscript}" "-L{build.core.path}/linker" "-L{nordic.path}/bsp/mdk/common" "-Wl,-Map,{build.path}/{build.project_name}.map" -Wl,--entry=Reset_Handler -o "{build.path}/{build.project_name}.elf" {object_files} -Wl,--start-group -Wl,--whole-archive "{build.path}/{archive_file}" -Wl,--no-whole-archive {compiler.libraries.ldflags} -lm -lstdc++ -Wl,--end-group
 
 recipe.objcopy.hex.pattern="{compiler.path}{compiler.elf2hex.cmd}" {compiler.elf2hex.flags} {compiler.elf2hex.extra_flags} "{build.path}/{build.project_name}.elf" "{build.path}/{build.project_name}.hex"
 recipe.objcopy.bin.pattern="{compiler.path}{compiler.objcopy.cmd}" {compiler.elf2bin.flags} "{build.path}/{build.project_name}.elf" "{build.path}/{build.project_name}.bin"
