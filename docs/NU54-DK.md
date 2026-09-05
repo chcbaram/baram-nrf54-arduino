@@ -1,7 +1,16 @@
-# NU54-DK (nRF54L15)
+# NU54-DK (nRF54L05) / NU54V-DK (nRF54L15)
 
 회로도 `NU54_DK.SchDoc` / `NU54_Power.SchDoc` (2025-10-01, edited 2025-10-16) 분석 결과.
-MCU 모듈: **NCRB54N01VC** (nRF54L15, 62핀).
+MCU 모듈: **NCRB54N01VC** (62핀).
+
+**두 보드는 이 문서의 핀 배정을 그대로 공유한다.** 실장 모듈만 다르고
+회로도·핀맵이 동일해서 Arduino variant 도 `variants/nu54dk` 하나를 같이 쓴다.
+차이는 메모리 크기뿐이며 [MEMORY-MAP.md](MEMORY-MAP.md) 에 정리돼 있다.
+
+| | NU54-DK | NU54V-DK |
+|---|---|---|
+| 칩 | nRF54L05 (500KB RRAM / 96KB RAM) | nRF54L15 (1.5MB RRAM / 256KB RAM) |
+| FQBN | `baram-nrf54-arduino:nrf54l:nu54dk` | `baram-nrf54-arduino:nrf54l:nu54vdk` |
 
 > **핵심**: LED / 버튼 / UART 핀이 **Nordic nRF54L15 DK와 완전히 동일**하다.
 > sdk-nrf-bm `boards/nordic/bm_nrf54l15dk/include/board-config.h`와 1:1로 일치하므로

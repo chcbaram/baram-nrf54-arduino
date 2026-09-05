@@ -169,6 +169,27 @@ void vPortSetupTimerInterrupt(void)
     err = nrfx_grtc_channel_alloc(&m_tick_channel.channel);
     configASSERT(err == 0);
 
+    /*
+     * SYSCOUNTER 가 슬립 중에도 돌게 요청해 둔다.
+     *
+     * nrfx_grtc_init() 은 NRFX_GRTC_CONFIG_AUTOEN 이 꺼져 있으면
+     * MODE.AUTOEN = 0 으로 두므로(실측 MODE = 0x02) 어차피 자동 슬립은
+     * 하지 않는다. 이 호출은 그 위에 도메인별 SYSCOUNTER[n].ACTIVE 요청을
+     * 얹는 것이라 지금 구성에서는 사실상 중복이다.
+     *
+     * ⚠ 예전 주석에 "이걸 빼면 틱이 절반 속도로 돌았다"고 적혀 있었는데
+     *   그 측정은 §7 F9 (BASEPRI 로 WFI 가 안 깨던 버그) 때문에 오염된
+     *   값이었다. F9 를 고친 뒤로는 이 호출 없이도 틱이 정확하다.
+     *   다만 전력 측정을 아직 안 했으므로 지금은 남겨 둔다.
+     *   전류 측정 단계(§4.6)에서 빼 보고 차이를 확인한 뒤 결정한다.
+     *
+     * 실측 확인: SYSCOUNTER 는 슬립 중에도 실시간을 따라간다
+     * (SWD 로 6 초 간격 두 번 읽어 100.3%, 오차는 호스트 지연).
+     */
+#if ( configUSE_TICKLESS_IDLE == 1 )
+    nrfx_grtc_active_request_set(true);
+#endif
+
     nrfx_grtc_channel_callback_set(m_tick_channel.channel, grtc_tick_handler, NULL);
 
     /* micros() 의 기준점. 여기부터 0 으로 센다. */
@@ -206,17 +227,45 @@ uint64_t nrf54l_syscounter_us(void)
 #if ( configUSE_TICKLESS_IDLE == 1 )
 
 /*
- * ⚠ 크리티컬 섹션에 PRIMASK 를 쓰지 마라 (CLAUDE.md §7 F9).
+ * ⚠⚠ WFI 를 BASEPRI 로 마스킹한 채 실행하면 안 된다. 실기에서 잡은 문제다.
  *
- * Adafruit 는 sd_nvic_critical_region_enter() 로 감싸는데 그 API 는
- * S145 에 없고, __disable_irq()(PRIMASK)로 대체하면 SoftDevice 의
- * 우선순위 0 zero-latency IRQ(RADIO_0/TIMER10/GRTC_3)까지 막혀
- * 라디오 타이밍이 깨진다.
+ * ARM 사양의 WFI 기상 조건은 PRIMASK 는 무시하지만 **BASEPRI 와 인터럽트
+ * 인에이블은 무시하지 않는다** (ARMv7-M ARM B1.5.19 / ARMv8-M 동일):
  *
- * BASEPRI 를 우선순위 1 로 올린다:
- *   - 우선순위 0(SD zero-latency)은 계속 서비스됨 → 라디오 안전
- *   - 1~7 은 마스크됨 → eTaskConfirmSleepModeStatus() 와 WFI 사이의 레이스 차단
- *   - SD 의 우선순위 4 IRQ 는 pending 이 되어 CPU 를 깨우고, 복구 후 처리됨
+ *   "the assertion of an asynchronous exception that has sufficient priority
+ *    to cause exception entry when the value of PRIMASK is 0. This means the
+ *    value of PRIMASK does not affect whether an asynchronous exception is a
+ *    WFI wake-up event, but the values of FAULTMASK, BASEPRI, and the
+ *    exception enables do affect this."
+ *
+ * 즉 BASEPRI 로 가린 인터럽트는 **CPU 를 깨우지 못한다.** 틱 CC 는 커널
+ * 우선순위 7 이라 BASEPRI=0x20 에 가려지고, 그러면 슬립에서 영영 안 깬다.
+ * FreeRTOS 의 표준 ARM_CM 포트가 이 함수에서만 `cpsid i`(PRIMASK)를 쓰는
+ * 이유가 바로 이것이다.
+ *
+ *   실측 증상: 틱이 25~250 tick/s 로 떨어지고 Serial 이 죽는다. 폴트도
+ *   assert 도 없다. 계측해 보면 WFI 한 번이 수 초씩 지속되고
+ *   (max_elapsed 8.1 s, xExpectedIdleTime 은 500 ms), CC 기상 횟수가 거의 0 이다.
+ *   실제로 깨우는 것은 디버거 attach 뿐이다.
+ *   격리 시험으로 함수 본문을 __WFI() 하나로 줄이면 정확히 1000 tick/s 로 돈다.
+ *
+ * ── 그래서 두 마스크를 나눠 쓴다 ──────────────────────────────────────
+ *
+ * BASEPRI(우선순위 1)  : eTaskConfirmSleepModeStatus() ~ CC 장전 구간과
+ *                        기상 후 틱 보정 구간. 애플리케이션 IRQ 만 막고
+ *                        SoftDevice 의 우선순위 0 zero-latency IRQ
+ *                        (RADIO_0/TIMER10/GRTC_3)는 계속 서비스된다
+ *                        → 라디오 타이밍 안전 (CLAUDE.md §7 F2/F9)
+ * PRIMASK             : WFI 전후 몇 명령어 구간만. 이 구간에서는 BASEPRI 를
+ *                        0 으로 내려야 CC 가 CPU 를 깨울 수 있고, PRIMASK 가
+ *                        대신 레이스를 막아 준다. PRIMASK 는 기상을 막지 않는다.
+ *
+ * SD 우선순위 0 IRQ 가 지연되는 구간은 WFI 기상 직후 PRIMASK 를 푸는 데
+ * 걸리는 몇 명령어뿐이다. 이보다 짧게 만들 방법은 없다.
+ *
+ * (Adafruit 는 sd_nvic_critical_region_enter() 로 감싸지만 그 API 는 S145 에
+ *  없다. nRF52 의 SoftDevice 는 NVIC 를 가상화해서 앱 인터럽트만 가릴 수
+ *  있었고, nRF54L 은 앱이 NVIC 를 직접 소유하므로 그 방법 자체가 없다.)
  */
 #define SLEEP_BASEPRI ( 1U << ( 8U - configPRIO_BITS ) )
 
@@ -227,18 +276,15 @@ uint64_t nrf54l_syscounter_us(void)
 
 void vPortSuppressTicksAndSleep(TickType_t xExpectedIdleTime)
 {
-    uint64_t enter_cnt;
-    uint64_t wake_cc;
-    uint32_t prev_basepri;
+    uint64_t   grid_next, target, exit_cnt;
+    uint32_t   prev_basepri;
     TickType_t completed_ticks;
 
-    /* BASEPRI 로 애플리케이션 인터럽트만 막는다. PRIMASK 아님. */
+    /* 애플리케이션 IRQ 만 막는다. 여기서는 아직 PRIMASK 를 쓰지 않는다. */
     prev_basepri = __get_BASEPRI();
     __set_BASEPRI_MAX(SLEEP_BASEPRI);
     __DSB();
     __ISB();
-
-    enter_cnt = nrfx_grtc_syscounter_get();
 
     if (eTaskConfirmSleepModeStatus() == eAbortSleep)
     {
@@ -246,58 +292,101 @@ void vPortSuppressTicksAndSleep(TickType_t xExpectedIdleTime)
         return;
     }
 
-    /* 기상 시점을 절대값으로 장전한다. 64비트라 래핑 걱정이 없다. */
-    wake_cc = enter_cnt + (uint64_t)xExpectedIdleTime * GRTC_CYCLES_PER_TICK;
+    /*
+     * ── 틱 그리드 ─────────────────────────────────────────────────────
+     * m_last_cc 는 "다음 틱의 절대 시각"이고 항상 1 ms 그리드 위에 있다.
+     * 슬립 후에도 이 그리드를 유지해야 한다.
+     *
+     * ⚠ 기상 시각(exit_cnt) 기준으로 다음 CC 를 잡으면 매 슬립마다
+     *   1 틱 미만의 나머지가 버려져 millis() 가 조금씩 느려진다.
+     *   실측: +253 ppm. LFXO 로 잡아 둔 +25 ppm 을 통째로 날린다.
+     */
+    grid_next = m_last_cc;
 
-    {
-        /* CC 를 미래로 미루는 경우 직전 CC 가 가까우면 safe 절차가 필요하다. */
-        bool safe = (m_last_cc > enter_cnt) &&
-                    ((m_last_cc - enter_cnt) < CC_SAFE_SET_THRESHOLD_CYCLES);
-        nrfx_grtc_syscounter_cc_abs_set(m_tick_channel.channel, wake_cc, safe);
-        m_last_cc = wake_cc;
-    }
+    /* xExpectedIdleTime 틱만큼 재우려면 (n-1) 틱 뒤 그리드에서 깨면 된다.
+     * 마지막 틱은 여기 아래에서 vTaskStepTick() 으로 우리가 센다. */
+    target = grid_next + (uint64_t)(xExpectedIdleTime - 1U) * GRTC_CYCLES_PER_TICK;
 
+    /*
+     * ── 슬립 구간 동안 틱 인터럽트를 끈다 ──────────────────────────────
+     * 끄지 않으면 CC 만료로 GRTC ISR 이 pending 이 되고, 마스크를 푸는
+     * 순간 실행되어 xTaskIncrementTick() 과 CC 재장전을 또 한다.
+     * 우리가 하는 보정과 이중으로 겹친다.
+     */
+    (void) nrfx_grtc_syscounter_cc_int_disable(m_tick_channel.channel);
+
+    /* CC 를 뒤로 미루는 경우라 safe 절차를 쓴다 (가짜 COMPARE 방지). */
+    nrfx_grtc_syscounter_cc_abs_set(m_tick_channel.channel, target, true);
+    (void) nrfx_grtc_syscounter_cc_int_enable(m_tick_channel.channel);
+
+    /*
+     * ── 슬립 ──────────────────────────────────────────────────────────
+     * PRIMASK 를 걸고 BASEPRI 를 0 으로 내린다. 순서가 중요하다:
+     * BASEPRI 가 남아 있으면 틱 CC 가 WFI 를 깨우지 못한다 (위 설명 참조).
+     * PRIMASK 가 걸려 있으므로 그 사이 인터럽트가 실행되지는 않는다.
+     *
+     * NVIC->ISPR 폴링은 하지 않는다. WFI 가 알아서 깨고,
+     * nRF54L 은 IRQ 가 269번까지 있어 Adafruit 의 ISPR[0]|ISPR[1]
+     * 관용구는 애초에 쓸 수 없다.
+     */
+    __disable_irq();
+    __set_BASEPRI(0U);
     __DSB();
+    __ISB();
 
-    /* BASEPRI 로 마스크된 인터럽트도 pending 이 되면 WFI 를 깨운다.
-     * Adafruit 처럼 NVIC->ISPR 를 폴링할 필요가 없고, nRF54L15 는 IRQ 가
-     * 269번까지 있어 ISPR[0]|ISPR[1] 관용구가 애초에 틀린다. */
     __WFI();
 
-    /* 실제로 얼마나 잤는지 SYSCOUNTER 차로 계산한다. */
-    {
-        uint64_t exit_cnt = nrfx_grtc_syscounter_get();
-        uint64_t elapsed  = exit_cnt - enter_cnt;
+    /* 기상. 틱 보정 동안 애플리케이션 IRQ 를 다시 막고 PRIMASK 를 푼다.
+     * 이 순서라야 SoftDevice 의 우선순위 0 핸들러가 곧바로 실행된다. */
+    __set_BASEPRI_MAX(SLEEP_BASEPRI);
+    __DSB();
+    __ISB();
+    __enable_irq();
 
-        completed_ticks = (TickType_t)(elapsed / GRTC_CYCLES_PER_TICK);
+    exit_cnt = nrfx_grtc_syscounter_get();
+
+    /* 다시 끄고 밀린 인터럽트를 버린다. 틱은 아래에서 우리가 센다. */
+    (void) nrfx_grtc_syscounter_cc_int_disable(m_tick_channel.channel);
+    NVIC_ClearPendingIRQ(GRTC_IRQn);
+
+    /* 그리드를 몇 칸 지났는가. grid_next 를 지났으면 최소 1 틱이다. */
+    if (exit_cnt >= grid_next)
+    {
+        completed_ticks =
+            (TickType_t)(1U + (exit_cnt - grid_next) / GRTC_CYCLES_PER_TICK);
         if (completed_ticks > xExpectedIdleTime)
         {
             completed_ticks = xExpectedIdleTime;
         }
     }
-
-    /* 다음 틱을 다시 정상 주기로 건다. */
-    m_last_cc = nrfx_grtc_syscounter_get() + GRTC_CYCLES_PER_TICK;
-    nrfx_grtc_syscounter_cc_abs_set(m_tick_channel.channel, m_last_cc, true);
-
-    /* 틱 카운트 보정.
-     * 마지막 1틱은 xTaskIncrementTick() 으로 처리해 스케줄링이 걸리게 한다.
-     * Nordic 이 vTaskDelay 1ms 스핀 낭비를 고치려 넣은 패턴이다
-     * (DevZone 63828). */
-    if (completed_ticks > 1)
+    else
     {
-        vTaskStepTick(completed_ticks - 1);
-        if (xTaskIncrementTick() != pdFALSE)
-        {
-            portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
-        }
+        /* CC 가 아니라 다른 인터럽트가 일찍 깨웠다. 아직 한 틱도 안 지났다. */
+        completed_ticks = 0U;
     }
-    else if (completed_ticks == 1)
+
+    /* 다음 틱을 그리드 위에서 재장전한다. 나머지가 버려지지 않는다. */
+    m_last_cc = grid_next + (uint64_t)completed_ticks * GRTC_CYCLES_PER_TICK;
+    if (m_last_cc <= exit_cnt)
     {
-        if (xTaskIncrementTick() != pdFALSE)
-        {
-            portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
-        }
+        /* 예상보다 오래 잤다(보정이 상한에 걸렸다). 그리드를 다시 잡는다. */
+        m_last_cc = exit_cnt + GRTC_CYCLES_PER_TICK;
+    }
+    nrfx_grtc_syscounter_cc_abs_set(m_tick_channel.channel, m_last_cc, true);
+    (void) nrfx_grtc_syscounter_cc_int_enable(m_tick_channel.channel);
+
+    /*
+     * 건너뛴 틱을 한 번에 보정한다.
+     *
+     * ⚠ vTaskStepTick() 만 쓴다. xTaskIncrementTick() 을 같이 부르면 안 된다.
+     *   FreeRTOS 표준 tickless 패턴이 이렇다 — 아이들 태스크가 이 함수에서
+     *   돌아온 뒤 xTaskResumeAll() 을 부르고, 거기서 스케줄링이 처리된다.
+     *   (Adafruit 의 nRF52 포트는 둘 다 부르는데, 그쪽은 RTC1 이 계속 도는
+     *    전제라서 가능한 것이고 여기 그대로 옮기면 이중 계산이 된다.)
+     */
+    if (completed_ticks > 0U)
+    {
+        vTaskStepTick(completed_ticks);
     }
 
     __set_BASEPRI(prev_basepri);

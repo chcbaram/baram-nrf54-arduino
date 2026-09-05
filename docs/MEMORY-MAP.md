@@ -1,4 +1,31 @@
-# 메모리 맵 — NU54-DK (nRF54L15)
+# 메모리 맵 — NU54-DK (nRF54L05) / NU54V-DK (nRF54L15)
+
+두 보드는 회로도·핀맵이 동일하고 실장 모듈만 다르다. 메모리 배치만 다르므로
+링커 스크립트와 SoftDevice hex 를 보드별로 나눠 둔다.
+
+| | NU54-DK | NU54V-DK |
+|---|---|---|
+| 칩 | **nRF54L05** | nRF54L15 |
+| FQBN | `baram-nrf54-arduino:nrf54l:nu54dk` | `...:nu54vdk` |
+| RRAM | 500 KB | 1.5 MB |
+| RAM | 96 KB | 256 KB |
+| 링커 | `nrf54l05_s145_v10.ld` | `nrf54l15_s145_v10.ld` |
+| SD hex | `s145_nrf54l05_...` (@0x5A800) | `s145_nrf54l15_...` (@0x15A800) |
+
+> ⚠ **nRF54L05 는 nRF54L15 와 같은 다이를 비닝한 것이다.**
+> 사양 밖 RRAM/RAM 이 물리적으로 존재해서, L15 설정으로 L05 를 구워도
+> 오류 없이 **그냥 동작해 버린다.** 실제로 M1 내내 그렇게 돌고 있었고
+> 아무 증상도 없었다. 보드를 잘못 고르면 조용히 사양을 벗어나므로,
+> 실장 칩은 FICR 로 확인한다:
+>
+> ```
+> FICR INFO.PART     @ 0x00FFC31C   0x00054B05 = L05 / 0x00054B15 = L15
+> FICR INFO.RAM      @ 0x00FFC324   0x60 = 96 KB
+> FICR INFO.CODESIZE @ 0x00FFC328   0x1F4 = 500 KB
+> ```
+
+---
+
 
 출처: `nrfconnect/sdk-nrf-bm` v2.0.1
 `boards/nordic/bm_nrf54l15dk/bm_nrf54l15dk_nrf54l15_cpuapp_s145_softdevice.dts`
@@ -8,7 +35,7 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 
 ---
 
-## nRF54L15 + S145 v10.0.1 — **채택 구성**
+## NU54V-DK — nRF54L15 + S145 v10.0.1
 
 ### RRAM (1.5 MB = 0x17D000)
 
@@ -44,6 +71,65 @@ RAM   (rwx) : ORIGIN = 0x20004780, LENGTH = 0x3B880
 upload.maximum_size      = 1411072   # 0x158800
 upload.maximum_data_size =  243328   # 0x3B880
 ```
+
+---
+
+## NU54-DK — nRF54L05 + S145 v10.0.1
+
+출처: 같은 저장소의 `bm_nrf54l15dk_nrf54l05_cpuapp_s145_softdevice.dts`
+칩 용량 근거: MDK 9.0.2 `nrf54l05_xxaa_application_memory.h`
+(`NRF_MEMORY_FLASH_SIZE 0x0007D000`, `NRF_MEMORY_RAM_SIZE 0x00018000`)
+
+### RRAM (500 KB = 0x7D000)
+
+| 시작 | 크기 | 영역 |
+|---|---|---|
+| `0x00000000` | 354 KB (`0x58800`) | **application (slot0)** |
+| `0x00058800` | 4 KB | peer_manager |
+| `0x00059800` | 4 KB | storage0 |
+| `0x0005A800` | 137 KB (`0x22400`) | **SoftDevice S145** |
+| `0x0007D000` | — | RRAM 끝 |
+
+### RAM (96 KB = 0x18000)
+
+| 시작 | 크기 | 영역 |
+|---|---|---|
+| `0x20000000` | `0x4780` | **SoftDevice** |
+| `0x20004780` | `0x13880` | **application** |
+| `0x20018000` | — | RAM 끝 |
+
+> DTS 의 `app_ram` 은 `DT_SIZE_K(78)` = `0x13800` 이라 상단 128 바이트가 남는다.
+> 디바이스 트리가 크기를 K 단위로만 적기 때문에 생긴 내림이지 예약 영역이 아니다.
+> 링커 스크립트는 `0x13880` 으로 RAM 끝까지 쓴다.
+
+> **✅ 2026-09-06 실기 확인.** `__StackTop = 0x20018000`.
+> Flash 36420 B (10% of 362496) / RAM 3856 B (4% of 80000).
+> millis/micros 델타 정확. 검증 기록: [HIL/M1-tickless.md](HIL/M1-tickless.md)
+
+### 링커 스크립트 값
+
+```
+FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x58800
+RAM   (rwx) : ORIGIN = 0x20004780, LENGTH = 0x13880
+```
+
+`boards.txt`:
+```
+upload.maximum_size      = 362496   # 0x58800
+upload.maximum_data_size =  80000   # 0x13880
+```
+
+### SoftDevice hex 는 SoC 별 재배치 빌드다
+
+크기는 137 KB 로 같지만 로드 주소가 다르고 **서로 호환되지 않는다.**
+
+```
+s145_nrf54l05_10.0.1_softdevice.hex : :020000025000AC  -> 0x0005A800
+s145_nrf54l15_10.0.1_softdevice.hex : :020000040015E5  -> 0x0015A800
+```
+
+`platform.txt` 의 `sd.hex` 는 `{build.sd_soc}` 로 파일을 고른다.
+보드의 `menu.softdevice.*.build.sd_soc` 를 틀리면 SoftDevice 가 RRAM 밖에 써진다.
 
 ---
 

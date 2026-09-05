@@ -19,10 +19,13 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | SVC 충돌(F1) | **있다.** FreeRTOS 11.x 가 SVC 100~105 사용 → 0~5 로 옮김 (§7 F1) |
 | SD 예약 인터럽트 우선순위(F2) | **0과 4** (§7 F2) |
 | FreeRTOS 포트 | sdk-nrf-bm에 **없음.** 직접 포팅 (§7 F4) |
-| 업로드 툴 | **probe-rs**, 타깃 이름 `nRF54L15` (§3) |
+| 업로드 툴 | **probe-rs**, 타깃 이름 `nRF54L15` (§3). `probe-rs chip list` 에 **nRF54L05 타깃은 없다** — 같은 다이라 L05 도 `nRF54L15` 로 플래시한다 |
 | `__NVIC_PRIO_BITS` | **3** (0~7). BASEPRI 는 `prio << 5` |
 | GRTC 인터럽트 그룹 | 앱 = **`GRTC_2_IRQn`**, SoftDevice = `GRTC_3_IRQn`. 앱 CC 는 0~6 |
 | 리셋 원인 레지스터 | **`NRF_RESET`** (nRF54H 계열의 `NRF_RESETINFO` 아님) |
+| WFI 기상과 마스크(F9) | **BASEPRI 는 기상을 막는다. PRIMASK 는 막지 않는다.** 슬립 창에서 BASEPRI 를 걸어 두면 안 된다 (§7 F9) |
+| 지원 보드 | `nu54dk` = NU54-DK / **nRF54L05**(500KB/96KB), `nu54vdk` = NU54V-DK / nRF54L15(1.5MB/256KB). 핀맵 동일, variant 공유 |
+| 실장 칩 판별 | `FICR INFO.PART` @ `0x00FFC31C` — `0x00054B05` = L05, `0x00054B15` = L15 |
 
 시간이 지나면 위 값도 바뀔 수 있다. 재확인이 필요하면 §10 M0의 절차를 다시 밟고 이 표를 갱신하라.
 
@@ -495,25 +498,81 @@ Active SWD 연결 상태에서는 System OFF 진입과 reset cause 판정이 정
 하드웨어적 근거: nrfx `nrf_regulators_system_off()` 구현 자체에
 `/* Solution for simulated System OFF in debug mode */ while (true) { __WFE(); }` 폴백이 들어 있다.
 
-### F9. 슬립 크리티컬 섹션에 PRIMASK를 쓰지 마라 — **F2 다음으로 위험**
+### F9. 슬립 창에서 BASEPRI를 걸어 두면 WFI가 깨지 않는다 — **실기에서 잡음**
 
-Adafruit의 `vPortSuppressTicksAndSleep()`은 슬립 구간을
-`sd_nvic_critical_region_enter()` (SD 없으면 `__disable_irq()`)로 감싼다.
-nRF54L에는 그 SD API가 없고(§6.1), `__disable_irq()`(PRIMASK)로 대체하면
-**SoftDevice의 우선순위 0 zero-latency IRQ(RADIO_0/TIMER10/GRTC_3)까지 막혀 라디오 타이밍이 깨진다.**
+> ⚠ 이 항목은 M1 초기에 **정반대로 적혀 있었다**("PRIMASK를 쓰지 마라, BASEPRI를
+> 우선순위 1로 올려라, BASEPRI로 마스크된 인터럽트도 WFI를 깨운다").
+> 마지막 문장이 **틀렸다.** 실기에서 tickless가 통째로 죽는 원인이었다.
 
-→ **BASEPRI를 우선순위 1로 올린다. PRIMASK는 쓰지 않는다.**
+**ARM 사양**: WFI 기상 조건은 **PRIMASK를 무시하지만 BASEPRI는 무시하지 않는다.**
+ARMv7-M ARM B1.5.19 (ARMv8-M 동일):
 
-- 우선순위 0(SD zero-latency)은 계속 서비스됨 → 라디오 안전
-- 1~7은 마스크됨 → `eTaskConfirmSleepModeStatus()`와 `WFI` 사이의 레이스 차단
-- SD의 우선순위 4 IRQ는 잠시 보류되나 pending으로 CPU를 깨우고 BASEPRI 복구 후 처리됨 — 정상
-- 슬립은 `__WFE()` 폴링 루프가 아니라 **`__WFI()`**. BASEPRI로 마스크된 인터럽트도 pending이 되면
-  WFI를 깨우므로 `NVIC->ISPR` 폴링이 불필요하고, nRF54L15는 IRQ가 64개를 넘어
-  Adafruit의 `ISPR[0]|ISPR[1]` 관용구가 애초에 틀린다
+> "the assertion of an asynchronous exception that has sufficient priority to cause
+> exception entry **when the value of PRIMASK is 0**. This means the value of PRIMASK
+> does not affect whether an asynchronous exception is a WFI wake-up event, **but the
+> values of FAULTMASK, BASEPRI, and the exception enables do affect this.**"
 
-**이 가정은 BLE가 붙는 M3 전까지 검증할 수 없다.** M3 진입 직후
-advertising 유지 + tickless 동시 동작을 최우선으로 확인하라.
-깨지면 슬립 창에서만 BASEPRI를 0으로 낮추고 레이스는 `eTaskConfirmSleepModeStatus()` 재확인으로 처리한다.
+틱 CC는 커널 우선순위 7이라 `BASEPRI = 1 << (8 - PRIO_BITS)` 에 가려진다.
+그 상태로 `__WFI()` 하면 **영영 깨지 않는다.**
+FreeRTOS의 표준 ARM_CM 포트가 `vPortSuppressTicksAndSleep()` 에서만
+`cpsid i`(PRIMASK)를 쓰는 이유가 정확히 이것이다.
+
+**실측 증상** (원인 파악에 가장 오래 걸린 항목):
+
+- 틱이 25~250 tick/s 로 떨어진다 (목표 1000). 값이 잴 때마다 다르다
+- `Serial` 이 완전히 죽는다. 폴트도 assert 도 없다
+- 계측하면 WFI 한 번이 **수 초** 지속된다 (max 8.1 s, `xExpectedIdleTime` 은 500 ms).
+  CC 만료로 깬 횟수는 20초에 1회
+- **실제로 깨우는 것은 디버거 attach 뿐이다.** 그래서 SWD 로 들여다보면
+  "지금은 정상"으로 보인다 — CC 는 미래에 정확히 무장돼 있고, CCEN=1,
+  INTEN 비트 켜짐, NVIC ISER 켜짐, pending 없음. 레지스터만 봐서는 못 찾는다
+- 격리 시험으로 함수 본문을 `__WFI()` 하나로 줄이면 **정확히 1000 tick/s** 로 돈다.
+  이 시험이 결정적이었다
+
+**→ 두 마스크를 나눠 쓴다** (`port_grtc.c` 구현):
+
+| 구간 | 마스크 | 이유 |
+|---|---|---|
+| `eTaskConfirmSleepModeStatus()` ~ CC 장전 | **BASEPRI**(우선순위 1) | 앱 IRQ만 막아 레이스 차단. SD의 우선순위 0 zero-latency IRQ(RADIO_0/TIMER10/GRTC_3)는 계속 서비스 |
+| WFI 전후 몇 명령어 | **PRIMASK** + `BASEPRI = 0` | BASEPRI를 내려야 CC가 깨울 수 있다. 그 사이 레이스는 PRIMASK가 막고, PRIMASK는 기상을 막지 않는다 |
+| 기상 후 틱 보정 | **BASEPRI** 복귀 후 PRIMASK 해제 | 이 순서라야 SD 우선순위 0 핸들러가 곧바로 실행된다 |
+
+```c
+__set_BASEPRI_MAX(SLEEP_BASEPRI);          /* 앱 IRQ 차단 */
+if (eTaskConfirmSleepModeStatus() == eAbortSleep) { 복구; return; }
+/* ... CC 장전 ... */
+__disable_irq();  __set_BASEPRI(0U);       /* 순서 중요 */
+__DSB(); __ISB();
+__WFI();
+__set_BASEPRI_MAX(SLEEP_BASEPRI);  __DSB(); __ISB();
+__enable_irq();                            /* SD prio-0 즉시 실행 */
+/* ... 틱 보정 ... */
+__set_BASEPRI(prev_basepri);
+```
+
+SD 우선순위 0 IRQ가 지연되는 구간은 WFI 기상 직후 PRIMASK를 푸는 몇 명령어뿐이다.
+Adafruit의 `sd_nvic_critical_region_enter()` 는 S145에 없고(§6.1), nRF52의 SD가
+NVIC를 가상화해서 앱 인터럽트만 가릴 수 있었던 것이라 nRF54L에는 그 방법 자체가 없다.
+
+`NVIC->ISPR` 폴링은 하지 않는다. nRF54L은 IRQ가 269번까지 있어
+Adafruit의 `ISPR[0]|ISPR[1]` 관용구는 애초에 쓸 수 없다.
+
+**이 구조가 BLE와 실제로 공존하는지는 M3 전까지 검증할 수 없다.**
+M3 진입 직후 advertising 유지 + tickless 동시 동작을 최우선으로 확인하라.
+
+### F9b. tickless 틱 보정은 기상 시각이 아니라 **틱 그리드** 기준으로
+
+`completed = elapsed / CYCLES_PER_TICK` 후 다음 CC를 `exit_cnt + CYCLES_PER_TICK`
+으로 잡으면, 매 슬립마다 1틱 미만의 나머지가 버려져 `millis()` 가 조금씩 느려진다.
+
+**실측 +253 ppm.** LFXO로 어렵게 잡아 둔 +25 ppm(§7 F12)을 통째로 날린다.
+크래시도 없고 `millis()`/`micros()` 를 각각 보면 정상이라, **둘의 차이를 봐야 드러난다.**
+
+→ "다음 틱의 절대 시각"(`m_last_cc`)을 1 ms 그리드 위에 유지하고,
+기상 후에도 `grid_next + completed * CYCLES_PER_TICK` 로 재장전한다.
+`xExpectedIdleTime` 틱을 자려면 CC는 `grid_next + (n-1) * CYCLES_PER_TICK` 에 건다
+(마지막 1틱은 `vTaskStepTick()` 이 센다).
+수정 후 틱 vs SYSCOUNTER 편차 **0 ppm**.
 
 ### F10. nrfx 4.x 사용 규칙 — **M2 착수 전에 반드시 읽어라**
 
@@ -802,7 +861,7 @@ baram-nrf54-arduino/                 # 저장소 루트
       `NCS-SBOM-Apply-To-File: ./*.hex`로 hex에 적용됨을 명시한다. 2항이 바이너리 재배포를 명시 허용.
       → **번들 가능. 아래 분기표 첫 행 채택.** `s145_10.0.1_license-attribution.txt`(ARM BSD-3-Clause)도 함께 동봉할 것
 - [x] SoftDevice 예약 인터럽트 우선순위 (F2용) → **0과 4.** §7 F2에 근거와 함께 기록
-- [x] SVC 충돌 여부 (F1용) → **번호 충돌 없음.** 대신 IRQ 포워딩 구조 대응 필요. §7 F1
+- [x] SVC 충돌 여부 (F1용) → **충돌 있음** (조사 단계의 "충돌 없음" 판단이 틀렸다). FreeRTOS SVC 100~105 를 0~5 로 옮겼다. §7 F1
 - [x] sdk-nrf-bm에 FreeRTOS 포트 포함 여부 → **없음.** 직접 포팅 확정 (§7 F4)
 - [x] 업로드 툴 조사 → **probe-rs 채택** (§3). pyOCD 0.39도 `nrf54l` 지원하나 Python 의존이라 대비책
 - [x] 메모리 맵 확정 → `docs/MEMORY-MAP.md`. 앱이 0x0, SD가 상단 (**nRF52와 반대**)
@@ -834,10 +893,14 @@ baram-nrf54-arduino/                 # 저장소 루트
 - [x] `millis` / `micros` / `delay` — 실기에서 델타 정확 (tickless 는 아래 별도)
 - [x] UART `Serial` — UARTE30, CP2102N 경유 수신 확인
 - [x] `boards.txt` + `platform.txt`에 SWD 업로드 recipe (프로브 UID 지정 옵션 포함)
-- [ ] **tickless idle 켜기** — 틱이 안정된 것을 확인했으므로 이제 진행 가능
+- [x] **tickless idle 켜기** — `configUSE_TICKLESS_IDLE 1`. 실기에서 millis 델타 = 호스트 델타,
+      틱 vs SYSCOUNTER 편차 **0 ppm**. 함정 2건(§7 F9 / F9b)은 `docs/HIL/M1-tickless.md` 에 기록
+- [x] **nRF54L05 보드 추가** — 실장 칩이 L05 였다. `nu54dk`(L05) / `nu54vdk`(L15) 두 보드,
+      링커 스크립트·SoftDevice hex 분리, variant 공유. `docs/MEMORY-MAP.md`
 - [x] **arduino-cli 로 컴파일·업로드** — FQBN `baram-nrf54-arduino:nrf54l:nu54dk`.
       실기 확인 완료. 이 과정에서 §7 F13 의 함정 네 개를 잡았다
-- [ ] 10분 연속 실행 무크래시
+- [x] 장시간 연속 실행 무크래시 — tickless on 으로 5분 소크, 151샘플 이상 0건,
+      틱 vs SYSCOUNTER 0 ppm, 호스트 대비 +38 ppm (tickless off 10분 소크는 이미 통과)
 
 실기 검증 기록은 `docs/HIL/M1-nu54dk.md`.
 

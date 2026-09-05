@@ -8,9 +8,13 @@ nRF54L 시리즈용 Arduino 코어. Nordic **SoftDevice + FreeRTOS** 기반이�
 
 ## 지원 보드
 
-| 보드 | MCU | 문서 |
-|---|---|---|
-| **NU54-DK** | nRF54L15 (128MHz Cortex-M33, 1.5MB RRAM, 256KB RAM) | [docs/NU54-DK.md](docs/NU54-DK.md) |
+| 보드 | FQBN | MCU | 문서 |
+|---|---|---|---|
+| **NU54-DK** | `...:nrf54l:nu54dk` | nRF54L05 (128MHz Cortex-M33, 500KB RRAM, 96KB RAM) | [docs/NU54-DK.md](docs/NU54-DK.md) |
+| **NU54V-DK** | `...:nrf54l:nu54vdk` | nRF54L15 (128MHz Cortex-M33, 1.5MB RRAM, 256KB RAM) | [docs/NU54-DK.md](docs/NU54-DK.md) |
+
+두 보드는 회로도·핀맵이 동일하고 실장 모듈만 다르다. 메모리 크기만 차이가 나며
+variant 는 하나를 공유한다. 배치는 [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) 참조.
 
 ## 구성
 

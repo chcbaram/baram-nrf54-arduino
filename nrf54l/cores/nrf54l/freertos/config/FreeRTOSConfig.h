@@ -141,12 +141,20 @@
  * 저전력 — tickless idle (CLAUDE.md §6.1)
  * ═══════════════════════════════════════════════════════════════════
  *
- * ⚠ 지금은 꺼 둔다. 틱이 먼저 안정된 뒤에 켜야 한다.
- *   둘을 동시에 켜면 틱 버그와 슬립 버그가 섞여 원인 분리가 불가능하다.
- *   켤 때 port_grtc.c 의 vPortSuppressTicksAndSleep() 이 쓰인다
- *   (포트의 것은 weak 라 자동으로 대체된다).
+ * 켜져 있다. 실기 검증 완료 (NU54-DK / nRF54L05):
+ *   millis 델타 = 호스트 델타 = 2000 ms, 틱 vs SYSCOUNTER 편차 0 ppm.
+ *
+ * 구현은 port_grtc.c 의 vPortSuppressTicksAndSleep() 이고 포트의 weak
+ * 정의를 대체한다. 두 개의 함정이 있었으니 손대기 전에 읽어라:
+ *
+ *   §7 F9  — 슬립 창에서 BASEPRI 를 걸어 두면 WFI 가 깨지 않는다.
+ *            WFI 기상 조건은 PRIMASK 는 무시하지만 BASEPRI 는 무시하지
+ *            않는다. 그래서 레이스 차단은 BASEPRI, WFI 전후만 PRIMASK 로
+ *            나눠 쓴다.
+ *   §7 F9b — 틱 보정을 기상 시각 기준으로 하면 나머지가 버려져
+ *            +253 ppm 느려진다. 틱 그리드 기준으로 재장전해야 한다.
  */
-#define configUSE_TICKLESS_IDLE                 0
+#define configUSE_TICKLESS_IDLE                 1
 #define configEXPECTED_IDLE_TIME_BEFORE_SLEEP   2
 #define configUSE_IDLE_HOOK                     0
 #define configUSE_TICK_HOOK                     0
