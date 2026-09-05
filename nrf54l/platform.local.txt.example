@@ -1,0 +1,32 @@
+# platform.local.txt 예시 — 이 파일을 platform.local.txt 로 복사해서 쓴다.
+#
+#   cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
+#
+# platform.local.txt 는 gitignore 된다 (PC 마다 경로가 다르므로).
+#
+# ── 왜 필요한가 ───────────────────────────────────────────────────────
+# platform.txt 는 Board Manager 배포를 전제로 {runtime.tools.*} 를 쓴다.
+# 아직 package index 를 만들지 않았으므로, 저장소를 sketchbook 의
+# hardware/ 밑에 두고 직접 쓰는 개발 모드에서는 그 변수가 해석되지 않는다.
+#
+#   toolchain.path 를 안 잡으면 → 컴파일러를 못 찾는다.
+#     ⚠ 다른 Arduino 패키지(STM32 등)가 xpack GCC 를 설치해 뒀으면
+#       그게 잡혀서 "빌드는 되는데 버전이 다른" 상태가 된다. 반드시 명시할 것
+#   probers.path 를 안 잡으면 → 업로드가 이렇게 실패한다:
+#     cannot execute upload tool: fork/exec {runtime.tools.probe-rs-0.32.0.path}/bin/probe-rs
+#
+# ── 툴체인 ────────────────────────────────────────────────────────────
+# Arm GNU Toolchain 14.2.rel1 (arm-none-eabi). bin/ 의 부모 디렉토리를 적는다.
+# https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
+toolchain.path=/Applications/ArmGNUToolchain/14.2.rel1/arm-none-eabi
+# Linux 예:   toolchain.path=/opt/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi
+# Windows 예: toolchain.path=C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/14.2 rel1
+
+# ── probe-rs ──────────────────────────────────────────────────────────
+# 저장소에 동봉돼 있다. OS 에 맞는 줄을 쓴다.
+# 현재 macosx 바이너리만 들어 있다. linux / win 은 아직 없다
+# (https://github.com/probe-rs/probe-rs/releases 0.32.0 에서 받아
+#  nrf54l/tools/probe-rs/<os>/bin/ 에 넣으면 된다).
+probers.path={runtime.platform.path}/tools/probe-rs/macosx/bin
+# probers.path={runtime.platform.path}/tools/probe-rs/linux/bin
+# probers.path={runtime.platform.path}/tools/probe-rs/win/bin

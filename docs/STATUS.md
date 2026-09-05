@@ -107,14 +107,62 @@ M1 에서 UARTE/GRTC 로 태운 함정이 그대로 반복된다.
 
 ---
 
-## 5. 로컬 개발 환경
+## 5. 다른 PC에서 이어서 작업하기
 
-`nrf54l/platform.local.txt` (gitignore 됨) 로 툴 경로를 덮어쓰고 있다:
+**클론만으로는 안 된다. 두 가지가 더 필요하다.**
+
+### 1) 위치 — sketchbook 의 `hardware/` 밑
 
 ```
-toolchain.path=/Applications/ArmGNUToolchain/14.2.rel1/arm-none-eabi
-probers.path={runtime.platform.path}/tools/probe-rs/macosx/bin
+~/Documents/Arduino/hardware/baram-nrf54-arduino/     ← 여기여야 한다
 ```
+(sketchbook 경로는 `arduino-cli config get directories.user` 로 확인)
+
+이래야 FQBN 이 `baram-nrf54-arduino:nrf54l:nu54dk` 로 잡힌다.
+`arduino-cli board listall | grep NU54` 로 확인.
+
+### 2) `nrf54l/platform.local.txt` — **gitignore 되므로 직접 만들어야 한다**
+
+```sh
+cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
+# 그 안의 toolchain.path 를 자기 PC 경로로 고친다
+```
+
+없으면 이렇게 된다 (실제로 재현해 본 결과):
+
+- **업로드**: 확실히 실패한다
+  `cannot execute upload tool: fork/exec {runtime.tools.probe-rs-0.32.0.path}/bin/probe-rs`
+- **컴파일**: ⚠ **조용히 잘못될 수 있다.** 다른 Arduino 패키지(STM32 등)가
+  설치해 둔 xpack GCC 가 잡혀서 빌드는 성공하는데 컴파일러 버전이 다르다.
+  (실측: 같은 스케치가 38004 B → 38504 B 로 나왔다)
+
+### 3) 준비물
+
+| | |
+|---|---|
+| Arm GNU Toolchain | **14.2.rel1** (arm-none-eabi) |
+| arduino-cli | 1.2.2 에서 검증 |
+| probe-rs | **저장소에 동봉** (`nrf54l/tools/probe-rs/macosx/bin`). 현재 **macOS 바이너리만** 있다 — Linux/Windows 는 [releases 0.32.0](https://github.com/probe-rs/probe-rs/releases) 에서 받아 `nrf54l/tools/probe-rs/<os>/bin/` 에 넣어라 |
+| 하드웨어 | NU54-DK + CMSIS-DAP 프로브(NU-DAP) + USB(CP2102N) |
+
+### 4) 저장소에 없는 것
+
+시험 스케치는 저장소 밖에 있다. 새 PC에서는 직접 만들어야 한다:
+`~/Documents/Arduino/nu54dk_blink/nu54dk_blink.ino`
+(LED1 1초 점멸 + `Scheduler.startLoop` 로 LED2 500ms 점멸
+ + `millis` / `micros` / 버튼 상태를 1초마다 `Serial` 출력)
+
+### 5) 동작 확인 순서
+
+```sh
+arduino-cli board listall | grep NU54          # 보드 2종이 보이는지
+arduino-cli compile --fqbn baram-nrf54-arduino:nrf54l:nu54dk  <스케치>
+arduino-cli upload  --fqbn baram-nrf54-arduino:nrf54l:nu54dk  <스케치>
+```
+시리얼 `/dev/cu.usbserial-*` (CP2102N) 115200 에서
+`millis=... micros=... btn1=1` 이 2초 간격으로 나오고,
+**Δmillis = 2000 이면서 Δmicros = 2000000** 이면 정상이다.
+(둘 중 하나만 봐서는 tickless 드리프트를 못 잡는다 — §7 F9b)
 
 시험 스케치: `~/Documents/Arduino/nu54dk_blink/nu54dk_blink.ino`
 (LED1 1초 점멸 + `Scheduler.startLoop` 로 LED2 500ms + millis/micros/버튼 출력)
