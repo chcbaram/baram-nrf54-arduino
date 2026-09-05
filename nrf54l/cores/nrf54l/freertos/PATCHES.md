@@ -39,7 +39,30 @@ SoftDevice 도 SVC 를 쓰므로 `SVC_Handler` 를 하나만 둘 수 없고, SVC
 
 ---
 
-## 2. 패치가 **필요 없었던** 것
+## 2. `portable/GCC/ARM_CM33_NTZ/non_secure/portmacrocommon.h`
+
+`portSVC_*` 번호를 **100~105 → 0~5** 로 옮겼다.
+
+### 왜
+
+`nrf_svc.h` 가 SVC **0x10 이상을 전부 SoftDevice 몫**으로 규정한다.
+FreeRTOS 11.3.1 은 이 값들을 100~105 로 정의하는데(구버전은 0~4 였다),
+그대로 두면 FreeRTOS 의 SVC 가 SoftDevice 로 흘러간다.
+
+**실기에서 실제로 겪은 증상**: `vStartFirstTask` 의 `svc 102` 가 디스패처의
+SoftDevice 분기를 타고, `softdevice_vector_forward_address` 가 0 이라
+`[0 + NRF_SD_ISR_OFFSET_SVC]` = 벡터[2] = `NMI_Handler` 로 점프해 무한루프.
+폴트가 나지 않아 증상만으로는 원인을 알 수 없었다.
+
+사용처가 전부 이 매크로를 거치므로 값만 바꾸면 된다.
+`NUM_SYSTEM_CALLS` 는 MPU 경로 전용이라 우리 설정(`configENABLE_MPU=0`)에서는 무관하다.
+
+> ⚠ FreeRTOS 를 업그레이드하면 이 번호가 또 바뀌었는지 **반드시** 확인하라.
+> 11.x 에서 한 번 옮겨진 전례가 있다.
+
+---
+
+## 3. 패치가 **필요 없었던** 것
 
 기록해 둔다. 나중에 불필요한 패치를 만들지 않기 위해서다.
 
@@ -54,7 +77,7 @@ SysTick 은 `vPortSetupTimerInterrupt()` 를 대체하는 순간 아예 켜지�
 
 ---
 
-## 3. 포함 범위
+## 4. 포함 범위
 
 전체를 넣지 않았다.
 

@@ -26,15 +26,23 @@ class Uart : public HardwareSerial
 {
 public:
   Uart(const nrfx_uarte_t *instance, uint32_t pinRX, uint32_t pinTX);
-  Uart(const nrfx_uarte_t *instance, uint32_t pinRX, uint32_t pinTX,
-       uint32_t pinCTS, uint32_t pinRTS);
 
   /** begin() 전에만 유효하다. */
   void setPins(uint32_t pinRX, uint32_t pinTX);
-  void setPins(uint32_t pinRX, uint32_t pinTX, uint32_t pinCTS, uint32_t pinRTS);
 
   void begin(unsigned long baudrate);
   void begin(unsigned long baudrate, uint16_t config);
+
+  /*
+   * 하드웨어 흐름제어(RTS/CTS)는 지원하지 않는다. 프로젝트 결정 사항이다.
+   *
+   * NU54-DK 는 CP2102N 에 RTS/CTS 가 배선돼 있지만 쓰지 않는다. HWFC 를 켜면
+   * UARTE 가 상대의 CTS 어서트를 기다려 한 바이트도 내보내지 않는데, 호스트
+   * 터미널이 RTS 를 올리지 않는 것이 보통이라 Serial.println() 이 그대로
+   * 멈춘다. 실제로 이 증상을 겪었고, Arduino 의 Serial 기대 동작도 아니다.
+   *
+   * 결과적으로 P0.02 / P0.03 은 일반 GPIO 로 쓸 수 있다.
+   */
 
   /**
    * UARTE 를 완전히 내린다.
@@ -62,7 +70,7 @@ public:
 
 private:
   const nrfx_uarte_t *_instance;
-  uint32_t _pinRX, _pinTX, _pinCTS, _pinRTS;
+  uint32_t _pinRX, _pinTX;
   bool     _begun;
 
   RingBuffer  _rxBuffer;

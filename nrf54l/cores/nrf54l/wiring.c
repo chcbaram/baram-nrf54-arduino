@@ -50,6 +50,15 @@ void init(void)
 #if !defined(USE_LFXO) && !defined(USE_LFRC)
   #error "variant.h 에서 USE_LFXO 또는 USE_LFRC 를 정의해야 한다"
 #endif
+
+    /*
+     * BusFault / MemManage / UsageFault 를 개별 예외로 승격한다.
+     * 켜지 않으면 전부 HardFault 로 뭉뚱그려져 CFSR 만으로 원인을 좁히기
+     * 어렵다. 핸들러는 cores/nrf54l/fault_handler.c 에 있다.
+     */
+    SCB->SHCSR |= SCB_SHCSR_BUSFAULTENA_Msk
+                | SCB_SHCSR_MEMFAULTENA_Msk
+                | SCB_SHCSR_USGFAULTENA_Msk;
 }
 
 uint32_t readResetReason(void)

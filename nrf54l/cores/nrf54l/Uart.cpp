@@ -17,12 +17,19 @@
  * Nordic nRF54L15 DK 의 BOARD_APP_UARTE_* 와 같은 배선이다.
  * docs/NU54-DK.md 참조.
  */
-static nrfx_uarte_t _uarte30 = NRFX_UARTE_INSTANCE(30);
+/*
+ * ⚠ nrfx 4.x 의 NRFX_UARTE_INSTANCE 는 인스턴스 "번호"가 아니라
+ *   페리페럴 "베이스 포인터"를 받는다:
+ *     #define NRFX_UARTE_INSTANCE(reg) { .p_reg = (NRF_UARTE_Type *)reg, ... }
+ *   nrfx 3.x 는 번호를 받았다. 숫자를 넘기면 p_reg 가 그 숫자 자체가 되어
+ *   레지스터 접근에서 BusFault 가 난다 (실제로 겪었다: p_reg=30 -> BFAR 0x21E).
+ */
+static nrfx_uarte_t _uarte30 = NRFX_UARTE_INSTANCE(NRF_UARTE30);
 
-Uart Serial(&_uarte30, PIN_SERIAL_RX, PIN_SERIAL_TX, PIN_SERIAL_CTS, PIN_SERIAL_RTS);
+Uart Serial(&_uarte30, PIN_SERIAL_RX, PIN_SERIAL_TX);
 
 #if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
-static nrfx_uarte_t _uarte20 = NRFX_UARTE_INSTANCE(20);
+static nrfx_uarte_t _uarte20 = NRFX_UARTE_INSTANCE(NRF_UARTE20);
 Uart Serial1(&_uarte20, PIN_SERIAL1_RX, PIN_SERIAL1_TX);
 #endif
 
@@ -37,31 +44,15 @@ static void uarte_evt_handler(const nrfx_uarte_event_t *event, void *context)
  * ───────────────────────────────────────────────────────────────────── */
 Uart::Uart(const nrfx_uarte_t *instance, uint32_t pinRX, uint32_t pinTX)
   : _instance(instance), _pinRX(pinRX), _pinTX(pinTX),
-    _pinCTS(NRF54L_PIN_NC), _pinRTS(NRF54L_PIN_NC),
-    _begun(false), _rxDmaIdx(0), _txBusy(false)
-{
-}
-
-Uart::Uart(const nrfx_uarte_t *instance, uint32_t pinRX, uint32_t pinTX,
-           uint32_t pinCTS, uint32_t pinRTS)
-  : _instance(instance), _pinRX(pinRX), _pinTX(pinTX),
-    _pinCTS(pinCTS), _pinRTS(pinRTS),
     _begun(false), _rxDmaIdx(0), _txBusy(false)
 {
 }
 
 void Uart::setPins(uint32_t pinRX, uint32_t pinTX)
 {
-  setPins(pinRX, pinTX, NRF54L_PIN_NC, NRF54L_PIN_NC);
-}
-
-void Uart::setPins(uint32_t pinRX, uint32_t pinTX, uint32_t pinCTS, uint32_t pinRTS)
-{
   if (_begun) return;   /* begin() 뒤에는 무시한다 */
-  _pinRX  = pinRX;
-  _pinTX  = pinTX;
-  _pinCTS = pinCTS;
-  _pinRTS = pinRTS;
+  _pinRX = pinRX;
+  _pinTX = pinTX;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -79,18 +70,11 @@ void Uart::begin(unsigned long baudrate, uint16_t config)
   /* variant 는 Arduino 핀 번호를 주므로 절대 GPIO 번호로 바꾼다. */
   uint32_t tx = (_pinTX  < PINS_COUNT) ? g_ADigitalPinMap[_pinTX]  : NRF54L_PIN_NC;
   uint32_t rx = (_pinRX  < PINS_COUNT) ? g_ADigitalPinMap[_pinRX]  : NRF54L_PIN_NC;
-  uint32_t cts= (_pinCTS < PINS_COUNT) ? g_ADigitalPinMap[_pinCTS] : NRF54L_PIN_NC;
-  uint32_t rts= (_pinRTS < PINS_COUNT) ? g_ADigitalPinMap[_pinRTS] : NRF54L_PIN_NC;
-
   nrfx_uarte_config_t cfg = NRFX_UARTE_DEFAULT_CONFIG(
       (tx == NRF54L_PIN_NC) ? NRF_UARTE_PSEL_DISCONNECTED : tx,
       (rx == NRF54L_PIN_NC) ? NRF_UARTE_PSEL_DISCONNECTED : rx);
 
-  if (cts != NRF54L_PIN_NC && rts != NRF54L_PIN_NC) {
-    cfg.cts_pin = cts;
-    cfg.rts_pin = rts;
-    cfg.config.hwfc = NRF_UARTE_HWFC_ENABLED;
-  }
+  /* 흐름제어는 쓰지 않는다 (Uart.h 주석 참조). CTS/RTS 는 연결하지 않는다. */
 
   /* 보레이트. nrf_uarte_baudrate_t 값이 곧 레지스터 값이라
    * 흔한 값만 매핑하고 나머지는 115200 으로 떨어뜨린다. */
@@ -135,7 +119,7 @@ void Uart::begin(unsigned long baudrate, uint16_t config)
   cfg.p_context = this;
 
   if (nrfx_uarte_init((nrfx_uarte_t *) _instance, &cfg, uarte_evt_handler) != 0) {
-    return;
+    return;   /* _begun 이 false 로 남아 이후 write() 가 무시된다 */
   }
 
   _rxBuffer.clear();
@@ -144,8 +128,8 @@ void Uart::begin(unsigned long baudrate, uint16_t config)
 
   /* 연속 수신 시작. 첫 버퍼를 주고, 이후는 RX_BUF_REQUEST 에서 번갈아 준다. */
   if (rx != NRF54L_PIN_NC) {
-    nrfx_uarte_rx_buffer_set((nrfx_uarte_t *) _instance, _rxDma[0], RX_CHUNK);
-    nrfx_uarte_rx_enable((nrfx_uarte_t *) _instance, NRFX_UARTE_RX_ENABLE_CONT);
+    (void) nrfx_uarte_rx_buffer_set((nrfx_uarte_t *) _instance, _rxDma[0], RX_CHUNK);
+    (void) nrfx_uarte_rx_enable((nrfx_uarte_t *) _instance, NRFX_UARTE_RX_ENABLE_CONT);
   }
 
   _begun = true;
@@ -243,6 +227,40 @@ size_t Uart::write(const uint8_t *buffer, size_t size)
 
   return written;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * IRQ 벡터 연결
+ * ─────────────────────────────────────────────────────────────────────
+ * GRTC 와 달리 UARTE 는 여기서 직접 연결해야 한다. 둘의 차이:
+ *
+ *   GRTC  : nrfx_grtc.c 가 `void nrfx_grtc_irq_handler(void)` 를 정의하고,
+ *           그 이름이 매크로로 GRTC_IRQHandler -> GRTC_2_IRQHandler 까지
+ *           치환된다. 즉 심볼 이름 자체가 벡터 이름이 되어 자동 연결된다.
+ *           (직접 정의하면 무한 재귀가 된다 — port_grtc.c 주석 참조)
+ *
+ *   UARTE : 인스턴스가 여럿이라 nrfx_uarte.c 는 인스턴스 포인터를 받는
+ *           `nrfx_uarte_irq_handler(nrfx_uarte_t *)` 하나만 제공한다.
+ *           벡터 이름 핸들러(SERIAL30_IRQHandler 등)를 만들어 주는
+ *           NRFX_INSTANCE_IRQ_HANDLERS 를 호출하지 않으므로,
+ *           연결하지 않으면 MDK 의 weak Default_Handler 무한루프로 떨어진다.
+ *
+ * 실제로 그 증상을 겪었다: Serial.println() 이 flush() 에서 영원히 대기했고,
+ * PC 는 Default_Handler 루프에 있었다. TX_DONE 이벤트가 올 수 없었기 때문이다.
+ *
+ * 벡터 이름이 UARTEnn 이 아니라 SERIALnn 인 것은 nRF54L 에서 UARTE/SPIM/TWIM
+ * 이 같은 SERIAL 인스턴스를 공유하기 때문이다 (UARTE30_IRQn == SERIAL30_IRQn).
+ */
+extern "C" void SERIAL30_IRQHandler(void)
+{
+  nrfx_uarte_irq_handler(&_uarte30);
+}
+
+#if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
+extern "C" void SERIAL20_IRQHandler(void)
+{
+  nrfx_uarte_irq_handler(&_uarte20);
+}
+#endif
 
 /* printf 계열의 출력처 (syscalls.c 의 weak 심볼을 덮는다) */
 extern "C" int nrf54l_serial_write_bytes(const char *buf, int len)

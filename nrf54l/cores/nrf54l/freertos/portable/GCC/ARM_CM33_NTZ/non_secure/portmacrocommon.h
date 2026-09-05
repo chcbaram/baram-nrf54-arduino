@@ -400,12 +400,29 @@ extern void vClearInterruptMask( uint32_t ulMask ) /* __attribute__(( naked )) P
 /**
  * @brief SVC numbers.
  */
-#define portSVC_ALLOCATE_SECURE_CONTEXT    100
-#define portSVC_FREE_SECURE_CONTEXT        101
-#define portSVC_START_SCHEDULER            102
-#define portSVC_RAISE_PRIVILEGE            103
-#define portSVC_SYSTEM_CALL_EXIT           104
-#define portSVC_YIELD                      105
+/* [baram-nrf54l-arduino 패치] ------------------------------------------
+ * 원본은 100~105 였다. nRF54L 에서는 SoftDevice 가 SVC 0x10 이상을 전부
+ * 가져가므로(nrf_svc.h: "SVCs 0x00-0x0F are forwarded to the application,
+ * all other SVCs are handled by the SoftDevice") 100번대를 그대로 쓰면
+ * FreeRTOS 의 SVC 가 SoftDevice 로 흘러가 죽는다.
+ *
+ * 실제로 그 증상을 겪었다: vStartFirstTask 의 `svc 102` 가 디스패처의
+ * SoftDevice 분기를 타고 벡터[2](NMI_Handler)로 점프해 무한루프에 빠졌다.
+ *
+ * Nordic 이 애플리케이션에 배정한 0x00~0x0F 안으로 옮긴다.
+ * 사용처는 전부 이 매크로를 거치므로 값만 바꾸면 된다
+ * (숫자를 하드코딩한 곳 없음. NUM_SYSTEM_CALLS 는 MPU 경로 전용).
+ *
+ * 근거: CLAUDE.md §7 F1, freertos/PATCHES.md
+ * ⚠ FreeRTOS 를 업그레이드하면 이 값들이 또 바뀌었는지 반드시 확인하라.
+ *   11.x 에서 0~4 -> 100~105 로 옮겨진 전례가 있다.
+ * -------------------------------------------------------------------- */
+#define portSVC_ALLOCATE_SECURE_CONTEXT    0
+#define portSVC_FREE_SECURE_CONTEXT        1
+#define portSVC_START_SCHEDULER            2
+#define portSVC_RAISE_PRIVILEGE            3
+#define portSVC_SYSTEM_CALL_EXIT           4
+#define portSVC_YIELD                      5
 /*-----------------------------------------------------------*/
 
 /**

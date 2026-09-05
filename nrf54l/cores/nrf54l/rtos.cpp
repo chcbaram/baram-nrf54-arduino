@@ -94,11 +94,24 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer,
   *pulTimerTaskStackSize   = configTIMER_TASK_STACK_DEPTH;
 }
 
-/* configASSERT 실패 지점. 디버거로 여기서 잡는다. */
+/*
+ * configASSERT / NRFX_ASSERT 실패 지점.
+ *
+ * 실패 위치를 전역에 남긴 뒤 멈춘다. 디버거를 붙이지 않고도
+ * SWD 로 이 두 변수만 읽으면 어디서 터졌는지 알 수 있다:
+ *
+ *   probe-rs read --chip nRF54L15 b32 <&g_assert_line> 1
+ *   probe-rs read --chip nRF54L15 b8  <&g_assert_file 가 가리키는 주소> 64
+ *
+ * volatile 이라 최적화로 사라지지 않는다.
+ */
+volatile const char * g_assert_file = NULL;
+volatile int          g_assert_line = 0;
+
 void vAssertCalled(const char *file, int line)
 {
-  (void) file;
-  (void) line;
+  g_assert_file = file;
+  g_assert_line = line;
 
   taskDISABLE_INTERRUPTS();
   while (1) { __asm__ volatile("nop"); }

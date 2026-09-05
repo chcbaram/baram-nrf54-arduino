@@ -53,6 +53,9 @@ static nrfx_grtc_channel_t m_tick_channel = {
 /* 마지막으로 장전한 CC 절대값. tickless 에서 safe_setting 판정에 쓴다. */
 static uint64_t m_last_cc;
 
+/* 부팅 시점의 SYSCOUNTER 값. micros() 를 0 부터 세기 위해 뺀다. */
+static uint64_t m_syscounter_base;
+
 /* nrfx 가 SYSCOUNTER 용으로 잡는 "메인" 채널. 우리는 직접 쓰지 않지만
  * NULL 을 넘기지 않도록 받아 둔다 (GRTC_MAIN_CC_CHANNEL = 0). */
 static uint8_t m_main_channel;
@@ -110,8 +113,11 @@ void vPortSetupTimerInterrupt(void)
 
     nrfx_grtc_channel_callback_set(m_tick_channel.channel, grtc_tick_handler, NULL);
 
+    /* micros() 의 기준점. 여기부터 0 으로 센다. */
+    m_syscounter_base = nrfx_grtc_syscounter_get();
+
     /* 첫 틱을 현재 SYSCOUNTER 기준으로 건다. */
-    m_last_cc = nrfx_grtc_syscounter_get() + GRTC_CYCLES_PER_TICK;
+    m_last_cc = m_syscounter_base + GRTC_CYCLES_PER_TICK;
     nrfx_grtc_syscounter_cc_abs_set(m_tick_channel.channel, m_last_cc, true);
     (void)nrfx_grtc_syscounter_cc_int_enable(m_tick_channel.channel);
 }
@@ -121,8 +127,18 @@ void vPortSetupTimerInterrupt(void)
  * ───────────────────────────────────────────────────────────────────── */
 uint64_t nrf54l_syscounter_us(void)
 {
-    /* SYSCOUNTER 는 64비트 1 MHz 이므로 값이 곧 마이크로초다. */
-    return nrfx_grtc_syscounter_get();
+    /*
+     * SYSCOUNTER 는 64비트 1 MHz 이므로 값이 곧 마이크로초다.
+     *
+     * 다만 이 카운터는 리셋으로 0 이 되지 않는다. 이전 펌웨어가 돌던
+     * 시간까지 누적된 값이 그대로 남아 있어서, 빼주지 않으면 부팅 직후
+     * micros() 가 수십억으로 나온다 (실측: 부팅 직후 1.47e9).
+     * millis() 는 xTickCount 라 0 에서 시작하므로 둘이 어긋나고,
+     * 32비트로 잘리는 micros() 의 랩어라운드 시점도 예측할 수 없게 된다.
+     *
+     * 틱 초기화 시점을 기준으로 잡아 Arduino 의 기대(부팅 시 0)에 맞춘다.
+     */
+    return nrfx_grtc_syscounter_get() - m_syscounter_base;
 }
 
 /* ─────────────────────────────────────────────────────────────────────

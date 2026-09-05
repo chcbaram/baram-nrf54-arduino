@@ -64,8 +64,13 @@
  * Nordic nRF54L15 DK 의 BOARD_APP_UARTE_* 와 같은 배선이다. */
 #define PIN_SERIAL_TX         _PINNUM(0, 0)
 #define PIN_SERIAL_RX         _PINNUM(0, 1)
-#define PIN_SERIAL_CTS        _PINNUM(0, 2)   /* CP2102N RTS -> nRF CTS */
-#define PIN_SERIAL_RTS        _PINNUM(0, 3)   /* nRF RTS -> CP2102N CTS */
+/*
+ * CP2102N 의 RTS/CTS 가 P0.02 / P0.03 에 배선돼 있지만 **사용하지 않는다.**
+ * 하드웨어 흐름제어를 켜면 호스트가 RTS 를 올리지 않을 때 TX 가 멈춘다
+ * (Uart.h 주석 참조). 따라서 이 두 핀은 일반 GPIO 로 쓸 수 있다.
+ */
+#define PIN_SERIAL_CTS        _PINNUM(0, 2)   /* 미사용. CP2102N RTS 배선 */
+#define PIN_SERIAL_RTS        _PINNUM(0, 3)   /* 미사용. CP2102N CTS 배선 */
 
 #define SERIAL_PORT_MONITOR       Serial
 #define SERIAL_PORT_HARDWARE      Serial

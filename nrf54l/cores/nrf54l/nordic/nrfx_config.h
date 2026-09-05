@@ -33,6 +33,16 @@
  */
 #define NRFX_GRTC_ENABLED                        1
 #define NRFX_GRTC_CONFIG_ALLOWED_CC_CHANNELS_MASK 0x0000007FUL
+/*
+ * ⚠ 위 마스크의 비트 수와 반드시 일치해야 한다.
+ *   nrfx_grtc_init() 이 popcount(MASK) != NUM_OF_CC_CHANNELS 이면
+ *   -ECANCELED 로 실패한다 (nrfx_grtc.c:364).
+ *   0x7F = CC0~6 = 7개.
+ *
+ *   nrfx 템플릿 기본값은 마스크 0x0f0f / 개수 8 인데, 그 마스크는
+ *   CC8~11 을 포함해 SoftDevice 영역(CC7~11)과 겹친다. 쓰면 안 된다.
+ */
+#define NRFX_GRTC_CONFIG_NUM_OF_CC_CHANNELS      7
 #define NRFX_GRTC_CONFIG_AUTOEN                  0
 #define NRFX_GRTC_CONFIG_IRQ_PRIORITY            NRFX_DEFAULT_IRQ_PRIORITY
 

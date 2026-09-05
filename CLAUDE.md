@@ -16,7 +16,7 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | sdk-nrf-bm | **v2.0.1** (NCS v3.3.0 기반) |
 | SoftDevice | **S115 / S145 v10.0.1** |
 | SoftDevice 재배포 | **가능.** 별도 제한 계약 없이 Nordic-5-Clause 그대로 (§9) |
-| SVC 충돌(F1) | **없음.** SVC 0x00~0x0F가 앱 몫 (§7 F1) |
+| SVC 충돌(F1) | **있다.** FreeRTOS 11.x 가 SVC 100~105 사용 → 0~5 로 옮김 (§7 F1) |
 | SD 예약 인터럽트 우선순위(F2) | **0과 4** (§7 F2) |
 | FreeRTOS 포트 | sdk-nrf-bm에 **없음.** 직접 포팅 (§7 F4) |
 | 업로드 툴 | **probe-rs**, 타깃 이름 `nRF54L15` (§3) |
@@ -352,12 +352,23 @@ SoftDevice가 NVIC를 가상화할 이유가 사라진 결과다 (§7 F1 참조)
 
 작업 중 반드시 부딪힌다. 해당 작업 시작 전에 이 항목을 다시 읽어라.
 
-### F1. SVC 핸들러 — **조사 완료. 번호 충돌은 없다**
+### F1. SVC 핸들러 — **번호 충돌이 실제로 있다 (실기 확인)**
 
 `s145_API/include/nrf_svc.h`:
 > The SVCs with SVC numbers **0x00-0x0F are forwarded to the application**. All other SVCs are handled by the SoftDevice.
 
-`SDM_SVC_BASE = 0x10`, `SOC_SVC_BASE = 0x20`. FreeRTOS `ARM_CM33_NTZ`는 `portSVC_START_SCHEDULER = 0`만 쓴다 → **번호 충돌 없음.**
+`SDM_SVC_BASE = 0x10`, `SOC_SVC_BASE = 0x20`.
+
+**⚠ 문서 조사만으로는 "충돌 없음"으로 보였으나 실기에서 틀렸다.**
+FreeRTOS **11.3.1** 의 `ARM_CM33_NTZ` 포트는 `portSVC_*` 를 **100~105** 로 정의한다
+(`portmacrocommon.h`). 구버전은 0~4 였고 11.x 에서 옮겨졌다. 100 이상은 SoftDevice 영역이다.
+
+실제 증상: `vStartFirstTask` 의 `svc 102` 가 디스패처의 SoftDevice 분기를 타고,
+`softdevice_vector_forward_address` 가 0 이라 `[0 + 8]` = 벡터[2] = `NMI_Handler` 로
+점프해 무한루프. **폴트가 나지 않아 증상만으로는 원인을 알 수 없다.**
+
+→ `portmacrocommon.h` 의 SVC 번호를 **0~5 로 옮겼다** (`freertos/PATCHES.md` §2).
+  FreeRTOS 를 올릴 때마다 이 값이 또 바뀌었는지 확인하라.
 
 진짜 함정은 다른 데 있다. **nRF54L은 nRF52와 구조가 반대다** — 애플리케이션이 벡터 테이블을 소유하고
 필요한 IRQ를 SoftDevice로 **포워딩**한다 (`nrf_sd_isr.h`의 `NRF_SD_ISR_OFFSET_*`).
@@ -365,7 +376,8 @@ sdk-nrf-bm `subsys/softdevice_handler/irq_forward.s`가 그 구현인데,
 거기 `SVC_Handler`는 **SVC 번호를 보지 않고 전부 SoftDevice로 넘긴다.**
 
 → **그 핸들러를 그대로 쓰면 FreeRTOS가 죽는다.** 스택된 PC에서 SVC immediate를 읽어 분기하는
-자체 `SVC_Handler`를 작성하라: `< 0x10` → `vPortSVCHandler`, `>= 0x10` → SoftDevice 포워딩.
+자체 `SVC_Handler`를 작성하라: `< 0x10` → `vPortSVCHandler_C`, `>= 0x10` → SoftDevice 포워딩.
+구현은 `cores/nrf54l/nordic/sd_svc_dispatch.S`.
 
 ### F2. 인터럽트 우선순위 — **실측값 확보**
 
