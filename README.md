@@ -3,8 +3,10 @@
 nRF54L 시리즈용 Arduino 코어. Nordic **SoftDevice + FreeRTOS** 기반이며
 **Adafruit Bluefruit(nRF52) API 호환**을 목표로 한다.
 
-> **상태: 개발 착수 단계 (M0 완료, M1 진행 전).**
-> 아직 설치 가능한 릴리스가 없다. 설계와 조사 결과는 [CLAUDE.md](CLAUDE.md)에 정리돼 있다.
+> **상태: M1 거의 완료 (전류 측정만 남음).**
+> 실기에서 blink / Serial / 2태스크 / tickless idle 까지 동작한다.
+> 아직 Board Manager 로 설치 가능한 릴리스는 없다.
+> 진행 상황은 [docs/STATUS.md](docs/STATUS.md), 설계는 [CLAUDE.md](CLAUDE.md).
 
 ## 지원 보드
 

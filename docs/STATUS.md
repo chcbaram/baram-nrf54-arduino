@@ -1,0 +1,122 @@
+# 진행 상황 / 다음 세션 인수인계
+
+최종 갱신: 2026-09-06 · 커밋 `b8cc273`
+
+프로젝트 지침과 설계 결정은 [CLAUDE.md](../CLAUDE.md) 가 정본이다.
+이 문서는 **"지금 어디까지 됐고 다음에 뭘 하면 되는지"** 만 짧게 적는다.
+
+---
+
+## 1. 지금 동작하는 것 (M1 거의 완료)
+
+실기 보드 **NU54-DK / nRF54L05** 에서 확인:
+
+| 항목 | 상태 |
+|---|---|
+| FreeRTOS (ARM_CM33_NTZ) + GRTC 틱 | ✅ 1000 tick/s |
+| `setup()`/`loop()` + `Scheduler.startLoop()` 두 번째 태스크 | ✅ |
+| GPIO (LED 4 / 버튼 4, 내부 풀업) | ✅ |
+| `millis()` / `micros()` / `delay()` | ✅ 델타 정확 |
+| `Serial` (UARTE30 → CP2102N) | ✅ 흐름제어 없음 |
+| **tickless idle** | ✅ 틱 vs SYSCOUNTER 0 ppm, 5분 소크 이상 0건 |
+| LFXO 클럭 정확도 | ✅ 호스트 대비 +25~38 ppm |
+| arduino-cli / Arduino IDE 컴파일·업로드 | ✅ probe-rs, CMSIS-DAP |
+| 보드 2종 (L05 / L15) | ✅ 둘 다 빌드 확인 |
+
+```
+FQBN  baram-nrf54-arduino:nrf54l:nu54dk    NU54-DK   (nRF54L05, 500KB/96KB)
+      baram-nrf54-arduino:nrf54l:nu54vdk   NU54V-DK  (nRF54L15, 1.5MB/256KB)
+```
+
+빌드 크기(blink + Serial + 2태스크): Flash 38004 B, RAM 3856 B.
+
+---
+
+## 2. 바로 다음에 할 일
+
+### (a) 전류 측정 — M1 을 닫으려면 이게 남았다
+
+tickless 를 켠 목적이 전력인데 아직 재지 못했다. **SWD 프로브를 물리적으로
+분리하고** 재야 한다 (§7 F8 — 붙어 있으면 수치가 안 나온다).
+
+측정 4종 (§4.6):
+1. `delay(1000)` 루프 + `Serial` 켠 상태
+2. 같은 조건에서 `Serial.end()` 후 (UARTE 가 바닥 전류를 올리는지)
+3. `systemOff()` 후 — **`systemOff()` 는 아직 구현 안 됨**
+4. (M3) advertising 중
+
+기준선은 Nordic `ble_pwr_profiling` 샘플을 같은 보드에 구워서 잡는다.
+이 비교 없이는 "이 정도면 괜찮은가"를 판단할 근거가 없다.
+
+같이 판단할 것: `port_grtc.c` 의 `nrfx_grtc_active_request_set(true)` 를 빼도
+되는지. `MODE.AUTOEN` 이 이미 0 이라 중복일 가능성이 높고, 뺐을 때 전력이
+내려가면 빼면 된다. 기능적으로는 없어도 틱이 정확하다 (확인됨).
+
+### (b) 앱 레벨 저전력 API (§4.5)
+
+`waitForEvent()`, `systemOff(pin, wake_logic)`, `readResetReason()`.
+`readResetReason()` 은 `NRF_RESET` 이다 (`NRF_POWER->RESETREAS` 아님, `NRF_RESETINFO` 도 아님).
+
+### (c) 릴리스 파이프라인 — 아직 손도 안 댐
+
+- `package_baram_nrf54_index.json`
+- `extras/make_release.sh` (baram-stm32 의 것을 이식. `PLATFORM_DIR=nrf54l`,
+  `architecture=nrf54l`, `toolsDependencies` 에 자체 xpack GCC)
+- 보드가 2종이 됐으므로 index 의 `boards` 목록에 둘 다 넣어야 한다
+
+### (d) M2 — Arduino API
+
+`analogRead`/`analogWrite`/`Wire`/`SPI`/`attachInterrupt`.
+**착수 전에 CLAUDE.md §7 F10(nrfx 4.x 규칙)의 체크리스트를 반드시 읽어라.**
+M1 에서 UARTE/GRTC 로 태운 함정이 그대로 반복된다.
+
+---
+
+## 3. 아직 검증 못 한 가정
+
+| 가정 | 언제 검증되나 |
+|---|---|
+| BASEPRI/PRIMASK 분리가 BLE 라디오 타이밍을 지키는지 (§7 F9) | M3. advertising 유지 + tickless 동시 동작이 최우선 확인 항목 |
+| `USE_LFRC` 경로 (크리스털 없는 보드) | 해당 보드가 생길 때 |
+| probe-rs 가 아닌 J-Link 업로드 | 메뉴에 없음. 필요해지면 추가 |
+| 10분 이상 장시간(수 시간) 안정성 | 5분까지만 확인 |
+
+---
+
+## 4. 이 프로젝트에서 두 번 이상 물린 것
+
+새 세션에서 시간을 아끼려면 이것만이라도 보고 시작해라.
+
+1. **CLAUDE.md 의 함정 목록(§7 F1~F13)이 이 프로젝트의 핵심 자산이다.**
+   F1(SVC), F9(WFI/BASEPRI), F10(nrfx 4.x), F13(Arduino 빌드)은 전부
+   "문서에 적혀 있던 내용이 틀려서" 오래 걸린 항목이다. 의심되면 실측해라.
+2. **Arduino 는 `cores/` 를 `core.a` 로 묶는다.** weak 심볼 오버라이드가
+   아카이브 경계를 넘지 못해 조용히 실패한다 → `-Wl,--whole-archive` 필수 (§7 F13).
+   링크 후 `nm | grep <심볼>` 로 `T` 인지 확인하는 습관을 들여라.
+3. **zsh 는 변수를 단어 분리하지 않는다.** `$ARGS` 로 넘기면 통째로 한 인자가 된다.
+   반드시 배열 `VAR=(a b c)` + `"${VAR[@]}"`.
+4. **probe-rs 는 detach 하면 코어를 재개한다.** halt 상태를 유지하며 여러 번
+   읽는 디버깅은 안 된다. 대신 RAM 에 계측 변수를 심고 `probe-rs read` 로 읽는다.
+   `g_fault`(magic `0xFA0175ED`) / `g_assert_file` / `g_assert_line` 이 이미 있다.
+   심볼 주소는 `arm-none-eabi-nm <elf>` 로 뽑는다.
+5. **디버거 attach 자체가 증상을 지울 수 있다.** tickless 버그가 그랬다.
+   "SWD 로 보면 정상"이 곧 "문제 없음"은 아니다 (docs/HIL/M1-tickless.md).
+6. **nRF54L05 는 L15 다이의 비닝이다.** 사양 밖 메모리가 물리적으로 있어서
+   잘못된 링커 스크립트로도 동작해 버린다. 칩은 FICR 로 확인해라
+   (`INFO.PART` @ `0x00FFC31C`).
+
+---
+
+## 5. 로컬 개발 환경
+
+`nrf54l/platform.local.txt` (gitignore 됨) 로 툴 경로를 덮어쓰고 있다:
+
+```
+toolchain.path=/Applications/ArmGNUToolchain/14.2.rel1/arm-none-eabi
+probers.path={runtime.platform.path}/tools/probe-rs/macosx/bin
+```
+
+시험 스케치: `~/Documents/Arduino/nu54dk_blink/nu54dk_blink.ino`
+(LED1 1초 점멸 + `Scheduler.startLoop` 로 LED2 500ms + millis/micros/버튼 출력)
+
+시리얼: `/dev/cu.usbserial-*` (CP2102N), 115200.
