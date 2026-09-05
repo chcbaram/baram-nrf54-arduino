@@ -19,7 +19,10 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | SVC 충돌(F1) | **없음.** SVC 0x00~0x0F가 앱 몫 (§7 F1) |
 | SD 예약 인터럽트 우선순위(F2) | **0과 4** (§7 F2) |
 | FreeRTOS 포트 | sdk-nrf-bm에 **없음.** 직접 포팅 (§7 F4) |
-| 업로드 툴 | **probe-rs** (§3) |
+| 업로드 툴 | **probe-rs**, 타깃 이름 `nRF54L15` (§3) |
+| `__NVIC_PRIO_BITS` | **3** (0~7). BASEPRI 는 `prio << 5` |
+| GRTC 인터럽트 그룹 | 앱 = **`GRTC_2_IRQn`**, SoftDevice = `GRTC_3_IRQn`. 앱 CC 는 0~6 |
+| 리셋 원인 레지스터 | **`NRF_RESET`** (nRF54H 계열의 `NRF_RESETINFO` 아님) |
 
 시간이 지나면 위 값도 바뀔 수 있다. 재확인이 필요하면 §10 M0의 절차를 다시 밟고 이 표를 갱신하라.
 
@@ -43,6 +46,8 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | R8 | BLE 스택을 직접 구현하지 마라 | SoftDevice(인증됨)만 사용 |
 | R9 | 4바이트 정렬을 가정한 NVM 쓰기 코드를 만들지 마라 | RRAM write block = 16바이트 |
 | R10 | USB 관련 기능을 nRF54L15에 넣지 마라 | 하드웨어에 USB가 없다 |
+| R11 | Bluefruit API와 Arduino API 아래에 별도 HAL/추상화 레이어를 만들지 마라 | 이 두 API 자체가 이미 seam이다. 세 번째 레이어는 추상화를 위한 추상화 |
+| R12 | 이식성과 Adafruit 호환이 충돌하면 **호환을 택하라** | 마이그레이션 호환이 이 프로젝트의 존재 이유다 |
 
 ---
 
@@ -79,6 +84,35 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 **사용자가 등록할 Board Manager URL은 영구히 하나다.** nRF54H는 SoftDevice 베어메탈 옵션 자체가
 없는 다른 칩이므로 architecture를 합치지 않는다 — 합치면 호환되지 않는 두 코어에
 라이브러리가 모두 호환된다고 표시된다.
+
+### 2.1 왜 베어메탈인가 (재확인)
+
+현재 요구사항 기준으로 베어메탈이 우세하다. **BLE 스택 품질은 근거가 아니다** (§5.1).
+
+- **커스텀 보드 + UART DFU + Bluefruit 이전** — 세 목표 모두 베어메탈이 유리
+- **부트로더** — 스케치가 standalone 바이너리라 UART DFU가 자연스럽다.
+  NU54DK가 v0.3.0에서 DFU를 넣지 못하고 v0.6.0으로 미룬 것이 구조적 차이를 보여준다
+- **설치 크기** — 우리 플랫폼은 **비압축 15MB / tar.bz2 1.4MB** (실측)이고 오프라인 설치가 된다.
+  NCS 방식은 첫 설치가 수 GB 다운로드다
+- **빌드 결합도** — NCS 빌드 시스템에 강결합되면 NCS 버전이 바뀔 때마다 재검증이 필요하다
+- **드라이버 부담은 과대평가돼 있다** — §5.1 두 번째 항목 참조
+
+**Zephyr 쪽이 우세한 영역** (현재 요구사항에 없음, 인지만 할 것):
+프로토콜 확장(Matter / Thread / Zigbee / LE Audio / 802.15.4),
+인프라 스택(MCUboot / TF-M / PSA / settings / 파일시스템), 신규 칩 upstream 지원.
+
+### 2.2 재검토 트리거
+
+아래 중 하나라도 발생하면 **작업을 멈추고 사람에게 보고하라.** Zephyr 이전을 재검토해야 한다.
+
+- 노르딕이 `sdk-nrf-bm` 릴리스를 1년 이상 중단하거나 maintenance mode를 선언
+- 제품 요구사항에 Matter / Thread / Zigbee / LE Audio / 802.15.4가 추가됨
+- nRF54L 후속 칩이 Bare Metal에서 지원되지 않음
+- 페리페럴 래퍼 유지보수가 감당 불가 수준으로 커짐
+
+> 노르딕은 Bare Metal을 "nRF5 SDK 사용자의 마이그레이션을 돕고 Zephyr RTOS로 가는
+> 업그레이드 경로를 제공"하는 것으로 포지셔닝한다. 다리(bridge)로 설계된 제품이라는 뜻이고,
+> 다리는 역할이 끝나면 투자가 줄 수 있다. **이것이 이 아키텍처의 최대 장기 리스크다.**
 
 ---
 
@@ -152,6 +186,33 @@ CP2102N USB-UART 브리지 + 외부 프로브용 SWD 헤더(J3 = ARM 10핀 1.27m
 - **온보드 CMSIS-DAP 프로브** (SAMD11 / CH552 등) — 케이블 하나로 개발 가능
 - 프로브가 UART도 겸하면 더 좋다 ("DAP UART" 구성)
 - **부트로더 진입용 GPIO strap** — M4 이후 필요
+- **DTR → RESET 자동 리셋 회로** — 아래 참조
+
+#### ESP32식 자동 부트로더 진입 (차기 리비전에서만 가능)
+
+**현행 보드에서는 불가능하다.** 회로도 실측 결과:
+
+- RESET 네트 = `C10, D6, J3-10(SWD nRESET), P2-5, P3-3, R17, SW1, X1-41`.
+  **CP2102N 핀이 하나도 없다.** 브리지가 MCU를 리셋시킬 물리 경로가 없다
+- RTS(U3.19) / CTS(U3.18)는 P0.02 / P0.03 에 **UART 흐름제어로만** 연결돼 있고 RESET 에 닿지 않는다
+- **DTR(U3.23)은 미연결(플로팅)** — 차기 리비전에서 쓸 수 있다.
+  DSR·DCD·RI·SUSPEND·GPIO.2·GPIO.3 도 비어 있다
+
+차기 리비전 선택지:
+
+| 안 | 회로 | 비고 |
+|---|---|---|
+| A. ESP32 그대로 | `Q1: E=DTR, B=RTS, C=RESET` / `Q2: E=RTS, B=DTR, C=STRAP` 교차 결선 | DTR·RTS가 다를 때만 동작해 터미널 열 때의 데드락을 막는다. **RTS를 흐름제어로 못 쓴다** |
+| **B. DTR만 리셋 (권장)** | 트랜지스터 1개로 `DTR → RESET`(오픈드레인). 모드 선택은 부트로더 초기 대기창의 매직 바이트로 | RTS/CTS를 흐름제어로 유지. 부품 1개. 부트로더가 진입창을 통제하므로 strap 불필요 |
+
+확인 필요:
+- **nRF54L15의 RESET 핀이 기본 활성인지.** nRF52는 `UICR.PSELRESET` 설정이 필요했다.
+  필요하면 공장 출하 시 한 번 써넣어야 한다
+- 터미널 열 때 리셋되는 문제(Arduino Uno와 같은 동작). 원치 않으면 "RESET EN" 솔더 점퍼를 둘 것
+- 기존 RESET 라인의 D6 클램프와 R17 풀업은 오픈드레인 구동과 충돌하지 않는다
+
+CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB 제어 요청으로만 만질 수 있어
+툴이 libusb를 요구하게 된다. DTR/RTS는 모든 시리얼 API가 노출하므로 **DTR 쪽이 맞다.**
 
 현행 보드에 이미 있는 것: **UART 브리지**(CP2102N, `Serial` 출력 + M4 이후 DFU 경로), 32.768 kHz LFXO.
 
@@ -187,9 +248,9 @@ CP2102N USB-UART 브리지 + 외부 프로브용 SWD 헤더(J3 = ARM 10핀 1.27m
 
 | 대안 | 배제 이유 |
 |---|---|
-| `arduino/ArduinoCore-zephyr` 포크 | BLE가 Zephyr 오픈소스 LL만 가능(미인증, nRF54L 미성숙). llext 모델이 Adafruit 사용자 기대와 불일치 |
+| `arduino/ArduinoCore-zephyr` 포크 | **mainline** Zephyr 기반이라 SoftDevice Controller를 쓸 수 없고 오픈소스 LL만 가능(미인증, nRF54L 미성숙). llext 모델이 Adafruit 사용자 기대와 불일치 |
 | `lolren/nrf54-arduino-core` 사용 | BLE 스택이 자체 구현·미인증·동시 링크 1개. 단일 메인테이너. 부트로더/DFU 없음 |
-| `EIDOSDATA/NU54DK_Arduino_Core` 방식 (NCS 전체 빌드) | R1. 매 컴파일이 west build, `prj.conf` 미노출, Windows 전용. §5.1 참조 |
+| `EIDOSDATA/NU54DK_Arduino_Core` 방식 (NCS 전체 빌드) | R1. 매 컴파일이 west build, `prj.conf` 미노출, Windows 전용. **BLE 스택 품질은 배제 사유가 아니다** — §5.1 참조 |
 | ArduinoBLE 지원 | R2 |
 | SoftDevice Controller(nrfxlib) + 자체 HCI + ArduinoBLE | Zephyr 외 사용이 비공식 경로. ArduinoBLE 호스트도 미인증. 실익 없음 |
 
@@ -212,7 +273,20 @@ CP2102N USB-UART 브리지 + 외부 프로브용 SWD 헤더(J3 = ARM 10핀 1.27m
 **우리 대비 약점** (= 우리 차별점, 유지할 것):
 Windows 10/11 전용 · 부트로더/DFU 없음(v0.6.0 계획, SWD 업로드만) · BLE API가 제3의 자체 API라 마이그레이션 자산 0 · 자사 DK 전용 variant 1개 · `Wire1`/`SPI1`/I2C target 미지원.
 
-**정직하게 인정할 강점**: Zephyr 드라이버 생태계를 그대로 쓴다. 우리는 nrfx 위에 페리페럴을 전부 직접 짜야 하므로 M2 작업량이 우리 쪽이 훨씬 크다.
+**정직하게 인정할 강점**
+
+1. **BLE 스택 품질은 동등하다.** NCS 기반 Zephyr는 SoftDevice Controller(인증됨)를 쓴다.
+   우리가 쓰는 SoftDevice S145와 같은 컨트롤러 계열이다.
+   → **"우리 방식이 BLE 스택 때문에 우월하다"고 쓰지 마라. 사실이 아니다.**
+   (오픈소스 LL 문제는 **mainline** Zephyr 기반인 `ArduinoCore-zephyr`에만 해당한다.
+   확인 근거: upstream `hal_nordic`에는 `nrfx`만 있고 `softdevice_controller`가 없다.
+   SDC는 `nrfconnect/sdk-nrfxlib`에만 있으며 NCS manifest에서만 끌어온다.
+   `ArduinoCore-zephyr`의 `west.yml`은 `arduino/zephyr` 포크를 가리킨다.)
+
+2. **Zephyr 드라이버 생태계를 그대로 쓴다.** 우리는 nrfx 위에 온칩 페리페럴을 직접 짜야 한다.
+   다만 이 부담은 과대평가되기 쉽다 — Arduino 사용자는 외부 디바이스에 Zephyr 드라이버가
+   아니라 Arduino 라이브러리(`Adafruit_BME280` 등)를 쓴다. 우리가 만들 것은 온칩 래퍼뿐이고
+   nrfx가 레지스터 레벨을 이미 다 제공한다. 그래도 M2 작업량은 우리 쪽이 크다.
 
 `lolren/nrf54-arduino-core`도 **참조 자료로 유용하다** (MIT). nRF54L 페리페럴 레지스터 레벨 구현 참고용. 코드를 가져다 쓸 때는 라이선스 고지를 유지하라.
 
@@ -338,11 +412,19 @@ NeoPixel, DHT, OneWire, SoftwareSerial 등. SoftDevice가 최상위 인터럽트
 
 **이건 고치는 게 아니라 문서화 대상이다.** 시간을 쓰지 마라. PWM+EasyDMA 기반 대안 예제를 동봉하고 README에 명시하라.
 
-### F7. UART 공유
+### F7. UART 공유 / 부트로더 진입
 스케치의 `Serial`과 부트로더 진입이 같은 UART를 공유한다 (M4 이후). 진입 방법:
 1. GPIO strap (**기본 채택** — 커스텀 보드이므로)
 2. retained RAM(`.noinit`) 플래그 + 리셋 → `reboot_to_bootloader()` API 제공
 3. 매직 시퀀스 감지 (오검출 위험, 보조 수단)
+
+**⚠ Arduino 의 1200bps touch 는 여기서 동작하지 않는다.**
+USB 네이티브 보드에서는 호스트가 보레이트를 바꾸면 MCU 의 USB 스택이 line-coding 변경을
+직접 보지만, UART 브리지에서는 CP2102N 이 자기 쪽 클럭만 바꾸고 **MCU 는 그 사실을 알 수 없다.**
+`boards.txt` 에 `use_1200bps_touch=false` 를 둔 이유다. 방법 3 은 in-band 매직 바이트여야 한다.
+
+방법 2·3 의 공통 한계: **스케치가 살아 있어야 한다.** 크래시했거나 인터럽트를 막고 도는
+루프에 빠지면 DFU 진입이 불가능하다. 물리 strap 이나 SWD 복구 경로를 반드시 남겨라.
 
 ### F8. 디버거가 System OFF를 방해한다
 Active SWD 연결 상태에서는 System OFF 진입과 reset cause 판정이 정상 동작하지 않을 수 있다.
@@ -389,6 +471,23 @@ advertising 유지 + tickless 동시 동작을 최우선으로 확인하라.
 | `Adafruit_nRF52_Bootloader` | 자체 UART DFU 부트로더 (M4) | 구조 참고 |
 | `adafruit-nrfutil` | 호스트 업로드 툴 (M4) | 패키지에 바이너리 동봉하는 방식 참고 |
 | `Adafruit_TinyUSB` (Serial) | **이식 대상 아님** | R10 |
+
+### R11 / R12 배경 — Bluefruit은 이미 seam이지만 깨끗하지 않다
+
+Bluefruit52Lib은 사용자 스케치와 백엔드 사이에 이미 앉아 있다. 백엔드를 바꿔야 할 때
+Bluefruit 내부 구현을 교체하면 되고 사용자 스케치는 그대로다. 이것이 seam이다.
+그래서 **그 아래 또 한 겹을 만들 이유가 없다** (R11).
+
+단, 깨끗한 seam은 아니다. SoftDevice 타입이 공개 헤더로 새어나온다:
+
+- `err_t` 반환값의 실체가 `NRF_ERROR_*`
+- `BLEConnection`이 `ble_gap_conn_params_t` 노출
+- Advertising API가 `BLE_GAP_ADV_*` 상수 사용
+- `SecureMode_t`가 `ble_gap_conn_sec_mode_t` 래퍼
+- `Bluefruit.begin(prph, central)`이 SoftDevice `ble_cfg` 연결 수 설정에 직결
+
+**이 누수를 감싸서 없애려 하지 마라.** 그 타입을 직접 쓰는 Adafruit 스케치가 실제로 존재하고,
+감싸는 순간 호환이 깨진다. R12가 이 경우를 위한 규칙이다.
 
 읽어야 할 구체적 경로:
 - `Adafruit_nRF52_Arduino/cores/nRF5/rtos.h` — SchedulerRTOS API 시그니처
@@ -527,8 +626,18 @@ UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터
 - [ ] `BLEService` / `BLECharacteristic`
 - [ ] `BLEUart` (NUS)
 - [ ] 페어링 / 본딩
+- [ ] **이벤트 펌프 격리** — `sd_ble_evt_get()` 루프, 이벤트 태스크, SoftDevice
+      enable/disable, 인터럽트 우선순위 처리를 `cores/nrf54l/ble/sd_event_pump.c`
+      한 파일에 모은다. 백엔드를 바꾸면 통째로 버려질 코드이므로 흩뿌리지 마라.
+      **추상화가 아니라 코드 배치 규칙이다** (R11 위반 아님)
 
 **DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본 스케치가 수정 없이 컴파일·동작하고, 폰에서 연결·송수신된다.
+
+> 목표로만 둘 것: `<bluefruit.h>` 를 include 한 사용자 스케치에서 `ble_gap.h` 가 직접 노출되지
+> 않으면 좋다. 다만 **그림자 타입 헤더를 만들어 달성하려 하지 마라** — Bluefruit 내부는 진짜
+> 헤더가 필요한데 사용자 쪽에 같은 이름을 다시 정의하면 ODR 위반이 되고, SoftDevice 버전이
+> 오를 때마다 전 구조체 레이아웃을 재검증해야 한다. R11·R12 와도 충돌한다.
+> 달성 방법은 실제 이식하면서 정한다. 안 되면 포기해도 되는 항목이다.
 
 ### M4 — 부트로더 / DFU
 
@@ -549,6 +658,10 @@ CMSIS-DAP 업로드 경로는 **제거하지 말고 병행 유지**한다 (§3).
 - [ ] 라이선스 파일 정리 (§9), README
 - [ ] 예제 스케치 (Adafruit 예제 포팅)
 - [ ] 라이브러리 호환성 컴파일 테스트 결과 → `docs/LIBRARY-COMPAT.md`
+- [ ] README에 **지원 범위 밖**을 명시: "이 코어는 BLE 애플리케이션용이다.
+      Matter / Thread / Zigbee / LE Audio / 802.15.4는 지원 범위 밖이며 계획에도 없다."
+      범위를 넓게 선언하면 나중에 요구가 들어왔을 때 방어선이 없다. NU54DK가 로드맵에
+      v0.8.0 Matter를 걸어둔 채 v0.3.0에서 `Wire`/`SPI`가 "부분 지원"인 것이 그 예다
 
 **DoD**: 깨끗한 환경에서 Board Manager URL로 설치 → blink 업로드 성공. Linux/Windows 양쪽에서 확인.
 

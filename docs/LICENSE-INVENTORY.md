@@ -59,11 +59,17 @@ SoftDevice가 ARM 코드를 포함한다는 뜻이므로 이 파일도 `nrf54l/s
 | Bluefruit52Lib 이식본 (M3) | adafruit/Adafruit_nRF52_Arduino | BSD-3-Clause / MIT (파일별 상이) | `nrf54l/libraries/Bluefruit52Lib/` |
 | probe-rs 바이너리 | probe-rs/probe-rs | MIT OR Apache-2.0 | `nrf54l/tools/probe-rs/` |
 
-> ⚠ **확인 필요 항목**: Arduino 코어 API 파일들(`Print.cpp`, `Stream.cpp`, `WString.cpp`,
-> `HardwareSerial.h` 등)은 계보상 **LGPL-2.1**이다. R4가 금지하는 것은 **GPL**이며 LGPL은
-> 정적 링크 시 별도 의무가 생긴다. Adafruit·stm32duino를 포함한 기존 코어들이 모두 같은 상태로
-> 운영 중이므로 전례는 충분하나, **파일 단위로 실제 헤더를 확인하고 §4에 기록한다.**
-> 새로 쓰는 파일은 MIT로 간다.
+> ✅ **확인 완료 (이식 시점)**: 이식한 Arduino 코어 API 파일들의 헤더를 직접 확인했다.
+> `Print.cpp` / `Stream.cpp` / `WString.cpp` 등은 **LGPL-2.1** 이 맞다
+> ("modify it under the terms of the GNU Lesser General Public").
+> R4가 금지하는 것은 **GPL** 이며 LGPL은 정적 링크 시 별도 의무가 생긴다.
+> Adafruit·stm32duino를 포함한 기존 Arduino 코어들이 모두 같은 상태로 배포 중이므로
+> 전례는 충분하다. 새로 쓰는 파일은 MIT로 간다.
+>
+> 이식한 LGPL 파일 목록: `Print` `Stream` `WString` `WMath` `WCharacter` `RingBuffer`
+> `HardwareSerial.h` `Printable.h` `IPAddress` `Client.h` `Server.h` `Udp.h`
+> `itoa` `hooks.c` `wiring_shift` `new.cpp` `abi.cpp` `binary.h` `avr/*`
+> (원본 고지는 각 파일 상단에 그대로 유지했다.)
 
 ---
 
