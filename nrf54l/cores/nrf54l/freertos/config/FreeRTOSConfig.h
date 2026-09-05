@@ -196,7 +196,15 @@
 /* ═══════════════════════════════════════════════════════════════════
  * assert
  * ═══════════════════════════════════════════════════════════════════ */
+/* rtos.cpp 가 extern "C" 안에서 정의하므로 링키지를 맞춰야 한다.
+ * 이 헤더는 C 와 C++ 양쪽에서 include 된다. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern void vAssertCalled( const char * file, int line );
+#ifdef __cplusplus
+}
+#endif
 #define configASSERT( x )  if( ( x ) == 0 ) { vAssertCalled( __FILE__, __LINE__ ); }
 
 #endif /* FREERTOS_CONFIG_H */
