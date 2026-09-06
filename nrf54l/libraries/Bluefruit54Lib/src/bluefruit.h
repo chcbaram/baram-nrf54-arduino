@@ -178,4 +178,18 @@ class AdafruitBluefruit
 
 extern AdafruitBluefruit Bluefruit;
 
+/*
+ * 서비스들을 여기서 함께 끌어온다.
+ *
+ * Adafruit 예제는 `#include <bluefruit.h>` **한 줄만** 쓰고 BLEUart / BLEDis /
+ * BLEBas / BLEDfu 를 바로 선언한다. 원본 bluefruit.h 가 그렇게 하기 때문이다.
+ * 따로 include 하게 만들면 예제를 고쳐야 하므로 (R12 — 호환 우선) 같은 구조로 둔다.
+ *
+ * 순서 주의: 이 헤더들은 위의 클래스 선언에 의존하므로 파일 끝에 와야 한다.
+ */
+#include "BLEUart.h"
+#include "BLEDis.h"
+#include "BLEBas.h"
+#include "BLEDfu.h"
+
 #endif

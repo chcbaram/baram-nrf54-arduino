@@ -325,6 +325,67 @@ Adafruit 예제는 반환값을 보지 않고 출력하므로 `Connected to ` �
 
 ---
 
+## 3.9 B4 — Adafruit 원본 예제 동작 (2026-09-06) ⭐
+
+**Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본을 받아
+`#include` 두 줄만 지우고 그대로** 컴파일·플래시했다. 그 외에는 한 글자도
+고치지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| 컴파일 | ✅ (31116 B) |
+| 서비스 4종 | ✅ DFU / Device Information / Nordic UART / Battery |
+| `BLEDis` | ✅ `Adafruit Industries` — 예제가 설정한 값 그대로 읽힌다 |
+| `BLEBas` | ✅ 100 % |
+| 호스트 → 장치 UART | ✅ 장치 시리얼에 `hello from host` |
+| 협상 MTU | ✅ 247 |
+| 연결/해제 콜백 | ✅ |
+
+지운 두 줄은 이것뿐이다:
+
+```cpp
+#include <Adafruit_LittleFS.h>
+#include <InternalFileSystem.h>
+```
+
+### 왜 두 줄을 지워도 되는가 — 예제 71개 전수 조사
+
+| | 개수 |
+|---|---|
+| 전체 예제 | 71 |
+| FS 헤더를 include | **6** |
+| 그중 **FS API 실사용** | **0** |
+
+그 줄들은 Arduino 가 "스케치가 include 한 라이브러리만 링크" 하기 때문에
+**본딩 코드를 링크시키려고** 넣어 둔 것이다. 우리는 본딩을 RRAM 파티션에
+직접 저장하므로 아무 역할이 없다. **기능 손실이 0 이다.**
+
+대신 얻는 것: Adafruit 코어와 라이브러리 이름 충돌 0, LittleFS 를
+no-erase 매체(RRAM)로 이식하는 작업 회피 (CLAUDE.md §8.1).
+
+`Bluefruit54Lib/src/` 안에 두 헤더를 **안내용 `#error`** 로 둬서, 지우지 않고
+컴파일하면 "무엇을 지워야 하는지" 가 바로 나온다.
+
+### 잡은 것 — `bluefruit.h` 가 서비스들을 끌어와야 한다
+
+원본 예제는 `#include <bluefruit.h>` **한 줄만** 쓰고 `BLEUart` / `BLEDis` /
+`BLEBas` / `BLEDfu` 를 바로 선언한다. Adafruit 의 `bluefruit.h` 가 서비스 헤더를
+전부 include 하기 때문이다. 우리 것도 같게 만들었다.
+
+### `BLEDfu` 는 서비스만 등록하고 **명확히 거절한다**
+
+M3 에는 부트로더가 없다. 제어 포인트에 쓰기가 오면 레거시 DFU 프로토콜의
+오류 응답 `[0x10, op, 0x03(NOT_SUPPORTED)]` 을 돌려준다.
+**조용히 무시하면 상대가 응답을 기다리다 타임아웃 나고, 사용자는 "DFU 가
+되는 줄 알았는데 멈췄다" 로 읽는다.** (CLAUDE.md §10 M3)
+
+⚠ 구현 시 함정: packet / revision characteristic 을 **지역 변수로 만들면 안 된다.**
+`BLECharacteristic` 은 쓰기 이벤트를 받으려고 자기 주소를 `Bluefruit` 에
+등록하므로, 스택에 두면 `begin()` 이 끝나는 순간 매달린 포인터가 된다.
+Adafruit 은 `setTempMemory()` 로 등록을 건너뛰지만 우리는 멤버로 둔다.
+
+---
+
 ## 4. 남은 것
 
 - **GATT 서비스가 없다.** 연결은 되지만 서비스 탐색이 빈 손이라 호스트가 곧 끊는다.

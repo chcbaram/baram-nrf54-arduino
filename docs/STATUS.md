@@ -123,19 +123,23 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B1**~~ ✅ | `BLEUuid` / `BLEService` / `BLECharacteristic` + 최소 `Bluefruit` 싱글턴 | **완료.** 탐색·읽기·알림·쓰기 전부 실증 |
 | ~~**B2**~~ ✅ | `BLEUart` (NUS) | **완료.** 18바이트 에코 왕복 일치 |
 | ~~**B3**~~ ✅ | MTU 협상(247), `BLEConnection`, `BLEDis`, `BLEBas`, `autoConnLed` 등 | **완료.** Adafruit `bleuart` 예제가 API 호출 그대로 동작 |
-| **B4** | `BLESecurity` / 본딩, `BLEDfu` 스텁, 파일시스템 호환 헤더 | **`bleuart.ino` 무수정 = DoD** |
+| ~~**B4**~~ ✅ | `BLEDfu` 스텁, 파일시스템 안내 헤더, `bluefruit.h` 가 서비스 포함 | **완료. Adafruit 원본 `bleuart.ino` 가 include 2줄 삭제만으로 동작 = M3 DoD** |
+| B5 (남음) | `BLESecurity` / 본딩, `getPeerName()`(GATT 클라이언트), 예제 이식 | |
 
-지금 위치: **B3 완료, B4 착수 전.**
-Adafruit `Peripheral/bleuart` 예제를 **API 호출을 그대로 둔 채** 옮겨 돌렸다
-(`~/Documents/Arduino/nrf54_bleuart_ada/`). DIS 문자열·배터리·UART 왕복·MTU 247
-모두 확인됐다.
+지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
+`#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
+컴파일·동작한다 (`~/Documents/Arduino/bleuart_orig/`).
+서비스 4종·DIS·배터리·UART·MTU 247 전부 확인.
+DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md §8.1.
 
-**B4 에 남은 것은 셋이다**: `BLEDfu` 스텁, 본딩(`BLESecurity`),
-파일시스템 호환 헤더. 그 셋을 채우면 원본 `bleuart.ino` 가 **무수정**으로
-컴파일된다 = M3 DoD.
+**아직 없는 것:**
 
-⚠ `getPeerName()` 은 미구현이다 (GATT 클라이언트 경로 없음). 빈 문자열 + false
-를 돌려준다 — `docs/HIL/M3-softdevice.md` §3.8. `nrf54l/libraries/Bluefruit52Lib/` 에
+- **본딩 / 페어링** (`BLESecurity`). pairing 계열 예제는 아직 안 된다.
+  키는 `peer_manager` 4 KB 파티션에 고정 레코드로 넣을 계획이다 (§8.1)
+- **`getPeerName()`** — GATT 클라이언트 경로가 없다. 빈 문자열 + false
+  (`docs/HIL/M3-softdevice.md` §3.8)
+- **central 역할** — peripheral 전용 구성이다
+- **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결 `nrf54l/libraries/Bluefruit52Lib/` 에
 `BLEUuid`/`BLEService`/`BLECharacteristic`/`bluefruit` 가 올라가 있고,
 커스텀 GATT 서비스로 읽기·알림·쓰기가 실기에서 확인됐다.
 시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT), `~/Documents/Arduino/nrf54_bleuart/` (NUS).

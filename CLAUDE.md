@@ -866,7 +866,28 @@ Adafruit 예제들이 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>
 올리려면 블록 디바이스 계층에서 `erase()` 를 "0xFF 채우기" 로 구현하고
 `prog_size` 를 16 으로 잡아야 한다.
 
-**권장 경로 — 본딩 저장만 먼저, 범용 FS 는 나중에:**
+**전수 조사 결과 (Bluefruit52Lib 예제 71개, 2026-09-06):**
+
+| | 개수 |
+|---|---|
+| 전체 예제 | 71 |
+| FS 헤더를 `#include` 하는 것 | **6** |
+| 그중 **FS API 를 실제로 쓰는 것** | **0** |
+
+유일하게 FS 를 쓰는 것처럼 보인 `homekit_lightbulb` 도 **주석 처리된 코드**였다.
+include 하는 6개는 `bleuart`, `bluefruit_playground`, pairing 계열 3개,
+`central_pairing` 이고 전부 본딩 때문이다.
+
+**→ 결정: 파일시스템을 제공하지 않는다.** 대신 `Bluefruit54Lib/src/` 안에
+`Adafruit_LittleFS.h` / `InternalFileSystem.h` 를 **안내용 `#error` 헤더**로 둔다.
+새 라이브러리 이름을 만들지 않으므로 Adafruit 코어와 충돌이 없고,
+사용자는 "No such file" 대신 무엇을 지워야 하는지 바로 안다.
+
+⚠ 사용자가 Library Manager 로 `Adafruit_LittleFS` 를 **스케치북에 직접 설치**하면
+그쪽이 우선될 수 있다. 그러면 nRF52 구현이 잡혀 컴파일이 깨진다.
+막을 방법이 없으므로 README 문제 해결에 적어 둔다.
+
+**본딩 저장 (M3 후반):**
 
 - 본딩 키는 `docs/MEMORY-MAP.md` 가 이미 잡아 둔 **`peer_manager` 4 KB 파티션**
   (`0x00158800`)에 고정 레코드로 넣는다. 앱 파티션 밖이라 앱을 갱신해도 남는다.
@@ -1065,7 +1086,17 @@ UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터
 - [ ] `enterOTADfu()` 상당 API 의 시그니처 확보
       (Adafruit `examples/Hardware/dfu_ota/dfu_ota.ino` 참조)
 
-**DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본 스케치가 수정 없이 컴파일·동작하고, 폰에서 연결·송수신된다.
+**DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본 스케치가
+**`#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` 두 줄을 지우는 것
+외에는 수정 없이** 컴파일·동작하고, 폰에서 연결·송수신된다.
+
+> 원래는 "수정 없이" 였다. **두 줄 삭제를 허용하는 쪽으로 바꿨다.**
+> 근거는 예제 71개 전수 조사다 (§8.1): 그 두 헤더를 include 하는 예제는 6개뿐이고,
+> **그중 파일시스템 API 를 실제로 쓰는 것은 하나도 없다.** 그 줄들은 Adafruit 이
+> 본딩 코드를 링크시키려고 넣은 것이고, 우리는 본딩을 RRAM 파티션에 직접
+> 저장하므로 아무 역할이 없다. 즉 **기능 손실이 0** 이다.
+> 대신 얻는 것이 크다 — Adafruit 코어와 라이브러리 이름 충돌이 0 이 되고,
+> LittleFS 를 no-erase 매체(RRAM)로 이식하는 작업이 통째로 사라진다.
 
 > 목표로만 둘 것: `<bluefruit.h>` 를 include 한 사용자 스케치에서 `ble_gap.h` 가 직접 노출되지
 > 않으면 좋다. 다만 **그림자 타입 헤더를 만들어 달성하려 하지 마라** — Bluefruit 내부는 진짜
