@@ -85,10 +85,23 @@ class BLEAdvertisingData
     uint8_t _count;
 };
 
+class BLEBeacon;
+class EddyStoneUrl;
+
 class BLEAdvertising : public BLEAdvertisingData
 {
   public:
     BLEAdvertising(void);
+
+    /**
+     * 광고 페이로드를 비콘으로 채운다.
+     *
+     * ⚠ 기존 페이로드를 **지우고** 다시 쓴다. 비콘 페이로드가 25바이트라
+     *   31바이트 광고 패킷에 다른 것을 같이 넣을 자리가 사실상 없다.
+     *   이름은 스캔 응답(ScanResponse)에 넣는다.
+     */
+    bool setBeacon(BLEBeacon &beacon);
+    bool setBeacon(EddyStoneUrl &eddy_url);
 
     void setInterval(uint16_t fast, uint16_t slow);   /* 0.625 ms 단위 */
     void setFastTimeout(uint16_t sec);
@@ -301,6 +314,7 @@ extern AdafruitBluefruit Bluefruit;
  * 순서 주의: 이 헤더들은 위의 클래스 선언에 의존하므로 파일 끝에 와야 한다.
  */
 #include "BLEUart.h"
+#include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"
 #include "BLEDfu.h"

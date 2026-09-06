@@ -129,6 +129,16 @@ bool BLEAdvertising::stop(void)
   return sd_ble_gap_adv_stop(_handle) == NRF_SUCCESS;
 }
 
+bool BLEAdvertising::setBeacon(BLEBeacon &beacon)
+{
+  return beacon.start(*this);
+}
+
+bool BLEAdvertising::setBeacon(EddyStoneUrl &eddy_url)
+{
+  return eddy_url.start();
+}
+
 void BLEAdvertising::_restartIfNeeded(void)
 {
   /*

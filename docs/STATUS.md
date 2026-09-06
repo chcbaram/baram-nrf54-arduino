@@ -125,7 +125,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B3**~~ ✅ | MTU 협상(247), `BLEConnection`, `BLEDis`, `BLEBas`, `autoConnLed` 등 | **완료.** Adafruit `bleuart` 예제가 API 호출 그대로 동작 |
 | ~~**B4**~~ ✅ | `BLEDfu` 스텁, 파일시스템 안내 헤더, `bluefruit.h` 가 서비스 포함 | **완료. Adafruit 원본 `bleuart.ino` 가 include 2줄 삭제만으로 동작 = M3 DoD** |
 | ~~**B5**~~ ✅ | **다중 연결** (nRF54L15 4개) + notify 큐 설정 | **완료.** 폰 + Mac 동시 2링크 실증 |
-| B6 (남음) | `BLESecurity` / 본딩, `getPeerName()`(GATT 클라이언트), HID, Beacon, central | |
+| ~~**B6**~~ ✅ | **Beacon** — `BLEBeacon`(iBeacon) + `EddyStoneUrl` | **완료.** 광고 페이로드 실측 검증 |
+| B7 (남음) | GATT 클라이언트(`getPeerName()`) -> central, 본딩/`BLESecurity`, HID | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**

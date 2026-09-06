@@ -23,6 +23,8 @@
 #define UUID16_SVC_BATTERY_SERVICE                0x180F
 #define UUID16_SVC_HEALTH_THERMOMETER             0x1809
 #define UUID16_SVC_HUMAN_INTERFACE_DEVICE         0x1812
+/* Google EddyStone. GATT 서비스가 아니라 광고 service data 에만 쓰인다. */
+#define UUID16_SVC_EDDYSTONE                      0xFEAA
 
 /* ── characteristic ─────────────────────────────────────────────────── */
 #define UUID16_CHR_DEVICE_NAME                    0x2A00
@@ -49,6 +51,7 @@
 #define UUID16_CHR_PNP_ID                         0x2A50
 
 /* ── 회사 식별자 (Bluetooth SIG Company Identifiers) ─────────────────── */
+#define UUID16_COMPANY_ID_APPLE                   0x004C
 #define UUID16_COMPANY_ID_ADAFRUIT                0x0822
 #define UUID16_COMPANY_ID_NORDIC                  0x0059
 
