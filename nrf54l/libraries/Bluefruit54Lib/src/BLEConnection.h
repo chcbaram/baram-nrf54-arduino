@@ -45,12 +45,26 @@ class BLEConnection
 
     bool disconnect(void);
 
+    /**
+     * RSSI 보고를 시작한다. 시작해야 getRssi() 와 Bluefruit.setRssiCallback()
+     * 이 값을 받는다.
+     * @param threshold_dbm 이만큼 바뀌어야 보고한다. 0 이면 매번.
+     */
+    bool monitorRssi(uint8_t threshold_dbm = 0);
+    bool stopRssi(void);
+
+    /** 마지막으로 보고된 RSSI. monitorRssi() 전에는 0 이다. */
+    int8_t getRssi(void) const { return _rssi; }
+
+    void _setRssi(int8_t v) { _rssi = v; }
+
   protected:
     uint16_t       _conn_hdl;
     bool           _connected;
     uint8_t        _role;
     uint16_t       _att_mtu;
     ble_gap_addr_t _peer_addr;
+    int8_t         _rssi;
 };
 
 #endif

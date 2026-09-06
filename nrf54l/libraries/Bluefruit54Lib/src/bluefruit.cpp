@@ -79,6 +79,8 @@ BLEAdvertising::BLEAdvertising(void)
   _fast_timeout  = 30;
   _restart       = true;
   _running       = false;
+  _type          = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED;
+  _stop_cb       = NULL;
 }
 
 void BLEAdvertising::setInterval(uint16_t fast, uint16_t slow)
@@ -105,7 +107,7 @@ bool BLEAdvertising::start(uint16_t timeout)
 
   ble_gap_adv_params_t params;
   memset(&params, 0, sizeof(params));
-  params.properties.type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED;
+  params.properties.type = _type;
   params.filter_policy   = BLE_GAP_ADV_FP_ANY;
   params.interval        = _fast_interval;
   params.duration        = timeout ? (timeout * 100) : 0;   /* 10 ms 단위 */
@@ -144,7 +146,9 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _tx_sem      = NULL;
   _att_mtu       = BLE_GATT_ATT_MTU_DEFAULT;
   _auto_conn_led = false;
+  _conn_led_interval = 0;
   _bandwidth     = BANDWIDTH_AUTO;
+  _rssi_cb       = NULL;
   memset(_chars, 0, sizeof(_chars));
 }
 
@@ -169,10 +173,20 @@ void AdafruitBluefruit::setName(const char *name)
 
 bool AdafruitBluefruit::begin(uint8_t prph_count, uint8_t central_count)
 {
-  (void) prph_count;
-  (void) central_count;   /* central 은 B3 이후 */
-
   if (_begun) return true;
+
+  /*
+   * ⚠ 지금은 **peripheral 1개 연결만** 지원한다. 세 군데가 겹친 제한이다:
+   *   1. SoftDevice 설정  — sd_event_pump.c 의 SD_BLE_PERIPH_LINK_COUNT = 1
+   *   2. 이 클래스        — _conn_hdl / _connection 이 배열이 아니다
+   *   3. BLEUart          — 수신 FIFO 가 연결별로 없다
+   *
+   * 더 달라고 하면 **조용히 1개로 깎지 않고 실패시킨다.** 그래야 스케치가
+   * 왜 두 번째 연결이 안 되는지 헤매지 않는다.
+   */
+  if (prph_count != 1 || central_count != 0) {
+    return false;
+  }
 
   if (!sdEnable()) return false;
 
@@ -215,6 +229,35 @@ bool AdafruitBluefruit::_waitTxComplete(uint32_t ms)
 {
   if (_tx_sem == NULL) return false;
   return xSemaphoreTake((SemaphoreHandle_t) _tx_sem, pdMS_TO_TICKS(ms)) == pdTRUE;
+}
+
+void BLEPeriph::setConnInterval(uint16_t min, uint16_t max)
+{
+  _min_interval = min;
+  _max_interval = max;
+  _applyPpcp();
+}
+
+void BLEPeriph::setConnIntervalMS(uint16_t min_ms, uint16_t max_ms)
+{
+  /* 1.25 ms 단위로 바꾼다. 올림하지 않고 내림하면 규격 최소치를 밑돌 수 있어
+   * (min * 4) / 5 대신 (min * 4 + 4) / 5 로 올림한다. */
+  setConnInterval((uint16_t)((min_ms * 4 + 4) / 5), (uint16_t)((max_ms * 4 + 4) / 5));
+}
+
+void BLEPeriph::_applyPpcp(void)
+{
+  if (_min_interval == 0 || _max_interval == 0) return;
+
+  ble_gap_conn_params_t p;
+  memset(&p, 0, sizeof(p));
+  p.min_conn_interval = _min_interval;
+  p.max_conn_interval = _max_interval;
+  p.slave_latency     = _latency;
+  p.conn_sup_timeout  = _sv_timeout;
+
+  /* SoftDevice 가 켜지기 전이면 무시된다. Bluefruit.begin() 뒤에 불러야 한다. */
+  (void) sd_ble_gap_ppcp_set(&p);
 }
 
 BLEConnection *AdafruitBluefruit::Connection(uint16_t conn_hdl)
@@ -329,6 +372,16 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
     }
 
     /* notify 한 건이 무선으로 나갔다. 기다리던 쪽을 깨운다. */
+    case BLE_GAP_EVT_ADV_SET_TERMINATED:
+      Advertising._onStopped();
+      break;
+
+    case BLE_GAP_EVT_RSSI_CHANGED:
+      _connection._setRssi(evt->evt.gap_evt.params.rssi_changed.rssi);
+      if (_rssi_cb) _rssi_cb(evt->evt.gap_evt.conn_handle,
+                             evt->evt.gap_evt.params.rssi_changed.rssi);
+      break;
+
     case BLE_GATTS_EVT_HVN_TX_COMPLETE:
       if (_tx_sem) xSemaphoreGive((SemaphoreHandle_t) _tx_sem);
       break;

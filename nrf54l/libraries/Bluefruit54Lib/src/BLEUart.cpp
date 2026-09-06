@@ -120,6 +120,12 @@ size_t BLEUart::read(uint8_t *buf, size_t size)
   return n;
 }
 
+size_t BLEUart::write(uint16_t conn_hdl, const uint8_t *content, size_t len)
+{
+  if (conn_hdl != Bluefruit.connHandle()) return 0;
+  return write(content, len);
+}
+
 size_t BLEUart::write(uint8_t b)
 {
   return write(&b, 1);

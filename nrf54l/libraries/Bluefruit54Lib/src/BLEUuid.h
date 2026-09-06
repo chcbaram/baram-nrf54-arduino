@@ -11,6 +11,9 @@
 #include <Arduino.h>
 #include <ble.h>
 
+/* Bluetooth SIG 표준 16비트 UUID. 예제들이 이 이름을 쓴다. */
+#include "BLEUuid16.h"
+
 class BLEUuid
 {
   public:

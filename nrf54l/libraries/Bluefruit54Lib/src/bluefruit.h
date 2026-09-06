@@ -40,6 +40,8 @@ typedef enum {
 
 typedef void (*ble_connect_callback_t)   (uint16_t conn_hdl);
 typedef void (*ble_disconnect_callback_t)(uint16_t conn_hdl, uint8_t reason);
+typedef void (*ble_adv_stop_callback_t)  (void);
+typedef void (*ble_rssi_callback_t)      (uint16_t conn_hdl, int8_t rssi);
 
 /* ── advertising 페이로드 빌더 ─────────────────────────────────────── */
 class BLEAdvertisingData
@@ -72,6 +74,15 @@ class BLEAdvertising : public BLEAdvertisingData
     void setFastTimeout(uint16_t sec);
     void restartOnDisconnect(bool enable);
 
+    /** advertising 종류. 기본은 연결 가능 + 스캔 응답. */
+    void setType(uint8_t type) { _type = type; }
+
+    /** advertising 이 멈추면 불린다 (duration 만료 등). */
+    void setStopCallback(ble_adv_stop_callback_t fp) { _stop_cb = fp; }
+
+    /* 코어 내부용 */
+    void _onStopped(void) { _running = false; if (_stop_cb) _stop_cb(); }
+
     bool start(uint16_t timeout = 0);
     bool stop(void);
     bool isRunning(void) const { return _running; }
@@ -87,6 +98,8 @@ class BLEAdvertising : public BLEAdvertisingData
     uint16_t _fast_timeout;
     bool     _restart;
     bool     _running;
+    uint8_t  _type;
+    ble_adv_stop_callback_t _stop_cb;
 };
 
 /* ── peripheral 역할 ───────────────────────────────────────────────── */
@@ -96,8 +109,26 @@ class BLEPeriph
     void setConnectCallback(ble_connect_callback_t fp)       { _connect_cb = fp; }
     void setDisconnectCallback(ble_disconnect_callback_t fp) { _disconnect_cb = fp; }
 
+    /**
+     * 선호 연결 간격. 단위는 1.25 ms 다 (BLE 규격).
+     *
+     * ⚠ 이건 **요청이지 명령이 아니다.** 실제 간격은 central 이 정한다.
+     *   SoftDevice 의 PPCP 에 넣어 두면 상대가 참고한다.
+     */
+    void setConnInterval(uint16_t min, uint16_t max);
+    void setConnIntervalMS(uint16_t min_ms, uint16_t max_ms);
+    void setConnSupervisionTimeout(uint16_t timeout_10ms) { _sv_timeout = timeout_10ms; _applyPpcp(); }
+    void setConnSlaveLatency(uint16_t latency)            { _latency = latency; _applyPpcp(); }
+
+    void _applyPpcp(void);
+
     ble_connect_callback_t    _connect_cb    = NULL;
     ble_disconnect_callback_t _disconnect_cb = NULL;
+
+    uint16_t _min_interval = 0;   /* 0 = 설정하지 않음 */
+    uint16_t _max_interval = 0;
+    uint16_t _latency      = 0;
+    uint16_t _sv_timeout   = 400; /* 4 초 */
 };
 
 /* ── 싱글턴 ────────────────────────────────────────────────────────── */
@@ -110,6 +141,13 @@ class AdafruitBluefruit
 
     AdafruitBluefruit(void);
 
+    /**
+     * SoftDevice 와 BLE 스택을 켠다.
+     *
+     * ⚠ 현재는 `prph_count = 1`, `central_count = 0` 만 지원한다.
+     *   다른 값을 주면 **false 를 돌려준다** — 조용히 1개로 깎지 않는다.
+     *   다중 연결과 central 은 아직 없다 (docs/STATUS.md B 단계 표).
+     */
     bool begin(uint8_t prph_count = 1, uint8_t central_count = 0);
     bool connected(void) const { return _conn_hdl != BLE_CONN_HANDLE_INVALID; }
     uint16_t connHandle(void) const { return _conn_hdl; }
@@ -129,6 +167,18 @@ class AdafruitBluefruit
      *   (XIAO 가 그렇다). 스케치의 blink 와 겹쳐 보일 수 있다.
      */
     void autoConnLed(bool enable);
+
+    /**
+     * 연결 LED 깜빡임 주기 (ms).
+     *
+     * ⚠ Adafruit 은 advertising 중에 LED 를 이 주기로 깜빡인다. 우리는 아직
+     *   깜빡이지 않고 연결 상태만 켜고 끈다 — 값은 받아 두고 무시한다.
+     *   깜빡임을 넣으려면 타이머 태스크가 필요하다.
+     */
+    void setConnLedInterval(uint32_t ms) { _conn_led_interval = ms; }
+
+    /** RSSI 가 바뀌면 불린다. BLEConnection::monitorRssi() 로 시작해야 온다. */
+    void setRssiCallback(ble_rssi_callback_t fp) { _rssi_cb = fp; }
 
     /** Adafruit 시그니처 호환. 값만 받아 둔다 (위 ble_bandwidth_t 주석 참조). */
     void configPrphBandwidth(ble_bandwidth_t bw) { _bandwidth = bw; }
@@ -173,7 +223,9 @@ class AdafruitBluefruit
     uint16_t    _att_mtu;
     BLEConnection _connection;
     bool        _auto_conn_led;
+    uint32_t    _conn_led_interval;
     ble_bandwidth_t _bandwidth;
+    ble_rssi_callback_t _rssi_cb;
 };
 
 extern AdafruitBluefruit Bluefruit;

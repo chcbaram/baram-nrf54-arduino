@@ -11,7 +11,21 @@ BLEConnection::BLEConnection(void)
   _connected = false;
   _role      = BLE_GAP_ROLE_INVALID;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;
+  _rssi      = 0;
   memset(&_peer_addr, 0, sizeof(_peer_addr));
+}
+
+bool BLEConnection::monitorRssi(uint8_t threshold_dbm)
+{
+  if (!_connected) return false;
+  /* skip_count = 0 : 걸러내지 않는다. */
+  return sd_ble_gap_rssi_start(_conn_hdl, threshold_dbm, 0) == NRF_SUCCESS;
+}
+
+bool BLEConnection::stopRssi(void)
+{
+  if (!_connected) return false;
+  return sd_ble_gap_rssi_stop(_conn_hdl) == NRF_SUCCESS;
 }
 
 void BLEConnection::_begin(const ble_evt_t *evt)

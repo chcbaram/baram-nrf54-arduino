@@ -61,6 +61,12 @@ class BLEUart : public BLEService, public Stream
 
     size_t read(uint8_t *buf, size_t size);
 
+    /**
+     * 특정 연결로 보낸다. 지금은 동시 연결이 하나뿐이라 핸들이 현재 연결과
+     * 같을 때만 보낸다 (다르면 0). 다중 연결은 아직 지원하지 않는다.
+     */
+    size_t write(uint16_t conn_hdl, const uint8_t *content, size_t len);
+
     /* 코어 내부용 */
     void _rxHandler(uint16_t conn_hdl, uint8_t *data, uint16_t len);
 
