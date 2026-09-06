@@ -7,7 +7,7 @@
 
 ---
 
-## 1. 지금 동작하는 것 (M1 거의 완료)
+## 1. 지금 동작하는 것 (M1 거의 완료 · M3 BLE peripheral 동작)
 
 실기 보드 **NU54-DK / nRF54L05** 에서 확인:
 
@@ -35,6 +35,24 @@ FQBN  baram-nrf54:nrf54l:nu54dk          NU54-DK    (nRF54L05, 500KB/96KB)
 ```
 
 빌드 크기(blink + Serial + 2태스크): Flash 38004 B, RAM 3856 B.
+
+### BLE (M3) — peripheral 역할 실기 확인
+
+XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) 로 확인한 것:
+
+| 항목 | 상태 |
+|---|---|
+| SoftDevice S145 활성화 + 이벤트 펌프 | ✅ |
+| advertising / GATT 서버 / 커스텀 서비스 | ✅ |
+| `BLEUart`(NUS) · `BLEDis` · `BLEBas` | ✅ |
+| ATT MTU 협상 | ✅ 247 |
+| **동시 연결** | ✅ L15 4개 / L05 2개, 폰+Mac 2링크 양방향 실증 |
+| `BLEBeacon`(iBeacon) · `EddyStoneUrl` | ✅ 광고 바이트 단위 검증 |
+| `getPeerName()` (GATT 클라이언트) | ✅ `Connected to Mac` |
+| tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
+
+**없는 것:** central 역할(스캔·연결), 본딩/페어링, HID, 실제 DFU.
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 14개 통과).
 
 ---
 
@@ -139,13 +157,14 @@ DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md �
 
 - **본딩 / 페어링** (`BLESecurity`). pairing 계열 예제는 아직 안 된다.
   키는 `peer_manager` 4 KB 파티션에 고정 레코드로 넣을 계획이다 (§8.1)
-- **`getPeerName()`** — GATT 클라이언트 경로가 없다. 빈 문자열 + false
-  (`docs/HIL/M3-softdevice.md` §3.8)
-- **central 역할** — peripheral 전용 구성이다
-- **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결 `nrf54l/libraries/Bluefruit54Lib/` 에
-`BLEUuid`/`BLEService`/`BLECharacteristic`/`bluefruit` 가 올라가 있고,
-커스텀 GATT 서비스로 읽기·알림·쓰기가 실기에서 확인됐다.
-시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT), `~/Documents/Arduino/nrf54_bleuart/` (NUS).
+- **central 역할** — peripheral 전용 구성이다. 스캔·연결과 `BLEClient*` 계열이
+  없다. GATT **클라이언트**는 B7 에서 생겼으므로(읽기 경로) 그 위에 얹으면 된다
+- **HID 서비스** — 본딩에 의존한다. HID over GATT 는 보통 암호화된 링크를
+  요구해서, 본딩 없이 만들면 폰이 붙어도 동작하지 않는다
+- **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결
+
+시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT),
+`~/Documents/Arduino/nrf54_bleuart/` (NUS).
 
 ⚠ MTU 를 키울 때 걸린 것 네 가지는 `docs/HIL/M3-softdevice.md` §3.7 에 있다.
 특히 `ble_gap_cfg_role_count_t.adv_set_count` 는 구조체 첫 필드라
@@ -350,7 +369,9 @@ M1 에서 UARTE/GRTC 로 태운 함정이 그대로 반복된다.
 
 | 가정 | 언제 검증되나 |
 |---|---|
-| BASEPRI/PRIMASK 분리가 BLE 라디오 타이밍을 지키는지 (§7 F9) | M3. advertising 유지 + tickless 동시 동작이 최우선 확인 항목 |
+| ~~BASEPRI/PRIMASK 분리가 BLE 라디오 타이밍을 지키는지 (§7 F9)~~ | ✅ **풀렸다.** advertising 과 연결을 유지한 채 tickless idle 에서 틱 vs SYSCOUNTER 0.0 ppm |
+| 링크 3개 이상 동시 연결 | 호스트가 2대뿐이라 못 해 봤다. 슬롯 관리는 개수와 무관하므로 2개에서 검증된 경로와 같다 |
+| BLE 실효 처리량 (특히 iOS) | 아직 안 쟀다. notify 큐를 3 으로 올려 뒀지만 수치가 없다. Adafruit `throughput` 예제로 잴 수 있다 |
 | `USE_LFRC` 경로 (크리스털 없는 보드) | 해당 보드가 생길 때 |
 | probe-rs 가 아닌 J-Link 업로드 | 메뉴에 없음. 필요해지면 추가 |
 | 10분 이상 장시간(수 시간) 안정성 | 5분까지만 확인 |

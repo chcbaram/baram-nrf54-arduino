@@ -7,13 +7,19 @@
 
 [![License: MIT](https://img.shields.io/badge/core-MIT-blue.svg)](LICENSE)
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
-[![Status](https://img.shields.io/badge/status-M1%20(pre--release)-yellow.svg)](docs/STATUS.md)
+[![Status](https://img.shields.io/badge/status-M3%20(BLE)%20in%20progress-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ 초기 릴리스 — v0.1.0
-> blink / `Serial` / 멀티태스킹 / tickless idle 까지 **보드 3종에서 실기 동작**하고
-> Board Manager 로 설치된다. **BLE 는 아직 구현되지 않았다**(M3).
+> ### ⚠ 초기 릴리스 — v0.1.0 (BLE 는 그 이후 추가됨)
+> blink / `Serial` / 멀티태스킹 / tickless idle 이 **보드 3종에서 실기 동작**하고
+> Board Manager 로 설치된다.
+>
+> **BLE 는 peripheral 이 동작한다** — Adafruit `bleuart` 원본 예제가 `#include`
+> 두 줄만 지우면 그대로 돌고, MTU 247 협상·다중 연결·iBeacon / EddyStone 까지
+> 실기에서 확인했다. **central(스캔·연결)과 본딩·HID 는 아직 없다.**
 > `analogRead` / `Wire` / `SPI` 는 M2 다.
-> 진행 상황: [docs/STATUS.md](docs/STATUS.md)
+>
+> 진행 상황과 예제 호환 현황: [docs/STATUS.md](docs/STATUS.md) ·
+> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
 
 ---
 
@@ -176,13 +182,53 @@ arduino-cli upload  --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 <스케치>
 
 시리얼 모니터는 **115200 보** 로 연다.
 
+### BLE 스케치
+
+Adafruit Bluefruit 과 같은 API 다. 폰의 Bluefruit Connect 나 nRF Connect 로 붙어
+UART 처럼 주고받는다.
+
+```cpp
+#include <bluefruit.h>
+
+BLEUart bleuart;
+
+void setup()
+{
+  Serial.begin(115200);
+
+  Bluefruit.begin();
+  Bluefruit.setName("BARAM nRF54L");
+  bleuart.begin();
+
+  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  Bluefruit.Advertising.addService(bleuart);
+  Bluefruit.ScanResponse.addName();
+  Bluefruit.Advertising.restartOnDisconnect(true);
+  Bluefruit.Advertising.start(0);          // 0 = 계속 광고
+}
+
+void loop()
+{
+  while (bleuart.available()) Serial.write(bleuart.read());
+  while (Serial.available())  bleuart.write(Serial.read());
+}
+```
+
+예제가 더 있다: **파일 → 예제 → Bluefruit54Lib** (`bleuart`, `bleuart_multi`,
+`custom_service`, `beacon`, `eddystone_url`).
+
 ## 지원 범위
 
 **지원** — GPIO, `millis()` / `micros()` / `delay()`, `Serial`, `SchedulerRTOS`,
 tickless idle 을 켠 FreeRTOS.
 
-**예정** — `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
-BLE (M3), 부트로더와 UART / BLE OTA DFU (M4).
+**BLE (peripheral)** — advertising, GATT 서버(커스텀 서비스 포함), `BLEUart`(NUS),
+`BLEDis`, `BLEBas`, ATT MTU 247 협상, **동시 연결**(nRF54L15 4개 / nRF54L05 2개),
+`BLEBeacon`(iBeacon)과 `EddyStoneUrl`, 상대 이름 읽기(`getPeerName()`).
+
+**예정** — BLE central(스캔·연결)과 `BLEClient*` 계열, 본딩 / 페어링, HID 서비스,
+`analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
+부트로더와 UART / BLE OTA DFU (M4).
 
 **미지원**
 

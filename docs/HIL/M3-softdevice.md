@@ -130,7 +130,7 @@ g_sd_stage = 10 ->  sd_ble_enable() 까지 갔다. 0x08 은 여기서 나온 것
 
 ## 3.5 B1 — 커스텀 GATT 서비스 (2026-09-06)
 
-`nrf54l/libraries/Bluefruit52Lib/` 에 `BLEUuid` / `BLEService` /
+`nrf54l/libraries/Bluefruit54Lib/` 에 `BLEUuid` / `BLEService` /
 `BLECharacteristic` + 최소 `Bluefruit` 싱글턴을 올렸다. 호스트(bleak)에서 확인:
 
 | 항목 | 결과 |
@@ -312,13 +312,18 @@ DIS 문자열을 읽으면 `b'BARAM\xff\xff...'` 처럼 뒤에 쓰레기가 붙�
 > 겉으로는 "문자열이 깨진다" 로 보이지만 원인은 GATT 속성 길이 설정이다.
 > 값을 쓰는 쪽(`write()`)이 아니라 **속성을 만드는 쪽**을 봐야 한다.
 
-### 미구현으로 남긴 것 — `getPeerName()`
+### `getPeerName()` — ✅ 2026-09-06 구현됨
 
-상대의 GAP 서비스에서 Device Name 을 읽으려면 우리가 GATT **클라이언트**로
-동작해야 한다 (`sd_ble_gattc_*` + `BLE_CONN_CFG_GATTC`). 그 경로가 아직 없다.
+당시엔 빈 문자열 + `false` 였다. 지금은 상대의 Device Name 을 실제로 읽는다
+(`sd_ble_gattc_char_value_by_uuid_read()` 한 번으로 탐색과 읽기가 끝난다).
+실기에서 `Connected to Mac`. 반환형도 상류에 맞춰 길이(`uint16_t`)로 바꿨다.
 
-**빈 문자열을 넣고 `false` 를 돌려준다.** 조용히 성공한 척하지 않는다.
-Adafruit 예제는 반환값을 보지 않고 출력하므로 `Connected to ` 뒤가 빈 줄이 된다.
+당시 예상과 달랐던 것 두 가지:
+- **`BLE_CONN_CFG_GATTC` 는 필요 없었다.** 그 설정은 write command 큐 깊이만
+  조정하고, 클라이언트 절차 자체는 기본 구성으로 동작한다. SoftDevice RAM
+  요구량은 `0x20006DD8` 그대로다
+- 어려운 쪽은 GATT 가 아니라 **콜백을 어느 태스크에서 도느냐** 였다.
+  자세한 건 `docs/STATUS.md` 의 B7 절
 
 참고로 `connect_callback` 에서 `getMtu()` 는 아직 23 이다. MTU 교환이 연결
 **이후**에 일어나기 때문이고, Adafruit 도 같은 순서다. 버그가 아니다.

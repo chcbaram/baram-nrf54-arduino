@@ -56,7 +56,7 @@ SoftDevice가 ARM 코드를 포함한다는 뜻이므로 이 파일도 `nrf54l/s
 | CMSIS-Core (M33) | ARM-software/CMSIS_5 or _6 | Apache-2.0 | `nrf54l/cores/nrf54l/nordic/cmsis/` |
 | FreeRTOS-Kernel | FreeRTOS/FreeRTOS-Kernel | **MIT** | `nrf54l/cores/nrf54l/freertos/` |
 | Arduino API 계열 (`Print`/`Stream`/`WString` 등) | Arduino / Adafruit nRF52 코어 계보 | **LGPL-2.1** ⚠ | `nrf54l/cores/nrf54l/` |
-| Bluefruit52Lib 이식본 (M3) | adafruit/Adafruit_nRF52_Arduino | BSD-3-Clause / MIT (파일별 상이) | `nrf54l/libraries/Bluefruit52Lib/` |
+| Bluefruit52Lib 이식본 (M3) | adafruit/Adafruit_nRF52_Arduino | BSD-3-Clause / MIT (파일별 상이) | `nrf54l/libraries/Bluefruit54Lib/` |
 | probe-rs 바이너리 | probe-rs/probe-rs | MIT OR Apache-2.0 | `nrf54l/tools/probe-rs/` |
 
 > ✅ **확인 완료 (이식 시점)**: 이식한 Arduino 코어 API 파일들의 헤더를 직접 확인했다.

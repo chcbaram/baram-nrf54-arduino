@@ -180,6 +180,41 @@ arduino-cli upload  --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 <sketch>
 
 Then open the Serial Monitor at **115200 baud**.
 
+### A BLE sketch
+
+Same API as Adafruit Bluefruit. Connect with Bluefruit Connect or nRF Connect on a
+phone and it behaves like a serial link.
+
+```cpp
+#include <bluefruit.h>
+
+BLEUart bleuart;
+
+void setup()
+{
+  Serial.begin(115200);
+
+  Bluefruit.begin();
+  Bluefruit.setName("BARAM nRF54L");
+  bleuart.begin();
+
+  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  Bluefruit.Advertising.addService(bleuart);
+  Bluefruit.ScanResponse.addName();
+  Bluefruit.Advertising.restartOnDisconnect(true);
+  Bluefruit.Advertising.start(0);          // 0 = advertise forever
+}
+
+void loop()
+{
+  while (bleuart.available()) Serial.write(bleuart.read());
+  while (Serial.available())  bleuart.write(Serial.read());
+}
+```
+
+More under **File → Examples → Bluefruit54Lib** (`bleuart`, `bleuart_multi`,
+`custom_service`, `beacon`, `eddystone_url`).
+
 ## Support scope
 
 **Supported** — GPIO, `millis()` / `micros()` / `delay()`, `Serial`, `SchedulerRTOS`,
