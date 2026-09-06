@@ -24,10 +24,17 @@ SoftDevice 도 SVC 를 쓰므로 `SVC_Handler` 를 하나만 둘 수 없고, SVC
 > All other SVCs are handled by the SoftDevice.
 
 - `SDM_SVC_BASE = 0x10` (`nrf_sdm.h`), `SOC_SVC_BASE = 0x20` (`nrf_soc.h`)
-- FreeRTOS `ARM_CM33_NTZ` 는 `portSVC_START_SCHEDULER = 0` 만 쓴다 → **번호 충돌은 없다**
 
-문제는 심볼 충돌이다. 포트의 `portasm.c` 와 우리 디스패처가 둘 다 `SVC_Handler` 를
-정의하면 링크가 실패한다. 그래서 포트 쪽을 조건부로 끈다.
+문제가 **두 가지**다.
+
+1. **번호 충돌** — FreeRTOS 11.3.1 은 `portSVC_*` 를 100~105 로 정의한다.
+   전부 0x10 이상이라 디스패처가 SoftDevice 로 넘겨 버린다. → 아래 §2 에서 0~5 로 옮겼다
+2. **심볼 충돌** — 포트의 `portasm.c` 와 우리 디스패처가 둘 다 `SVC_Handler` 를
+   정의하면 링크가 실패한다. → 포트 쪽을 조건부로 끈다 (이 절)
+
+⚠ 이 절에는 원래 "`ARM_CM33_NTZ` 는 `portSVC_START_SCHEDULER = 0` 만 쓰므로
+**번호 충돌은 없다**" 고 적혀 있었다. **틀렸다.** 구버전 FreeRTOS 의 값(0~4)을
+그대로 옮겨 적은 것이고, 실기에서 §2 의 증상으로 드러났다.
 
 대체 구현은 `cores/nrf54l/nordic/sd_svc_dispatch.S` 이며, 포트의 `SVC_Handler` 가 하던 일
 (`r0` = 스택 프레임 포인터 → `vPortSVCHandler_C` 로 분기)을 그대로 하고

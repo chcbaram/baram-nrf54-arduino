@@ -3,7 +3,7 @@
  * baram-nrf54l-arduino
  * SPDX-License-Identifier: MIT
  *
- * 회로도 분석 결과는 docs/NU54-DK.md 에 있다. 값을 바꾸기 전에 그걸 먼저 읽어라.
+ * 회로도 분석 결과는 docs/boards/NU54-DK.md 에 있다. 값을 바꾸기 전에 그걸 먼저 읽어라.
  *
  * 핀 번호 규약: Arduino 핀 번호 = 절대 GPIO 번호 (port * 32 + pin).
  *   P0.00~P0.04 →  0 ~  4

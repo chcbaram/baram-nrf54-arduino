@@ -15,7 +15,7 @@
 /* ── 인스턴스 ─────────────────────────────────────────────────────────
  * NU54-DK 는 CP2102N USB 브리지가 UARTE30(P0.00~P0.03)에 물려 있다.
  * Nordic nRF54L15 DK 의 BOARD_APP_UARTE_* 와 같은 배선이다.
- * docs/NU54-DK.md 참조.
+ * docs/boards/NU54-DK.md 참조.
  */
 /*
  * ⚠ nrfx 4.x 의 NRFX_UARTE_INSTANCE 는 인스턴스 "번호"가 아니라

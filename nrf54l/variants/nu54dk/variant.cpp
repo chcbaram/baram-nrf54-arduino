@@ -3,7 +3,7 @@
  * baram-nrf54l-arduino
  * SPDX-License-Identifier: MIT
  *
- * 핀 매핑과 부팅 시 보드 초기화. 회로도 근거는 docs/NU54-DK.md.
+ * 핀 매핑과 부팅 시 보드 초기화. 회로도 근거는 docs/boards/NU54-DK.md.
  */
 
 #include "Arduino.h"

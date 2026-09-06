@@ -158,7 +158,7 @@ void digitalToggle(uint32_t dwPin)
 
 /* ─────────────────────────────────────────────────────────────────────
  * LED 헬퍼 — variant 의 LED_STATE_ON 을 반영한다
- * NU54-DK 는 active HIGH 이므로 LED_STATE_ON = 1 이다 (docs/NU54-DK.md).
+ * NU54-DK 는 active HIGH 이므로 LED_STATE_ON = 1 이다 (docs/boards/NU54-DK.md).
  * ───────────────────────────────────────────────────────────────────── */
 void ledOn(uint32_t pin)
 {

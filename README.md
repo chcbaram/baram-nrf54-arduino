@@ -12,8 +12,8 @@ nRF54L 시리즈용 Arduino 코어. Nordic **SoftDevice + FreeRTOS** 기반이�
 
 | 보드 | FQBN | MCU | 문서 |
 |---|---|---|---|
-| **NU54-DK** | `...:nrf54l:nu54dk` | nRF54L05 (128MHz Cortex-M33, 500KB RRAM, 96KB RAM) | [docs/NU54-DK.md](docs/NU54-DK.md) |
-| **NU54V-DK** | `...:nrf54l:nu54vdk` | nRF54L15 (128MHz Cortex-M33, 1.5MB RRAM, 256KB RAM) | [docs/NU54-DK.md](docs/NU54-DK.md) |
+| **NU54-DK** | `...:nrf54l:nu54dk` | nRF54L05 (128MHz Cortex-M33, 500KB RRAM, 96KB RAM) | [docs/boards/NU54-DK.md](docs/boards/NU54-DK.md) |
+| **NU54V-DK** | `...:nrf54l:nu54vdk` | nRF54L15 (128MHz Cortex-M33, 1.5MB RRAM, 256KB RAM) | [docs/boards/NU54-DK.md](docs/boards/NU54-DK.md) |
 
 두 보드는 회로도·핀맵이 동일하고 실장 모듈만 다르다. 메모리 크기만 차이가 나며
 variant 는 하나를 공유한다. 배치는 [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) 참조.
@@ -67,6 +67,8 @@ UART DFU 부트로더는 이후 마일스톤에서 추가하며, 그때도 SWD �
 ## 문서
 
 - [CLAUDE.md](CLAUDE.md) — 프로젝트 지침. 절대 규칙, 알려진 함정, 마일스톤
-- [docs/NU54-DK.md](docs/NU54-DK.md) — 보드 핀맵·회로 분석
-- [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) — RRAM / RAM 배치
+- [docs/STATUS.md](docs/STATUS.md) — 진행 상황과 다음 할 일
+- [docs/boards/](docs/boards/) — **보드별** 핀맵·회로 분석 (보드 하나당 문서 하나)
+- [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) — 칩별 RRAM / RAM 배치
+- [docs/PERIPHERAL-PINMAP.md](docs/PERIPHERAL-PINMAP.md) — 페리페럴 ↔ GPIO 전원 도메인 규칙
 - [docs/LICENSE-INVENTORY.md](docs/LICENSE-INVENTORY.md) — 라이선스 내역

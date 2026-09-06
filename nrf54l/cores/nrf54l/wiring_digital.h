@@ -27,7 +27,7 @@ void digitalToggle(uint32_t pin);
  * LED 극성이 달라도 스케치를 고치지 않아도 된다.
  *
  * ⚠ NU54-DK 의 LED 는 active HIGH 다 (N-MOSFET 게이트 구동).
- *   Adafruit nRF52 보드 대부분은 active LOW 라 반대다. docs/NU54-DK.md 참조.
+ *   Adafruit nRF52 보드 대부분은 active LOW 라 반대다. docs/boards/NU54-DK.md 참조.
  */
 void ledOn(uint32_t pin);
 void ledOff(uint32_t pin);

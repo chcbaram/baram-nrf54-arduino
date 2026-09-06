@@ -20,9 +20,17 @@
 >
 > ```
 > FICR INFO.PART     @ 0x00FFC31C   0x00054B05 = L05 / 0x00054B15 = L15
-> FICR INFO.RAM      @ 0x00FFC324   0x60 = 96 KB
-> FICR INFO.CODESIZE @ 0x00FFC328   0x1F4 = 500 KB
+> FICR INFO.VARIANT  @ 0x00FFC320   ASCII (기능 variant + HW 버전)
+> FICR INFO.PACKAGE  @ 0x00FFC324   ASCII (패키지 코드. 예 "CA")
+> FICR INFO.RAM      @ 0x00FFC328   KB 단위. 0x60 = 96 KB(L05) / 0x100 = 256 KB(L15)
+> FICR INFO.RRAM     @ 0x00FFC32C   KB 단위. 0x1F4 = 500 KB(L05) / 0x5F4 = 1524 KB(L15)
 > ```
+>
+> ⚠ 이 오프셋은 원래 RAM 을 `0x00FFC324`, `CODESIZE` 를 `0x00FFC328` 로
+> **4 바이트씩 앞당겨 적어 놓았다.** 그 자리는 실제로 `PACKAGE` / `RAM` 이라
+> 그대로 읽으면 엉뚱한 값이 나온다. 근거는 MDK `NRF_FICR_INFO_Type`
+> (FICR 베이스 `0x00FFC000` + `INFO` `0x300`) 이고, 위 값은 실기 판독으로 확인했다.
+> 마지막 필드 이름도 `CODESIZE` 가 아니라 **`RRAM`** 이다.
 
 ---
 

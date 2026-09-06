@@ -61,7 +61,7 @@ void init(void)
 
     /*
      * LFCLK 소스. NU54-DK 는 32.768 kHz 크리스털(Y1)을 P1.00/P1.01 에
-     * 달고 있으므로 LFXO 를 쓴다 (docs/NU54-DK.md).
+     * 달고 있으므로 LFXO 를 쓴다 (docs/boards/NU54-DK.md).
      * variant 에서 USE_LFXO / USE_LFRC 중 하나를 반드시 정의해야 한다.
      *
      * 실제 LFCLK 기동과 GRTC 클럭 선택은 FreeRTOS 틱 초기화

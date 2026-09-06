@@ -75,9 +75,10 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 
 | 항목 | 값 |
 |---|---|
-| 지원 보드 | **NU54-DK (nRF54L15)** — 1차이자 현재 유일한 variant |
-| `boards.txt` 표시명 | `NU54-DK (nRF54L15)` |
-| board id / `build.variant` | `nu54dk` |
+| 지원 보드 | **NU54-DK (nRF54L05)** / **NU54V-DK (nRF54L15)** — 회로도·핀맵이 동일하고 실장 모듈만 다르다 |
+| `boards.txt` 표시명 | `NU54-DK (nRF54L05)` / `NU54V-DK (nRF54L15)` |
+| board id | `nu54dk` (L05) / `nu54vdk` (L15) |
+| `build.variant` | **`nu54dk` 하나를 두 보드가 공유한다** (핀맵이 같으므로) |
 | architecture | **`nrf54l`** (플랫폼 디렉토리 `nrf54l/`, 코어 `cores/nrf54l/`) |
 | 릴리스 아카이브 | `baram-nrf54l-<ver>.tar.bz2` |
 | Board Manager 인덱스 | `package_baram_nrf54_index.json` |
@@ -181,7 +182,7 @@ arduino-cli의 `tools.<t>.upload.field.<name>` 기법을 쓴다 — IDE가 값�
 
 ### 커스텀 보드 요구사항
 
-**현행 NU54-DK 실측 (회로도 확인 완료 — §4.1)**: 온보드 디버그 프로브가 **없다.**
+**현행 NU54-DK 실측 (회로도 확인 완료 — `docs/boards/NU54-DK.md`)**: 온보드 디버그 프로브가 **없다.**
 CP2102N USB-UART 브리지 + 외부 프로브용 SWD 헤더(J3 = ARM 10핀 1.27mm, P2 = 5핀)만 있다.
 따라서 M1~M3 개발에는 **외부 CMSIS-DAP 장비를 J3에 연결**한다. 현재 계획에 지장 없다.
 
@@ -219,26 +220,26 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 
 현행 보드에 이미 있는 것: **UART 브리지**(CP2102N, `Serial` 출력 + M4 이후 DFU 경로), 32.768 kHz LFXO.
 
-### 4.1 NU54-DK 핀맵 (회로도 실측)
+### 4.1 보드 문서 규칙 — 핀맵의 정본은 `docs/boards/`
 
-모듈 `NCRB54N01VC`(nRF54L15, 62핀). **LED/버튼/UART 핀이 Nordic nRF54L15 DK와 완전히 동일**하다
-(sdk-nrf-bm `boards/nordic/bm_nrf54l15dk/include/board-config.h`와 1:1 일치).
-→ Nordic 샘플과 보드 설정을 거의 그대로 쓸 수 있다.
+**핀 배정표를 이 문서에 두지 마라.** 보드마다 다르고, 여기에 복제하면 보드가 늘 때
+갱신이 누락된다. 실제로 그렇게 낡은 표가 한 번 생겼다.
 
-| 기능 | 핀 | 주의 |
+| 보드 | 칩 | variant | 문서 |
+|---|---|---|---|
+| NU54-DK / NU54V-DK | nRF54L05 / nRF54L15 | `nu54dk` (공유) | `docs/boards/NU54-DK.md` |
+
+**어디에 쓸지 판단 기준은 "보드 사실이냐 칩 사실이냐" 하나다:**
+
+| 종류 | 예 | 위치 |
 |---|---|---|
-| LED D7 / D8 / D9 / D10 | P2.09 / P1.10 / P2.07 / P1.14 | N-MOSFET 게이트 구동, **active HIGH** (Adafruit 기본값과 반대) |
-| SW2 / SW3 / SW4 / SW5 | P1.13 / P1.09 / P1.08 / P0.04 | active LOW, **내부 풀업 필요** (회로도 명기) |
-| SW1 | RESET | 10K 풀업 + 1N4148 |
-| UART (CP2102N) | TX=P0.00, RX=P0.01, CTS=P0.02, RTS=P0.03 | **UARTE30** |
-| LFXO Y1 32.768 kHz | P1.00(XL1) / P1.01(XL2) | 13pF. **GPIO로 쓰면 안 됨** |
-| SWD | J3(10핀) / P2(5핀) | **J3-6 = SWO = P2.07 = LED D9 겸용** |
-| NFC | P1.02 / P1.03 | |
-| AIN0~7 | P1.04~P1.07, P1.11~P1.14 | |
-| 헤더 노출 | P0.00~04, P1.00~14, P2.00~10 | P1(25핀) / P3(25핀) |
-| 전원 | VIN 5~14V → AZ1117-3.3 → 3V3 | USB-C |
+| **보드** 사실 | 핀 배정, LED 극성, 크리스털 실장, 디버그 경로, 전원 | **`docs/boards/<보드>.md`** — 보드(회로도) 하나당 문서 하나 |
+| **칩** 사실 | RRAM/RAM 배치, 페리페럴↔GPIO 도메인 규칙, 레지스터 오프셋 | `docs/MEMORY-MAP.md`, `docs/PERIPHERAL-PINMAP.md` — **보드별로 복제하지 마라** |
+| 실기 기록 | 측정값, 원인 규명 과정 | `docs/HIL/<마일스톤>-<보드>.md` |
+| 지침·결정 | 규칙, 함정, 마일스톤 | 이 문서 (루트 `CLAUDE.md` 하나) |
 
-상세는 `docs/NU54-DK.md`.
+회로도가 같고 실장 모듈만 다른 보드는 **문서 하나를 공유한다** (NU54-DK / NU54V-DK).
+variant 를 만들거나 고칠 때 반드시 해당 보드 문서를 먼저 읽어라.
 
 ### 4.2 nRF54LM20A 조사 결과 (M6 대비)
 
@@ -805,10 +806,13 @@ baram-nrf54-arduino/                 # 저장소 루트
 ├── package_baram_nrf54_index.json   # platforms[0] = nrf54l
 ├── extras/make_release.sh           # 배포 스크립트 (아카이브에 미포함)
 ├── docs/                            # 아카이브에 미포함
+│   ├── STATUS.md                    # 진행 상황 / 인수인계
 │   ├── LICENSE-INVENTORY.md
-│   ├── MEMORY-MAP.md
-│   ├── NU54-DK.md
-│   └── HIL/                         # 실기 검증 기록
+│   ├── MEMORY-MAP.md                # 칩별 (L05 / L15) RRAM·RAM 배치
+│   ├── PERIPHERAL-PINMAP.md         # 칩별 페리페럴↔GPIO 도메인 규칙
+│   ├── boards/                      # ★ 보드별 회로도 실측 (보드 하나당 문서 하나)
+│   │   └── NU54-DK.md               #   NU54-DK + NU54V-DK (회로도 동일)
+│   └── HIL/                         # 실기 검증 기록 (마일스톤 × 보드)
 └── nrf54l/                          # ★ 아카이브되는 플랫폼 루트
     ├── platform.txt  boards.txt  programmers.txt  keywords.txt
     ├── cores/nrf54l/
@@ -866,7 +870,7 @@ baram-nrf54-arduino/                 # 저장소 루트
 - [x] 업로드 툴 조사 → **probe-rs 채택** (§3). pyOCD 0.39도 `nrf54l` 지원하나 Python 의존이라 대비책
 - [x] 메모리 맵 확정 → `docs/MEMORY-MAP.md`. 앱이 0x0, SD가 상단 (**nRF52와 반대**)
 - [x] 저전력 API 조사 → SD의 `sd_app_evt_wait`/`sd_nvic_*`/`sd_power_system_off` **전부 없음** (§6.1, §7 F9)
-- [x] NU54-DK 회로도 분석 → `docs/NU54-DK.md`, §4.1
+- [x] NU54-DK 회로도 분석 → `docs/boards/NU54-DK.md`
 - [ ] `reuse` 또는 `scancode-toolkit`으로 전체 라이선스 인벤토리 생성 → `docs/LICENSE-INVENTORY.md`
 - [ ] sdk-nrf-bm의 single-bank DFU가 UART 경유를 지원하는지 확인 (지원하면 M4 대폭 축소) — **M4 직전으로 연기**
 - [ ] nRF54L의 부트로더 진입 주소 메커니즘 확인 — **M4 직전으로 연기**
@@ -885,7 +889,8 @@ baram-nrf54-arduino/                 # 저장소 루트
 
 ### M1 — 최소 동작
 
-업로드는 **CMSIS-DAP/probe-rs 또는 J-Link SWD**. 부트로더 없음 (§3). 보드는 **NU54-DK (nRF54L15)**.
+업로드는 **CMSIS-DAP/probe-rs 또는 J-Link SWD**. 부트로더 없음 (§3).
+보드는 **NU54-DK (nRF54L05)** 와 **NU54V-DK (nRF54L15)** 2종이다.
 
 - [x] FreeRTOS 포팅: `ARM_CM33_NTZ`, GRTC 틱, SVC 조정(F1), 우선순위 설정(F2)
 - [x] `setup()`/`loop()` 태스크 기동 — `Scheduler.startLoop()` 두 번째 태스크까지 실기 확인
@@ -985,7 +990,7 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 
 ### M5 — 패키징 / 배포
 
-- [ ] variant: **NU54-DK (nRF54L15)** 우선. 이후 Nordic nRF54L15 DK / generic 모듈
+- [ ] variant: **NU54-DK / NU54V-DK** (`nu54dk` 공유) 우선. 이후 Nordic nRF54L15 DK / generic 모듈
 - [ ] `boards.txt`, `platform.txt`, `package_*_index.json`
 - [ ] 라이선스 파일 정리 (§9), README
 - [ ] 예제 스케치 (Adafruit 예제 포팅)
