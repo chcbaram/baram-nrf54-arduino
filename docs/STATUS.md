@@ -122,10 +122,10 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 |---|---|---|
 | ~~**B1**~~ ✅ | `BLEUuid` / `BLEService` / `BLECharacteristic` + 최소 `Bluefruit` 싱글턴 | **완료.** 탐색·읽기·알림·쓰기 전부 실증 |
 | ~~**B2**~~ ✅ | `BLEUart` (NUS) | **완료.** 18바이트 에코 왕복 일치 |
-| **B3** | **MTU 협상**(`sd_ble_cfg_set`), `BLEConnection`, `BLEAdvertising` 전체, `BLEDis` / `BLEBas` | 예제 다수가 컴파일되기 시작 |
+| **B3** | **MTU 협상**(1차 시도 실패, 되돌림 — `docs/HIL/M3-softdevice.md` §3.7 에 알아낸 것 정리), `BLEConnection`, `BLEAdvertising` 전체, `BLEDis` / `BLEBas` | 예제 다수가 컴파일되기 시작 |
 | **B4** | `BLESecurity` / 본딩, `BLEDfu` 스텁, 파일시스템 호환 헤더 | **`bleuart.ino` 무수정 = DoD** |
 
-지금 위치: **B2 완료, B3 착수 전.** `nrf54l/libraries/Bluefruit52Lib/` 에
+지금 위치: **B2 완료. B3 의 MTU 협상은 1차 시도 후 되돌렸다.** `nrf54l/libraries/Bluefruit52Lib/` 에
 `BLEUuid`/`BLEService`/`BLECharacteristic`/`bluefruit` 가 올라가 있고,
 커스텀 GATT 서비스로 읽기·알림·쓰기가 실기에서 확인됐다.
 시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT), `~/Documents/Arduino/nrf54_bleuart/` (NUS).

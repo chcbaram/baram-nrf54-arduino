@@ -773,13 +773,75 @@ arduino-cli 는 recipe 를 셸 없이 토큰 단위로 실행한다.
 | `cores/nRF5/rtos.h` | 동일 API 유지 | 호환 핵심. 시그니처 바꾸지 말 것 |
 | `cores/nRF5/freertos/` | FreeRTOS + `ARM_CM33_NTZ` | 틱을 GRTC로 교체 (§7 F3) |
 | `port_cmsis_systick.c` (RTC1) | `port_grtc.c` (GRTC) | tickless 골격은 유지, SD 의존부만 치환 (§6.1, §7 F9) |
-| `libraries/Bluefruit52Lib/` | 동일 API, `sd_ble_*` 재구현 | S145 기준 |
+| `libraries/Bluefruit52Lib/` | **`libraries/Bluefruit54Lib/`** — 동일 API, `sd_ble_*` 재구현 | S145 기준. 이름을 54 로 둔 이유는 §8.2 |
 | nRF5 SDK 드라이버 | nrfx 4.x | nrfx는 Zephyr 없이 standalone 사용이 정식 지원됨 |
 | S132 / S140 | **S145 v10.0.1 고정** (peripheral+central) | S115는 메뉴 항목 추가만으로 확장 가능하게 변수화 |
 | `Adafruit_nRF52_Bootloader` | 자체 UART DFU 부트로더 (M4) | 구조 참고 |
 | `adafruit-nrfutil` | 호스트 업로드 툴 (M4) | 패키지에 바이너리 동봉하는 방식 참고 |
 | `Adafruit_TinyUSB` (Serial) | **이식 대상 아님** | R10 |
 | `Adafruit_LittleFS` + `InternalFileSystem` | **부분 이식.** §8.1 참조 | 본딩 저장에만 필요하다. RRAM 에는 erase 가 없어 그대로 못 올린다 (R9) |
+
+### 8.3 Adafruit 대비 달라진 점
+
+**BLE 기능이나 성능이 더 낫다는 뜻이 아니다.** 아직 기능은 한참 모자란다
+(docs/STATUS.md 의 B 단계 표). 여기 적는 것은 구조와 진단 방식의 차이이고,
+nRF54L 로 옮기면서 **다르게 하기로 한 것**이다.
+
+**1. SoftDevice 계층을 한 파일에 격리했다** — `cores/nrf54l/ble/sd_event_pump.c`
+
+Adafruit 은 SoftDevice enable / 이벤트 디스패치 / 인터럽트 우선순위를
+`bluefruit.cpp` 안에 API 구현과 섞어 둔다. 우리는 분리했다.
+백엔드(SoftDevice)를 갈아치우면 통째로 버려질 코드이므로 흩뿌리지 않는다.
+Bluefruit API 쪽은 관찰자로 붙기만 한다 (`sdBleObserverAdd`).
+**추상화 레이어가 아니라 코드 배치 규칙이다** — R11 위반이 아니다.
+
+**2. 진단 상태를 SWD 로 읽을 수 있게 남긴다**
+
+Adafruit 은 `VERIFY_STATUS` 매크로 + `Serial` 로그에 의존한다. 그런데
+**`Serial` 이 죽은 상태에서는 아무것도 못 본다.** 실제로 A 단계에서
+"출력이 하나도 없다" 로 시작해 오진했다.
+
+그래서 전역에 흔적을 남긴다. probe-rs 가 halt 를 유지하지 못하므로
+(docs/HIL/M1-nu54dk.md §5) 이 방식이 더 확실하다.
+
+| 전역 | 무엇 |
+|---|---|
+| `g_sd_stage` | `sdEnable()` 이 어디까지 갔는지 |
+| `m_last_error` | 마지막으로 실패한 SoftDevice API 의 오류 코드 |
+| `g_sd_ram_required` | `sd_ble_enable()` 이 요구한 최소 앱 RAM 시작 주소 |
+| `g_sd_evt_buf_too_small` | 이벤트가 버퍼보다 커서 못 꺼냈을 때 |
+| `g_sd_fault_id/pc/info` | SoftDevice 치명적 오류 |
+| `g_fault`, `g_assert_file/line` | 예외 프레임 / assert 위치 (M1 부터) |
+
+**3. HardFault 를 SoftDevice 로 포워딩하지 않는다**
+
+sdk-nrf-bm 은 넘긴다. 우리는 `fault_handler.c` 의 기록기를 살린다.
+개발 중에는 폴트가 났을 때 스택 프레임과 CFSR 을 남기는 쪽이 낫다.
+근거와 되돌리는 법은 `nordic/sd_irq_forward.S` 주석에 있다.
+
+**4. 본딩 저장 위치를 앱 파티션 밖으로 잡아 뒀다**
+
+`docs/MEMORY-MAP.md` 가 `peer_manager` 4 KB 를 앱 파티션 **밖**에 두었다
+(Nordic DTS 를 따른 결과). 앱을 갱신해도 본딩이 날아가지 않는 것이
+**구조적으로 보장된다.** 파일시스템 없이 고정 레코드로 넣을 수 있다는 뜻이기도
+하다 (§8.1).
+
+### 8.2 왜 `Bluefruit54Lib` 인가
+
+폴더 이름을 원본과 같은 `Bluefruit52Lib` 로 두지 않았다.
+
+**호환성에는 영향이 없다.** Arduino 는 `src/` 안의 **헤더 이름**으로 라이브러리를
+찾고 스케치가 쓰는 것은 `#include <bluefruit.h>` 다. 폴더 이름은 사용자가
+타이핑하지 않는다. R12 를 해치지 않는다.
+
+이름의 독자는 셋이다 — 저장소를 읽는 사람, 빌드 로그, Library Manager.
+셋 모두에게 `Bluefruit52Lib` 는 **"Adafruit 것을 vendoring 했다"** 로 읽히는데
+사실이 아니다. 이 저장소는 `nrfx/VENDORING.md` · `freertos/PATCHES.md` 처럼
+**가져온 것과 새로 쓴 것을 구분해 적는** 방식을 쓰므로 이름도 그래야 한다.
+Adafruit nRF52 코어를 함께 설치한 사용자의 빌드 로그에서 구분되는 이점도 있다.
+
+⚠ 잃는 것: 제3자 라이브러리가 `depends=Bluefruit52Lib` 를 선언하면 못 찾는다.
+그런 라이브러리는 nRF52 용이라 어차피 이 코어에서 돌지 않을 가능성이 크다.
 
 ### 8.1 파일시스템 — 무엇 때문에 필요한가
 

@@ -213,6 +213,59 @@ Adafruit 의 `Bluefruit.configPrphBandwidth()` 가 하는 일이 이것이다. �
 
 ---
 
+## 3.7 B3 시도 — MTU 협상 (미완, 되돌림)
+
+기본 ATT MTU(23)로는 호스트가 20바이트를 넘겨 쓸 때 long write 가 필요해
+연결이 끊긴다. `sd_ble_cfg_set(BLE_CONN_CFG_GATT, att_mtu=247)` 로 풀려 했으나
+**완성하지 못하고 되돌렸다.** 알아낸 것을 남긴다 — 다시 붙일 때 여기서 시작하면 된다.
+
+### 확인한 것
+
+**(a) `conn_cfg_tag` 에 0 을 쓰면 안 된다.** `ble.h` 원문:
+
+> "Must be different for all connection configurations added and
+> **not `BLE_CONN_CFG_TAG_DEFAULT`**"
+
+0 을 넣으면 `sd_ble_cfg_set()` 이 **성공을 돌려주는데도 설정이 안 먹는다.**
+증상: MTU 를 247 로 구성했는데 협상 결과가 계속 23 이고 SoftDevice RAM 요구량도
+그대로다. 태그를 1 로 바꿔야 한다.
+
+**(b) `sd_ble_gap_adv_start()` 에도 같은 태그를 넘겨야 한다.** 한쪽만 바꾸면
+설정은 등록됐는데 연결은 기본 구성으로 만들어진다. 실제로 태그만 1 로 바꾸고
+`adv_start` 를 그대로 뒀더니 **advertising 자체가 실패**했다.
+
+**(c) MTU 교환 응답에 기본값을 하드코딩하면 안 된다.** `bluefruit.cpp` 가
+`BLE_GATT_ATT_MTU_DEFAULT` 로 답하고 있었다. 스택을 크게 구성해도 상대와는
+23 으로 협상된다. 실효 MTU 는 양쪽 제시값 중 작은 쪽이다.
+
+**(d) 이벤트 버퍼가 MTU 에 따라 커져야 한다.** `ble.h` 의 `BLE_EVT_LEN_MAX` 원문:
+
+> "The highest value used for `ble_gatt_conn_cfg_t::att_mtu` in any connection
+> configuration shall be used as a parameter."
+
+MTU 247 이면 378 바이트쯤 필요한데 우리 버퍼는 256 고정이었다. 모자라면
+`sd_ble_evt_get()` 이 `NRF_ERROR_DATA_SIZE` 를 내고 이벤트가 스택에 남아 멈춘다.
+→ `#define SD_BLE_EVT_BUF_SIZE BLE_EVT_LEN_MAX(SD_BLE_ATT_MTU)`
+
+### 왜 되돌렸나
+
+(a)~(d)를 모두 반영해도 advertising 이 뜨지 않았고, `sd_ble_cfg_set()` 의
+반환값을 담아 둔 전역이 ELF 에 남지 않아(`--gc-sections` 으로 보인다) 원인을
+좁히지 못했다. **동작하는 B2 상태를 깨 놓고 세션을 끝내는 것보다 되돌리는 편이
+낫다고 판단했다.**
+
+### 다시 붙일 때
+
+1. `sd_ble_cfg_set()` 세 건의 반환값을 **시리얼로 직접 찍어라.** 전역에 담고
+   SWD 로 읽는 방식은 최적화에 지워질 수 있다 (`__attribute__((used))` 필요)
+2. `NRF_ERROR_NO_MEM` 이면 `g_sd_ram_required` 가 링커 `RAM ORIGIN` 보다 큰지 본다.
+   크면 `docs/MEMORY-MAP.md` 와 두 링커 스크립트, `boards.txt` 의
+   `upload.maximum_data_size` 를 함께 고쳐야 한다
+3. MTU 를 247 대신 **작게(예: 64) 올려 보면서** 어디서 실패하는지 좁히는 것이
+   빠르다
+
+---
+
 ## 4. 남은 것
 
 - **GATT 서비스가 없다.** 연결은 되지만 서비스 탐색이 빈 손이라 호스트가 곧 끊는다.
