@@ -17,10 +17,11 @@ nu54vdk.build.board=NU54VDK
 nu54vdk.build.core=nrf54l
 nu54vdk.build.variant=nu54dk
 nu54vdk.build.chip=NRF54L15_XXAA
-# 동시 peripheral 연결 수. 링커 스크립트의 RAM 예약과 짝이다 —
-# 한쪽만 고치면 sd_ble_enable() 이 실패한다 (docs/MEMORY-MAP.md).
-# L15 — SD 예약 30 KB
-nu54vdk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=5
+# 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
+# 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 251 B 라
+# 서로 맞바꾸는 관계다 — 링크 5개면 큐를 못 올린다 (docs/MEMORY-MAP.md).
+# L15 — SD 예약 28 KB, 링크 4 + 큐 3 = 0x20006DD8 (실측, 여유 552 B)
+nu54vdk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 # probe-rs 의 타깃 이름. `probe-rs chip list` 로 확인한 값이며
 # NRF54L15_XXAA(컴파일러 define)와는 표기가 다르다.
@@ -28,9 +29,9 @@ nu54vdk.build.chip_probers=nRF54L15
 
 # 메모리 (docs/MEMORY-MAP.md)
 #   application 0x00000000 ~ 0x00158800 (1378 KB)
-#   app RAM     0x20007800 ~ 0x20040000 (0x38800)  — SD 예약 30 KB (동시 연결 5개분)
+#   app RAM     0x20007000 ~ 0x20040000 (0x39000)  — SD 예약 28 KB (연결 4개 + notify 큐 3)
 nu54vdk.upload.maximum_size=1411072
-nu54vdk.upload.maximum_data_size=231424
+nu54vdk.upload.maximum_data_size=233472
 
 # ── SoftDevice ────────────────────────────────────────────────────────
 # S145 고정. 메뉴 형태로 둔 이유는 S115 를 추가할 때 여기 한 항목과
@@ -171,19 +172,20 @@ xiao_nrf54l15.build.board=XIAO_NRF54L15
 xiao_nrf54l15.build.core=nrf54l
 xiao_nrf54l15.build.variant=xiao_nrf54l15
 xiao_nrf54l15.build.chip=NRF54L15_XXAA
-# 동시 peripheral 연결 수. 링커 스크립트의 RAM 예약과 짝이다 —
-# 한쪽만 고치면 sd_ble_enable() 이 실패한다 (docs/MEMORY-MAP.md).
-# L15 — SD 예약 30 KB
-xiao_nrf54l15.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=5
+# 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
+# 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 251 B 라
+# 서로 맞바꾸는 관계다 — 링크 5개면 큐를 못 올린다 (docs/MEMORY-MAP.md).
+# L15 — SD 예약 28 KB, 링크 4 + 큐 3 = 0x20006DD8 (실측, 여유 552 B)
+xiao_nrf54l15.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 xiao_nrf54l15.build.chip_probers=nRF54L15
 
 # 메모리 (docs/MEMORY-MAP.md — NU54V-DK 와 같은 nRF54L15 배치)
 #   application 0x00000000 ~ 0x00158800 (1378 KB)
-#   app RAM     0x20007800 ~ 0x20040000 (0x38800)  — SD 예약 30 KB (동시 연결 5개분)
+#   app RAM     0x20007000 ~ 0x20040000 (0x39000)  — SD 예약 28 KB (연결 4개 + notify 큐 3)
 # 실장 칩 확인 (FICR): PART=0x00054B15, RAM=0x100(256KB), RRAM=0x5F4(1524KB)
 xiao_nrf54l15.upload.maximum_size=1411072
-xiao_nrf54l15.upload.maximum_data_size=231424
+xiao_nrf54l15.upload.maximum_data_size=233472
 
 # ── SoftDevice ────────────────────────────────────────────────────────
 xiao_nrf54l15.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)

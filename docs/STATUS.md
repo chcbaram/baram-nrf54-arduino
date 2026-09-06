@@ -124,7 +124,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B2**~~ ✅ | `BLEUart` (NUS) | **완료.** 18바이트 에코 왕복 일치 |
 | ~~**B3**~~ ✅ | MTU 협상(247), `BLEConnection`, `BLEDis`, `BLEBas`, `autoConnLed` 등 | **완료.** Adafruit `bleuart` 예제가 API 호출 그대로 동작 |
 | ~~**B4**~~ ✅ | `BLEDfu` 스텁, 파일시스템 안내 헤더, `bluefruit.h` 가 서비스 포함 | **완료. Adafruit 원본 `bleuart.ino` 가 include 2줄 삭제만으로 동작 = M3 DoD** |
-| **B5** (진행 중) | **다중 연결(최대 5)** — 설계 확정, 구현 전 | `bleuart_multi` + 호스트 2대 |
+| ~~**B5**~~ ✅ | **다중 연결** (nRF54L15 4개) + notify 큐 설정 | **완료.** 폰 + Mac 동시 2링크 실증 |
 | B6 (남음) | `BLESecurity` / 본딩, `getPeerName()`(GATT 클라이언트), HID, Beacon, central | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
@@ -156,7 +156,38 @@ DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md �
 본딩 저장 때문이고, RRAM 에는 erase 가 없어 그대로 못 올린다.
 배경과 권장 경로는 CLAUDE.md §8.1.
 
-### B5 — 다중 연결 (2026-09-06 시점: RAM 확보 완료, 라이브러리 구현 전)
+### B5 — 다중 연결 ✅ (2026-09-06 완료)
+
+**실기 결과** (XIAO nRF54L15, 폰(nRF Connect) + Mac(bleak) 동시 연결):
+
+```
+Connected, handle 1, total 2        <- 폰 handle 0, Mac handle 1
+Keep advertising                     <- 2/4 라 광고 계속
+[1] mac-msg-0
+Disconnected, handle 1, reason 0x13, left 1   <- 폰 링크는 살아 있다
+```
+
+확인된 것: 동시 2링크, 링크별 핸들 태깅, **연결 중 광고 유지**(연결을 쥔 채 다시
+스캔해서 잡히는 것으로 확인), 한쪽만 끊어도 나머지 생존, MTU 247.
+
+⚠ **핸들이 0 으로 오지 않는다.** 두 번째 연결에서 SoftDevice 가 handle 1 을 줬다.
+핸들을 배열 인덱스로 쓰는 설계가 맞았고, `connHandle() == 0` 을 가정하면 깨진다.
+
+**최종 구성 (nRF54L15): 링크 4개 + notify 큐 3, SD 예약 28 KB.**
+링크 5개도 RAM 은 되지만 그러면 큐를 1 에서 못 올리고, 큐 1 은 연결 이벤트당
+notify 1건이라 처리량이 크게 깎인다. 연결 수보다 처리량을 골랐다 —
+Adafruit `BANDWIDTH_MAX` 와 같은 조합이다. 실측표는 `docs/MEMORY-MAP.md`.
+
+**nRF54L05 는 링크 1개 그대로 둔다.** L15 실측을 옮기면 2개가 여유 168 B 로 들어갈
+것 같지만 **L05 보드로 확인한 적이 없다.** 빗나가면 그 보드는 BLE 를 못 켠다.
+NU54-DK 를 붙여 `need=` 를 한 번 읽으면 끝나는 일이라, 그때 올린다.
+
+**남은 것:** 링크 간 전달(한 링크에서 받은 것을 다른 링크로 notify)은 보드가
+받는 것까지만 확인했다. 폰 화면에서 도착을 봐야 닫힌다.
+
+---
+
+#### (아래는 착수 전에 정리한 설계 메모 — 결과와 함께 남겨 둔다)
 
 **끝난 것: RAM.** nRF54L15 의 SoftDevice 예약을 26 KB → **30 KB(`0x20007800`)** 로
 넓혔다 (커밋 `7e4e2d5`). 실기에서 `SD_BLE_PERIPH_LINK_COUNT=5` + MTU 247 로
