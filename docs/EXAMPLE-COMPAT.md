@@ -63,7 +63,7 @@ adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
 
 | 기능 | 막고 있는 예제 수 | 비고 |
 |---|---|---|
-| Client / Central 스택 | ~9 | `BLEClientUart`, `BLEClientService`, `BLEClientCharacteristic` 등. 스캔은 됐고 연결·탐색이 남았다 |
+| Client / Central 스택 | ~8 | 스캔·연결·탐색·`BLEClientUart` 까지 됐다. 남은 것은 `BLEClientService` / `BLEClientCharacteristic` 일반화와 그 위의 `BLEClientBas` / `BLEClientDis` |
 | M2 — SPI / Wire / PDM / PWM | ~16 | Arduino API. BLE 와 무관 |
 | HID 서비스 | 5 | `BLEHidAdafruit`, `BLEHidGamepad` |
 | 본딩 / 페어링 | 3 | `Bluefruit.Security`, `utility/bonding.h` |

@@ -86,6 +86,8 @@ class BLEScanner
 
     /* 코어 내부용 */
     void _eventHandler(const ble_evt_t *evt);
+    /** 연결을 시작하면 SoftDevice 가 스캔을 멈춘다 — 그 사실을 반영한다. */
+    void _setStopped(void) { _running = false; }
 
   protected:
     /* SoftDevice 가 보고를 써 넣는 버퍼. 스캔이 도는 동안 살아 있어야 한다. */

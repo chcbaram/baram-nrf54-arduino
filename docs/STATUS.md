@@ -404,11 +404,36 @@ AD 타입 파싱(이름), active scan(스캔 응답), 16비트 UUID 필터까지
 그래서 **스캔 콜백 안에서 블로킹 호출을 하면 안 된다** (`getPeerName()` 등).
 출력·필터·연결 시작은 괜찮다.
 
+#### central 연결 + 클라이언트 UART ✅ (2026-09-07)
+
+두 보드로 실증했다. XIAO(central) ↔ NU54-DK(peripheral), MTU 247, 양방향:
+
+```
+XIAO:     Found E8:FA:C5:C4:FD:A5  rssi -64, connecting
+          Connected, discovering UART service ... ready, MTU 247
+          [peer] tick-0 ... tick-7
+NU54-DK:  [from-central] hello-0 ... hello-6
+```
+
+경로 전체가 동작한다: UUID 필터 스캔 -> 연결 -> MTU 교환 -> 서비스/characteristic/
+CCCD 탐색 -> 알림 켜기 -> 양방향 데이터.
+
+⚠ **central 은 MTU 교환을 우리가 먼저 걸어야 한다.** peripheral 일 때는 상대가
+걸어 주지만 central 일 때는 걸어 주는 쪽이 없다. 넣기 전에는 MTU 가 23 이었다.
+콜백 태스크에서 **스케치 콜백보다 먼저** 끝낸다 — 콜백 안의 `discover()` 도
+GATT 절차라 겹치면 `NRF_ERROR_BUSY` 가 난다.
+
+⚠ **characteristic 은 UUID 로 가려야 한다.** 탐색 응답의 순서로 고르면 안 된다 —
+규격이 순서를 정해 두지 않아 구현마다 다르다.
+
+⚠ **characteristic 탐색은 한 번에 안 끝난다.** 마지막 핸들 다음부터 다시 물어
+범위가 끝날 때까지 반복해야 한다. 한 번만 부르면 뒤쪽이 조용히 빠진다.
+
 #### 다음
 
-연결(`sd_ble_gap_connect`) -> 서비스/특성 탐색 ->
-`BLEClientService` / `BLEClientCharacteristic` / `BLEClientUart`.
-GATT 클라이언트 읽기 경로는 B7 에서 이미 만들었다.
+`BLEClientService` / `BLEClientCharacteristic` 를 일반화하면 `BLEClientBas` /
+`BLEClientDis` 가 생기고, 상류 `central_bleuart` 가 그걸 쓴다 (지금은 그 둘 때문에
+컴파일이 안 된다). 우리 `Central/central_bleuart` 예제는 동작한다.
 
 nRF54L05 도 실측해서 **peripheral 2 + central 1** 로 올렸다 (`0x20005C38`).
 둘 다 가지려고 예약을 `0x4B80` -> `0x5D00` 으로 키웠고, 앱 RAM 은
@@ -438,6 +463,25 @@ SoftDevice hex 를 다시 구우면 복구된다.
 `analogRead`/`analogWrite`/`Wire`/`SPI`/`attachInterrupt`.
 **착수 전에 CLAUDE.md §7 F10(nrfx 4.x 규칙)의 체크리스트를 반드시 읽어라.**
 M1 에서 UARTE/GRTC 로 태운 함정이 그대로 반복된다.
+
+---
+
+## 2.5 발견된 버그 — `Serial` 수신이 32바이트 단위다 ⚠
+
+**증상:** `Serial` 로 짧은 문자열을 보내면 스케치가 못 읽는다. 32바이트가 찰 때까지
+DMA 버퍼에 갇혀 있다가, 나중 데이터가 청크를 채우면 그때 **한꺼번에** 올라온다.
+
+**실기 확인 (XIAO, echo 스케치):** `"AB"` 를 보내면 응답 없음. 이어서 64바이트를
+보내면 그제서야 `echo:A echo:B echo:X...` 가 몰려 나온다.
+
+**원인:** `Uart.cpp` 가 `RX_CHUNK = 32` 짜리 EasyDMA 버퍼를 걸어 두고
+**버퍼가 다 차야** 오는 완료 이벤트로만 링버퍼에 옮긴다. 유휴(idle) 감지가 없다.
+
+**영향이 크다.** 대화형 시리얼 입력이 사실상 안 된다. 상류 `bleuart` 예제가
+Serial ↔ BLE 다리를 놓는 것이 핵심인데 그 절반이 안 도는 셈이다.
+
+**고칠 방향:** UARTE 의 프레임 타임아웃(유휴 감지)으로 부분 버퍼를 flush 하게 한다.
+nRF54L UARTE 에 해당 기능이 있는지 `nrfx_uarte` 4.x API 부터 확인해야 한다.
 
 ---
 

@@ -82,6 +82,10 @@ typedef void (*ble_disconnect_callback_t)(uint16_t conn_hdl, uint8_t reason);
 typedef void (*ble_adv_stop_callback_t)  (void);
 typedef void (*ble_rssi_callback_t)      (uint16_t conn_hdl, int8_t rssi);
 
+#include "BLECentral.h"
+
+class BLEClientUart;   /* 아래 include 에서 정의된다 (순환 의존) */
+
 /* ── advertising 페이로드 빌더 ─────────────────────────────────────── */
 class BLEAdvertisingData
 {
@@ -219,18 +223,83 @@ class BLEGatt
                             void *buffer, uint16_t bufsize,
                             uint16_t start_hdl = 1, uint16_t end_hdl = 0xFFFF);
 
+    /**
+     * 상대의 primary 서비스를 UUID 로 찾는다.
+     * @param[out] start_hdl,end_hdl 그 서비스의 핸들 범위
+     * @return 찾으면 true.
+     */
+    bool discoverService(uint16_t conn_hdl, BLEUuid bleuuid,
+                         uint16_t *start_hdl, uint16_t *end_hdl);
+
+    /**
+     * 핸들 범위 안의 characteristic 을 훑는다.
+     *
+     * ⚠ 한 번의 응답에 다 안 올 수 있다. 마지막 핸들 다음부터 다시 물어
+     *   **범위가 끝날 때까지 반복해야 한다.** 한 번만 부르고 끝내면
+     *   뒤쪽 characteristic 이 조용히 빠진다.
+     *
+     * @return 채운 개수.
+     */
+    uint8_t discoverChars(uint16_t conn_hdl, uint16_t start_hdl, uint16_t end_hdl,
+                          ble_gattc_char_t *out, uint8_t max_count);
+
+    /** value 핸들 뒤에서 CCCD(0x2902) 를 찾는다. 없으면 0. */
+    uint16_t discoverCccd(uint16_t conn_hdl, uint16_t value_hdl, uint16_t end_hdl);
+
+    /** 상대 characteristic 에 쓴다. resp=true 면 응답을 기다린다. */
+    bool writeChar(uint16_t conn_hdl, uint16_t value_hdl,
+                   const void *data, uint16_t len, bool resp);
+
+    /**
+     * ATT MTU 교환을 **우리가 먼저** 건다.
+     *
+     * ⚠ central 은 이걸 안 하면 MTU 가 23 에 머문다. peripheral 일 때는 보통
+     *   상대가 걸어 주지만, central 일 때는 걸어 주는 쪽이 없다.
+     *   실제로 이 호출을 넣기 전에는 central 연결이 MTU 23 이었다.
+     *
+     * @return 협상된 MTU. 실패하면 0.
+     */
+    uint16_t exchangeMtu(uint16_t conn_hdl);
+
     /* 코어 내부용 */
     bool _begin(void);
     void _eventHandler(const ble_evt_t *evt);
 
   protected:
+    /* 진행 중인 절차. GATTC 는 링크당 한 번에 하나라 한 건만 추적하면 된다. */
+    enum {
+      PROC_NONE = 0,
+      PROC_READ_UUID,
+      PROC_SRVC,
+      PROC_CHAR,
+      PROC_DESC,
+      PROC_WRITE,
+      PROC_MTU,
+    };
+
     void    *_sem;          /* SemaphoreHandle_t */
-    void    *_mutex;        /* 한 번에 한 절차만 — GATTC 는 링크당 1건이다 */
+    void    *_mutex;        /* 절차 하나씩 직렬화 */
+    uint8_t  _proc;
+    uint16_t _conn_hdl;
+
+    /* 읽기 결과 */
     uint8_t *_buf;
     uint16_t _bufsize;
     uint16_t _len;
-    uint16_t _conn_hdl;
-    bool     _waiting;
+
+    /* 탐색 결과 */
+    uint16_t _srvc_start;
+    uint16_t _srvc_end;
+    ble_gattc_char_t *_chars;
+    uint8_t  _char_max;
+    uint8_t  _char_count;
+    uint16_t _cccd_hdl;
+    uint16_t _mtu;
+    bool     _ok;
+
+    bool beginProc(uint8_t proc, uint16_t conn_hdl);
+    bool waitProc(void);
+    void endProc(void);
 };
 
 /* ── 싱글턴 ────────────────────────────────────────────────────────── */
@@ -240,6 +309,7 @@ class AdafruitBluefruit
     BLEAdvertising Advertising;
     BLEAdvertisingData ScanResponse;
     BLEPeriph      Periph;
+    BLECentral     Central;
     BLEGatt        Gatt;
     BLEScanner     Scanner;
 
@@ -358,6 +428,9 @@ class AdafruitBluefruit
     /* 이벤트 진입점 (sd_event_pump 가 부른다) */
     void _eventHandler(const ble_evt_t *evt);
 
+    /** 클라이언트 서비스가 GATTC 이벤트를 받으려면 등록해야 한다. */
+    bool _registerClientUart(BLEClientUart *uart);
+
     /**
      * 스케치 콜백을 실행할 태스크에 넘긴다.
      *
@@ -366,8 +439,8 @@ class AdafruitBluefruit
      *   이벤트 태스크에서 하면 응답 이벤트를 처리할 주체가 자기 자신이라
      *   영영 안 온다. Adafruit 이 ada_callback() 으로 미루는 이유가 그것이다.
      */
-    void _deferConnect(uint16_t conn_hdl);
-    void _deferDisconnect(uint16_t conn_hdl, uint8_t reason);
+    void _deferConnect(uint16_t conn_hdl, uint8_t role);
+    void _deferDisconnect(uint16_t conn_hdl, uint8_t reason, uint8_t role);
     void _callbackTask(void);      /* 위 태스크의 본체 */
 
     /**
@@ -393,6 +466,8 @@ class AdafruitBluefruit
     BLEService *_cur_service;
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;
+    BLEClientUart *_client_uarts[BLE_MAX_CONNECTION];
+    uint8_t     _client_uart_count;
     bool        _begun;
     /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않으려고 void* 로 둔다. */
     void       *_tx_sem[BLE_MAX_CONNECTION];
@@ -417,6 +492,7 @@ extern AdafruitBluefruit Bluefruit;
  * 순서 주의: 이 헤더들은 위의 클래스 선언에 의존하므로 파일 끝에 와야 한다.
  */
 #include "BLEUart.h"
+#include "BLEClientUart.h"
 #include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"

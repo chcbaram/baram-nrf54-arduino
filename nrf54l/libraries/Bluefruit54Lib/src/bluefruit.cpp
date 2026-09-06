@@ -169,6 +169,7 @@ enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT };
 typedef struct {
   uint8_t  type;
   uint8_t  reason;
+  uint8_t  role;      /* BLE_GAP_ROLE_* — 해제 시점엔 슬롯이 비어 있을 수 있어 함께 나른다 */
   uint16_t conn_hdl;
 } ble_cb_msg_t;
 
@@ -192,12 +193,33 @@ void AdafruitBluefruit::_callbackTask(void)
     if (xQueueReceive((QueueHandle_t) _cb_queue, &msg, portMAX_DELAY) != pdTRUE) continue;
 
     switch (msg.type) {
+      /* 역할에 맞는 콜백으로 보낸다. 스케치가 둘을 따로 등록하기 때문이다. */
       case BLE_CB_CONNECT:
-        if (Periph._connect_cb) Periph._connect_cb(msg.conn_hdl);
+        if (msg.role == BLE_GAP_ROLE_CENTRAL) {
+          /*
+           * ⚠ central 은 MTU 교환을 **우리가 먼저** 걸어야 한다. 안 하면
+           *   MTU 가 23 에 머문다 — peripheral 일 때는 상대가 걸어 주지만
+           *   central 일 때는 아무도 안 건다. 실제로 겪었다.
+           *
+           * 스케치 콜백 **전에** 끝내야 한다. 콜백 안의 discover() 도 GATT
+           * 절차라, 겹치면 NRF_ERROR_BUSY 가 난다.
+           */
+          uint16_t mtu = Gatt.exchangeMtu(msg.conn_hdl);
+          int8_t   slot = _slotOf(msg.conn_hdl);
+          if (mtu && slot >= 0) _connection[slot]._setMtu(mtu);
+
+          if (Central._connect_cb) Central._connect_cb(msg.conn_hdl);
+        } else {
+          if (Periph._connect_cb)  Periph._connect_cb(msg.conn_hdl);
+        }
         break;
 
       case BLE_CB_DISCONNECT: {
-        if (Periph._disconnect_cb) Periph._disconnect_cb(msg.conn_hdl, msg.reason);
+        if (msg.role == BLE_GAP_ROLE_CENTRAL) {
+          if (Central._disconnect_cb) Central._disconnect_cb(msg.conn_hdl, msg.reason);
+        } else {
+          if (Periph._disconnect_cb)  Periph._disconnect_cb(msg.conn_hdl, msg.reason);
+        }
 
         /*
          * ⚠ 슬롯 반납은 **콜백이 끝난 뒤**다. 이벤트 핸들러에서 바로 반납하면
@@ -214,15 +236,15 @@ void AdafruitBluefruit::_callbackTask(void)
   }
 }
 
-void AdafruitBluefruit::_deferConnect(uint16_t conn_hdl)
+void AdafruitBluefruit::_deferConnect(uint16_t conn_hdl, uint8_t role)
 {
-  ble_cb_msg_t msg = { BLE_CB_CONNECT, 0, conn_hdl };
+  ble_cb_msg_t msg = { BLE_CB_CONNECT, 0, role, conn_hdl };
   if (_cb_queue) xQueueSend((QueueHandle_t) _cb_queue, &msg, 0);
 }
 
-void AdafruitBluefruit::_deferDisconnect(uint16_t conn_hdl, uint8_t reason)
+void AdafruitBluefruit::_deferDisconnect(uint16_t conn_hdl, uint8_t reason, uint8_t role)
 {
-  ble_cb_msg_t msg = { BLE_CB_DISCONNECT, reason, conn_hdl };
+  ble_cb_msg_t msg = { BLE_CB_DISCONNECT, reason, role, conn_hdl };
   if (_cb_queue) xQueueSend((QueueHandle_t) _cb_queue, &msg, 0);
 }
 
@@ -244,7 +266,9 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _rssi_cb       = NULL;
   _cb_queue    = NULL;
   _cb_task     = NULL;
+  _client_uart_count = 0;
   memset(_chars, 0, sizeof(_chars));
+  memset(_client_uarts, 0, sizeof(_client_uarts));
   memset(_tx_sem, 0, sizeof(_tx_sem));
 }
 
@@ -516,6 +540,16 @@ void AdafruitBluefruit::configPrphBandwidth(ble_bandwidth_t bw)
   }
 }
 
+bool AdafruitBluefruit::_registerClientUart(BLEClientUart *uart)
+{
+  if (_client_uart_count >= BLE_MAX_CONNECTION) return false;
+  for (uint8_t i = 0; i < _client_uart_count; i++) {
+    if (_client_uarts[i] == uart) return true;
+  }
+  _client_uarts[_client_uart_count++] = uart;
+  return true;
+}
+
 bool AdafruitBluefruit::_registerChar(BLECharacteristic *chr)
 {
   if (_char_count >= BLE_MAX_CHARS) return false;
@@ -562,7 +596,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
 #ifdef LED_CONN
       if (_auto_conn_led) ledOn(LED_CONN);
 #endif
-      _deferConnect(conn_hdl);
+      _deferConnect(conn_hdl, evt->evt.gap_evt.params.connected.role);
       break;
     }
 
@@ -577,7 +611,8 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       if (slot >= 0) _connection[slot]._disconnect();
 
       /* 콜백과 슬롯 반납은 콜백 태스크가 한다 (위 주석 참조). */
-      _deferDisconnect(conn_hdl, evt->evt.gap_evt.params.disconnected.reason);
+      _deferDisconnect(conn_hdl, evt->evt.gap_evt.params.disconnected.reason,
+                       (slot >= 0) ? _connection[slot].getRole() : BLE_GAP_ROLE_PERIPH);
 
       /* 최근 연결이 끊겼으면 남아 있는 것 중 하나로 옮긴다. */
       if (_conn_hdl == conn_hdl) {
@@ -682,5 +717,10 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
   /* characteristic 쓰기 이벤트 전달 */
   for (uint8_t i = 0; i < _char_count; i++) {
     if (_chars[i]) _chars[i]->_eventHandler(evt);
+  }
+
+  /* 클라이언트 쪽 알림(HVX) 전달 */
+  for (uint8_t i = 0; i < _client_uart_count; i++) {
+    if (_client_uarts[i]) _client_uarts[i]->_eventHandler(evt);
   }
 }
