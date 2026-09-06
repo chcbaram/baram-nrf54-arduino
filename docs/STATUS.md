@@ -195,7 +195,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B6**~~ ✅ | **Beacon** — `BLEBeacon`(iBeacon) + `EddyStoneUrl` | **완료.** 광고 페이로드 실측 검증 |
 | ~~**B7**~~ ✅ | **GATT 클라이언트** + 콜백 지연 실행 -> `getPeerName()` | **완료.** `Connected to Mac` 실증 |
 | ~~**B8**~~ ✅ | **central 역할** — 스캔 / 연결 / GATT 탐색 / `BLEClientUart` | **완료.** 두 보드 간 양방향 실증 |
-| B9 (남음) | `BLEClientService`/`BLEClientCharacteristic` 일반화 -> `BLEClientBas`/`BLEClientDis` | |
+| ~~**B9**~~ ✅ | `BLEClientService`/`BLEClientCharacteristic` 일반화 + `BLEClientBas`/`BLEClientDis` | **완료.** 상류 `central_bleuart` 컴파일 |
 | B10 (남음) | 본딩/`BLESecurity`, HID | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
@@ -479,11 +479,45 @@ GATT 절차라 겹치면 `NRF_ERROR_BUSY` 가 난다.
 ⚠ **characteristic 탐색은 한 번에 안 끝난다.** 마지막 핸들 다음부터 다시 물어
 범위가 끝날 때까지 반복해야 한다. 한 번만 부르면 뒤쪽이 조용히 빠진다.
 
-#### 다음
+#### 클라이언트 서비스 일반화 ✅ (2026-09-07)
 
-`BLEClientService` / `BLEClientCharacteristic` 를 일반화하면 `BLEClientBas` /
-`BLEClientDis` 가 생기고, 상류 `central_bleuart` 가 그걸 쓴다 (지금은 그 둘 때문에
-컴파일이 안 된다). 우리 `Central/central_bleuart` 예제는 동작한다.
+`BLEClientService` / `BLEClientCharacteristic` 가 생겼고 `BLEClientUart` /
+`BLEClientBas` / `BLEClientDis` 가 그 위에 얹혔다. **상류 `central_bleuart` 가
+이제 컴파일된다** (배터리·장치정보 클라이언트가 없어서 막혀 있었다).
+
+⚠ **서비스가 한 번의 탐색으로 등록된 characteristic 을 모두 채운다.**
+characteristic 마다 따로 훑으면 DIS(특성 6개)에서 6번 왕복한다.
+UUID 로 나눠 주는데, **응답 순서로 고르면 안 된다** — 규격이 순서를 안 정한다.
+
+⚠ `BLEClientDis` 만 예외로 **부를 때마다 찾아 읽는다.** 특성이 여섯인데 보통
+한둘만 쓰므로 상주시키는 것보다 낫다 (Adafruit 도 같은 이유).
+
+⚠ **indication 은 `sd_ble_gattc_hv_confirm()` 으로 확인 응답을 보내야 한다.**
+안 보내면 상대가 다음 것을 안 보내고 결국 절차 타임아웃으로 링크가 끊긴다.
+
+#### PC 를 peripheral 로 쓸 수 있다 — `extras/mac_peripheral.py`
+
+보드가 한 대뿐일 때 macOS 를 상대 peripheral 로 띄운다 (CoreBluetooth
+`CBPeripheralManager`, pyobjc). NUS 를 광고·제공하므로 central 시험에 충분하다.
+
+⚠ **macOS 는 DIS(0x180A) / 배터리(0x180F) 같은 예약 서비스의 게시를 거부한다**
+(`CBError 8 "UUID is not allowed"`). 그래서 `BLEClientBas` / `BLEClientDis` 는
+이걸로 못 재고 보드가 필요하다.
+
+**실기 결과** (XIAO central ↔ Mac peripheral): 스캔 필터 -> 연결 -> MTU 247 ->
+서비스/characteristic/CCCD 탐색 -> 알림 구독 -> 양방향 데이터.
+
+```
+XIAO: Found 80:A9:97:3F:E5:18  rssi -44, connecting
+      Connected, discovering UART service ... ready, MTU 247
+      [peer] mac-tick-1 ... mac-tick-8
+Mac:  central subscribed to TX
+      <- from central: b'xiao-1' ... b'xiao-5'
+```
+
+**남은 것:** `BLEClientBas` / `BLEClientDis` 는 컴파일만 됐고 실기 확인 전이다.
+NU54-DK 에 `Peripheral/bleuart`(DIS·배터리 포함)를 올리고 상류
+`central_bleuart` 를 XIAO 에 올리면 한 번에 확인된다.
 
 nRF54L05 도 실측해서 **peripheral 2 + central 1** 로 올렸다 (`0x20005C38`).
 둘 다 가지려고 예약을 `0x4B80` -> `0x5D00` 으로 키웠고, 앱 RAM 은
