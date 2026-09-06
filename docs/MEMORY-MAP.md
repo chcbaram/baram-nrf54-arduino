@@ -67,26 +67,49 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 
 | 시작 | 크기 | 영역 |
 |---|---|---|
-| `0x20000000` | `0x4780` (18,304 B) | **SoftDevice** |
-| `0x20004780` | `0x3B880` (~237 KB) | **application** |
+| `0x20000000` | `0x6800` (26 KB) | **SoftDevice** |
+| `0x20006800` | `0x39800` (235,520 B) | **application** |
 
-> **✅ 2026-09-05 실기 확인.** 실제 링크 결과가 아래와 일치한다:
+> **DTS 기본값(`0x4780`, 18.25 KB)보다 넉넉히 잡았다.** 이유는 **동시 연결**이다.
+> SoftDevice 는 링크마다 RAM 을 더 쓰는데, 그 크기는 `sd_ble_enable()` 이
+> 돌려주는 값으로만 알 수 있다.
+
+**실측 (XIAO nRF54L15, MTU 247):**
+
+| 동시 링크 | 필요한 앱 RAM 시작 | 링커 `0x20006800` 안에 |
+|---|---|---|
+| 1 | `0x20003750` | ✅ |
+| 2 | `0x200046D8` | ✅ |
+| 3 | `0x20005668` | ✅ |
+| **4** | **`0x200065F8`** | ✅ 여유 520 B |
+| 5 | `0x20007590` | ❌ |
+
+링크당 약 **3980 B** (MTU 247). MTU 를 줄이면 같이 준다 — MTU 23 이면 약 1950 B 라
+같은 경계로 링크 8개도 들어간다. **연결 수와 MTU 는 맞바꾸는 관계다.**
+
+참고로 Adafruit nRF52840 코어는 `0x20006000`(24 KB)을 잡는다. 그 값이면 링크 3개까지고,
+2 KB 를 더 줘서 4개를 맞췄다. 전체 256 KB 중 26 KB 이므로 앱 RAM 손해는 3.2 % 다.
+
+> ⚠ 설정을 바꿔 RAM 이 모자라면 `sd_ble_enable()` 이 **필요한 정확한 주소**를 돌려준다.
+> `sdCfgResults()` 로 읽어서 링커 스크립트의 `RAM ORIGIN`/`LENGTH` 와
+> `boards.txt` 의 `upload.maximum_data_size` **세 곳을 함께** 고쳐야 한다.
+
+> **✅ 2026-09-05 실기 확인** (예약 `0x4780` 이던 시절):
 > `.vectors @ 0x00000000`, `.text @ 0x00000E08`, `.data @ 0x20004780`,
-> `.bss @ 0x20004A80`, `__StackTop = 0x20040000`, `__StackLimit = 0x2003F800`.
-> 힙 가용 232 KB (`__HeapBase 0x200055C4` ~ `__StackLimit`).
+> `__StackTop = 0x20040000`. 배치 규칙 자체는 그대로이고 시작 주소만 위로 옮겼다.
 > 검증 기록: [HIL/M1-nu54dk.md](HIL/M1-nu54dk.md)
 
 ### 링커 스크립트 값
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x158800
-RAM   (rwx) : ORIGIN = 0x20004780, LENGTH = 0x3B880
+RAM   (rwx) : ORIGIN = 0x20006800, LENGTH = 0x39800
 ```
 
 `boards.txt`:
 ```
 upload.maximum_size      = 1411072   # 0x158800
-upload.maximum_data_size =  243328   # 0x3B880
+upload.maximum_data_size =  235520   # 0x39800
 ```
 
 ---

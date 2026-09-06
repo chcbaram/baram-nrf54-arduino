@@ -22,10 +22,29 @@
  *     0x20004780  application   0x3B880              <- 이 스크립트
  */
 
+/*
+ * SoftDevice RAM 예약 — 0x20000000 ~ 0x20006800 (26 KB)
+ *
+ * DTS 기본값은 0x4780(18.25 KB)이고 그것도 링크 1개에는 충분하다
+ * (실측 요구 0x20003750). 넉넉히 잡는 이유는 **동시 연결** 때문이다.
+ *
+ * 실측 (MTU 247, XIAO nRF54L15):
+ *   링크 1개  0x20003750      링크 3개  0x20005668
+ *   링크 2개  0x200046D8      링크 4개  0x200065F8   <- 이 값이 기준
+ * 링크당 약 3980 B 다. MTU 를 줄이면 링크당 비용도 준다 (MTU 23 이면 약 1950 B).
+ *
+ * 0x20006800 은 링크 4개 @ MTU 247 을 담고 520 B 가 남는다.
+ * 참고로 Adafruit nRF52840 코어는 0x20006000(24 KB)을 잡는데, 그 값이면
+ * 링크 3개까지다. 2 KB 를 더 줘서 4개를 맞췄다.
+ *
+ * ⚠ 설정을 바꿔 RAM 이 모자라면 sd_ble_enable() 이 **필요한 정확한 주소**를
+ *   돌려준다. sdCfgResults() 로 읽어 이 값과 아래 LENGTH,
+ *   그리고 boards.txt 의 upload.maximum_data_size 를 함께 고쳐라.
+ */
 MEMORY
 {
   FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x158800
-  RAM   (rwx) : ORIGIN = 0x20004780, LENGTH = 0x3B880
+  RAM   (rwx) : ORIGIN = 0x20006800, LENGTH = 0x39800
 }
 
 /*
