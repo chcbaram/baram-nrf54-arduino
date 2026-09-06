@@ -107,15 +107,84 @@ static void grtc_tick_handler(int32_t id, uint64_t cc_value, void * p_context)
  * BLE 는 더 심각하다. 연결 유지에 보통 ±250 ppm 이하가 요구되므로
  * RC 로는 M3 에서 연결이 끊긴다.
  *
- * NU54-DK 는 Y1 32.768 kHz 크리스털에 **외부 13pF 캡(C13/C14)** 이 달려 있다.
- * 따라서 내부 캡은 꺼야 한다 (NRF_OSCILLATORS_LFXO_CAP_EXTERNAL).
+ * 소스를 LFXO 로 바꾸는 것만으로는 부족하다. **로드 커패시터도 맞춰야 한다.**
+ * 크리스털에 외부 캡이 달린 보드가 있고 칩 내부 캡에 의존하는 보드가 있는데,
+ * 이건 칩이 아니라 보드의 성질이라 variant 가 정한다 (LFXO_INTCAP_VAL).
+ * 틀리면 소스는 LFXO 인데도 수백 ppm 이 어긋난다 — 아래 참조.
  */
+/*
+ * LFXO 내부 로드 커패시터 값 계산.
+ *
+ * variant 가 LFXO_LOAD_CAP_FF (femtofarad) 를 정의하면 내부 캡을 쓰고,
+ * 정의하지 않으면 외부 캡이 실장된 보드로 보고 INTCAP=0 을 쓴다.
+ *
+ * ⚠ 상수를 박아 두면 안 된다. 계산에 FICR.XOSC32KTRIM 이 들어가는데 이 트림은
+ *   **칩 개체마다 다르다.** 같은 보드라도 다른 개체에서 값이 달라진다.
+ */
+#if defined(USE_LFXO) && defined(LFXO_LOAD_CAP_FF)
+
+/* nRF54L15 PS 가 규정하는 범위 (4~18 pF, 0.5 pF 단위). */
+#if (LFXO_LOAD_CAP_FF < 3000) || (LFXO_LOAD_CAP_FF > 18000)
+  #error "LFXO_LOAD_CAP_FF 는 3000~18000 (fF) 이어야 한다"
+#endif
+
+static uint32_t lfxo_intcap_calc(void)
+{
+    uint32_t trim   = NRF_FICR->XOSC32KTRIM;
+    uint32_t sfield = (trim & FICR_XOSC32KTRIM_SLOPE_Msk) >> FICR_XOSC32KTRIM_SLOPE_Pos;
+    uint32_t smask  = FICR_XOSC32KTRIM_SLOPE_Msk >> FICR_XOSC32KTRIM_SLOPE_Pos;
+    uint32_t ssign  = smask - (smask >> 1);
+    /* SLOPE 는 2의 보수라 부호 확장이 필요하다. */
+    int32_t  slope  = (int32_t)(sfield ^ ssign) - (int32_t)ssign;
+    uint32_t offset = (trim & FICR_XOSC32KTRIM_OFFSET_Msk) >> FICR_XOSC32KTRIM_OFFSET_Pos;
+
+    /*
+     * nRF54L15 PS:
+     *   CAPVALUE = round( (2*C_pF - 12) * (SLOPE + 0.765625 * 2^9) / 2^9
+     *                     + OFFSET / 2^6 )
+     * 부동소수를 피하려고 fF 단위로 받아 2^9 배 스케일에서 정수로 계산한다
+     * (0.765625 * 2^9 = 392). Zephyr soc/nordic/nrf54l/soc.c 와 같은 식이다.
+     */
+    uint32_t mid = (2UL * (uint32_t)LFXO_LOAD_CAP_FF - 12000UL)
+                 * (uint32_t)(slope + 392L)
+                 + (offset << 3UL) * 1000UL;
+
+    uint32_t cap = mid / 512000UL;
+    if ((mid % 512000UL) >= 256000UL) {
+        cap++;                          /* 소수부 반올림 */
+    }
+    return cap;
+}
+#endif /* USE_LFXO && LFXO_LOAD_CAP_FF */
+
 static void lfclk_start(void)
 {
 #if defined(USE_LFXO)
-    /* 외부 캡이 실장돼 있으므로 내부 캡을 끈다.
-     * 내부 캡을 켜면 총 부하용량이 커져 발진 주파수가 낮아진다. */
-    nrf_oscillators_lfxo_cap_set(NRF_OSCILLATORS, NRF_OSCILLATORS_LFXO_CAP_EXTERNAL);
+    /*
+     * LFXO 내부 로드 커패시터. **보드마다 다르므로 variant 가 정한다.**
+     *
+     *   LFXO_LOAD_CAP_FF 미정의  외부 캡이 실장된 보드 → INTCAP = 0
+     *                              (NU54-DK: C13/C14 13 pF)
+     *   LFXO_LOAD_CAP_FF 정의      내부 캡을 쓰는 보드. 그 용량(fF)에서
+     *                              FICR 트림으로 INTCAP 을 계산한다
+     *                              (XIAO nRF54L15: 16000 fF)
+     *
+     * 여기서 EXTERNAL(0)을 하드코딩하고 있었는데, 그건 NU54-DK 의 보드 사실이지
+     * 칩의 성질이 아니다. 외부 캡이 없는 보드(XIAO nRF54L15)에서 0 을 써 넣으면
+     * 부하용량이 모자라 발진이 빨라진다 — **실측 +805 ppm.** BLE 요구치
+     * ±250 ppm 을 넘으므로 M3 에서 연결이 끊긴다 (§7 F12 와 같은 계열의 함정).
+     *
+     * ⚠ nrfx 의 NRF_OSCILLATORS_LFXO_CAP_CALCULATE 는 쓰지 않는다.
+     *   `((SLOPE + 392) >> 9) * (cap*2-12)` 라서 SLOPE 가 작으면 앞항이 0 으로
+     *   잘리고, cap_val 을 무엇으로 주든 같은 값이 나온다 (실측: SLOPE=21,
+     *   OFFSET=317 인 칩에서 6/7/9/11 pF 전부 4). 값은 실측으로 정한다.
+     */
+#if defined(LFXO_LOAD_CAP_FF)
+    nrf_oscillators_lfxo_cap_set(NRF_OSCILLATORS,
+                                 (nrf_oscillators_lfxo_cap_t) lfxo_intcap_calc());
+#else
+    nrf_oscillators_lfxo_cap_set(NRF_OSCILLATORS, (nrf_oscillators_lfxo_cap_t) 0);
+#endif
     nrf_clock_lf_src_set(NRF_CLOCK, NRF_CLOCK_LFCLK_XTAL);
 #elif defined(USE_LFRC)
     nrf_clock_lf_src_set(NRF_CLOCK, NRF_CLOCK_LFCLK_RC);

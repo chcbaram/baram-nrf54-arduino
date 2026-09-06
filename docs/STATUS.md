@@ -21,11 +21,17 @@
 | **tickless idle** | ✅ 틱 vs SYSCOUNTER 0 ppm, 5분 소크 이상 0건 |
 | LFXO 클럭 정확도 | ✅ 호스트 대비 +25~38 ppm |
 | arduino-cli / Arduino IDE 컴파일·업로드 | ✅ probe-rs, CMSIS-DAP |
-| 보드 2종 (L05 / L15) | ✅ 둘 다 빌드 확인 |
+| 보드 3종 | ✅ NU54-DK / NU54V-DK / XIAO nRF54L15 |
+
+**XIAO nRF54L15 실기 확인 (2026-09-06)** — `docs/HIL/M1-xiao.md`:
+온보드 CMSIS-DAP 업로드 1.9초, `Serial`(UARTE20) 정상,
+틱 vs SYSCOUNTER **0.0 ppm**, 호스트 대비 **-14 ppm**, 180초 90샘플 이상 0건.
+LFXO 내부 로드 캡을 잡기 전에는 **+805 ppm** 이었다 (§ 아래 4-7).
 
 ```
-FQBN  baram-nrf54:nrf54l:nu54dk    NU54-DK   (nRF54L05, 500KB/96KB)
-      baram-nrf54:nrf54l:nu54vdk   NU54V-DK  (nRF54L15, 1.5MB/256KB)
+FQBN  baram-nrf54:nrf54l:nu54dk          NU54-DK    (nRF54L05, 500KB/96KB)
+      baram-nrf54:nrf54l:nu54vdk         NU54V-DK   (nRF54L15, 1.5MB/256KB)
+      baram-nrf54:nrf54l:xiao_nrf54l15   XIAO       (nRF54L15, 온보드 CMSIS-DAP)
 ```
 
 빌드 크기(blink + Serial + 2태스크): Flash 38004 B, RAM 3856 B.
@@ -124,7 +130,11 @@ M1 에서 UARTE/GRTC 로 태운 함정이 그대로 반복된다.
    심볼 주소는 `arm-none-eabi-nm <elf>` 로 뽑는다.
 5. **디버거 attach 자체가 증상을 지울 수 있다.** tickless 버그가 그랬다.
    "SWD 로 보면 정상"이 곧 "문제 없음"은 아니다 (docs/HIL/M1-tickless.md).
-6. **nRF54L05 는 L15 다이의 비닝이다.** 사양 밖 메모리가 물리적으로 있어서
+6. **LFXO 는 소스만 고르면 끝이 아니다. 로드 커패시터도 보드마다 맞춰야 한다.**
+   외부 캡이 없는 보드에 외부 캡 설정을 쓰면 발진이 빨라진다 (XIAO 실측 +805 ppm).
+   F12 와 증상이 똑같다 — 타깃 안에서는 완벽히 정상으로 보이고 **호스트 시계와
+   비교해야만 드러난다.** 값은 벤더 보드 정의(Zephyr DTS)에서 가져오는 게 빠르다.
+7. **nRF54L05 는 L15 다이의 비닝이다.** 사양 밖 메모리가 물리적으로 있어서
    잘못된 링커 스크립트로도 동작해 버린다. 칩은 FICR 로 확인해라
    (`INFO.PART` @ `0x00FFC31C`).
 
@@ -178,7 +188,7 @@ cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
 | Arm GNU Toolchain | **xPack 14.2.1-1.1**. 릴리스가 이 버전에 고정돼 있다 (`platform.txt` 의 `runtime.tools.xpack-arm-none-eabi-gcc-14.2.1-1.1`). 다른 버전으로도 빌드는 되지만 **크기·측정값이 달라져 기존 HIL 기록과 비교할 수 없다** |
 | arduino-cli | 1.0.3 / 1.2.2 에서 확인 |
 | probe-rs | `0.32.0`. 개발용으로는 저장소 동봉본(`nrf54l/tools/probe-rs/macosx/bin`, **macOS 만**)을 쓰고, 릴리스 설치본은 Board Manager 가 툴로 내려받는다 |
-| 하드웨어 | 보드 + CMSIS-DAP 프로브 (XIAO 는 온보드라 불필요) |
+| 하드웨어 | NU54-DK 계열은 외부 CMSIS-DAP 프로브 필요. **XIAO 는 온보드라 USB-C 하나면 된다** |
 
 xPack GCC 는 이렇게 받는다 (Board Manager 가 쓰는 것과 같은 아카이브다):
 

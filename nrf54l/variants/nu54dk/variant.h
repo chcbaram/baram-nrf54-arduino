@@ -28,6 +28,9 @@
  * Y1 32.768 kHz 크리스털이 P1.00(XL1) / P1.01(XL2) 에 실장돼 있다.
  * 크리스털이 없는 보드로 파생시킬 때만 USE_LFRC 로 바꾼다. */
 #define USE_LFXO
+/* C13/C14 13pF **외부 캡**이 달려 있으므로 내부 캡은 쓰지 않는다.
+ * 내부 캡을 쓰는 보드만 LFXO_LOAD_CAP_FF 를 정의한다 (port_grtc.c).
+ * 이 상태에서 호스트 대비 +25~38 ppm 으로 실측됐다. */
 #define VARIANT_MCK           (128000000ul)
 
 /* ── 핀 개수 ─────────────────────────────────────────────────────────
@@ -85,6 +88,8 @@
  * 반드시 핀이 속한 도메인의 인스턴스여야 한다 (nrf54l_domains.h).
  */
 #define SERIAL_UARTE_INSTANCE     NRF_UARTE30
+/* 벡터 이름. 인스턴스에서 자동으로 유도되지 않으므로 함께 적는다 (Uart.cpp). */
+#define SERIAL_UARTE_IRQ_HANDLER  SERIAL30_IRQHandler
 
 #define SERIAL_PORT_MONITOR       Serial
 #define SERIAL_PORT_HARDWARE      Serial

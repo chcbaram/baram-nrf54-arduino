@@ -75,10 +75,10 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 
 | 항목 | 값 |
 |---|---|
-| 지원 보드 | **NU54-DK (nRF54L05)** / **NU54V-DK (nRF54L15)** — 회로도·핀맵이 동일하고 실장 모듈만 다르다 |
-| `boards.txt` 표시명 | `NU54-DK (nRF54L05)` / `NU54V-DK (nRF54L15)` |
-| board id | `nu54dk` (L05) / `nu54vdk` (L15) |
-| `build.variant` | **`nu54dk` 하나를 두 보드가 공유한다** (핀맵이 같으므로) |
+| 지원 보드 | **NU54-DK (nRF54L05)** / **NU54V-DK (nRF54L15)** / **XIAO nRF54L15 (Seeed)** |
+| board id | `nu54dk` / `nu54vdk` / `xiao_nrf54l15` |
+| `build.variant` | `nu54dk` 는 두 DK 가 공유(핀맵 동일), XIAO 는 별도 |
+| packager (FQBN 앞) | **`baram-nrf54`** — 인덱스의 `packages[0].name` 이자 개발용 `hardware/` 링크 이름 |
 | architecture | **`nrf54l`** (플랫폼 디렉토리 `nrf54l/`, 코어 `cores/nrf54l/`) |
 | 릴리스 아카이브 | `baram-nrf54l-<ver>.tar.bz2` |
 | Board Manager 인덱스 | `package_baram_nrf54_index.json` |
@@ -228,6 +228,7 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 | 보드 | 칩 | variant | 문서 |
 |---|---|---|---|
 | NU54-DK / NU54V-DK | nRF54L05 / nRF54L15 | `nu54dk` (공유) | `docs/boards/NU54-DK.md` |
+| XIAO nRF54L15 / Sense | nRF54L15 | `xiao_nrf54l15` | `docs/boards/XIAO-nRF54L15.md` |
 
 **어디에 쓸지 판단 기준은 "보드 사실이냐 칩 사실이냐" 하나다:**
 

@@ -32,6 +32,16 @@
 #ifndef SERIAL_UARTE_INSTANCE
   #error "variant.h 에서 SERIAL_UARTE_INSTANCE 를 정의해야 한다 (예: NRF_UARTE30)"
 #endif
+/*
+ * 벡터 이름도 variant 가 정한다. 인스턴스에서 자동으로 끌어낼 수 없다 —
+ * 매크로 토큰(NRF_UARTE30)과 벡터 심볼(SERIAL30_IRQHandler)이 서로 다른
+ * 이름 체계이고, nRF54L 은 UARTE/SPIM/TWIM 이 SERIAL 인스턴스를 공유해서
+ * UARTEnn 이 아니라 SERIALnn 이다 (UARTE30_IRQn == SERIAL30_IRQn).
+ * 아래 "IRQ 벡터 연결" 주석 참조.
+ */
+#ifndef SERIAL_UARTE_IRQ_HANDLER
+  #error "variant.h 에서 SERIAL_UARTE_IRQ_HANDLER 도 정의해야 한다 (예: SERIAL30_IRQHandler)"
+#endif
 
 static nrfx_uarte_t _uarte_serial = NRFX_UARTE_INSTANCE(SERIAL_UARTE_INSTANCE);
 
@@ -40,6 +50,9 @@ Uart Serial(&_uarte_serial, PIN_SERIAL_RX, PIN_SERIAL_TX);
 #if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
   #ifndef SERIAL1_UARTE_INSTANCE
     #error "Serial1 을 쓰려면 variant.h 에서 SERIAL1_UARTE_INSTANCE 도 정의해야 한다"
+  #endif
+  #ifndef SERIAL1_UARTE_IRQ_HANDLER
+    #error "Serial1 을 쓰려면 variant.h 에서 SERIAL1_UARTE_IRQ_HANDLER 도 정의해야 한다"
   #endif
 static nrfx_uarte_t _uarte_serial1 = NRFX_UARTE_INSTANCE(SERIAL1_UARTE_INSTANCE);
 Uart Serial1(&_uarte_serial1, PIN_SERIAL1_RX, PIN_SERIAL1_TX);
@@ -261,14 +274,23 @@ size_t Uart::write(const uint8_t *buffer, size_t size)
  *
  * 벡터 이름이 UARTEnn 이 아니라 SERIALnn 인 것은 nRF54L 에서 UARTE/SPIM/TWIM
  * 이 같은 SERIAL 인스턴스를 공유하기 때문이다 (UARTE30_IRQn == SERIAL30_IRQn).
+ *
+ * ⚠ 어느 벡터에 붙일지는 **보드마다 다르다.** NU54-DK 는 UARTE30 을 쓰지만
+ *   XIAO nRF54L15 는 UARTE20 을 쓴다. 여기에 벡터 이름을 하드코딩해 두면
+ *   다른 인스턴스를 쓰는 보드에서 벡터가 연결되지 않고, 위에 적은 그 증상
+ *   (flush() 에서 영원히 대기) 이 그대로 재현된다. 그래서 variant 가
+ *   SERIAL_UARTE_IRQ_HANDLER 로 이름을 준다.
+ *
+ * 링크 후 확인: `arm-none-eabi-nm <elf> | grep SERIAL` 이 `T` 여야 한다.
+ *   `W` 면 MDK 의 Default_Handler 가 남은 것이고 인터럽트가 뜨는 순간 죽는다.
  */
-extern "C" void SERIAL30_IRQHandler(void)
+extern "C" void SERIAL_UARTE_IRQ_HANDLER(void)
 {
   nrfx_uarte_irq_handler(&_uarte_serial);
 }
 
 #if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
-extern "C" void SERIAL20_IRQHandler(void)
+extern "C" void SERIAL1_UARTE_IRQ_HANDLER(void)
 {
   nrfx_uarte_irq_handler(&_uarte_serial1);
 }

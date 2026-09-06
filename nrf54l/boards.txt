@@ -140,3 +140,72 @@ nu54dk.menu.debug.l2=Level 2 (Full)
 nu54dk.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
 
 nu54dk.bootloader.tool=bootburn
+
+
+# =====================================================================
+# XIAO nRF54L15 / XIAO nRF54L15 Sense (Seeed Studio)
+#   회로도 분석 결과는 docs/boards/XIAO-nRF54L15.md 참조.
+#
+#   NU54-DK 와 달리 **온보드 디버그 프로브가 있다** (ATSAMD11D14A, CMSIS-DAP).
+#   USB-C 케이블 하나로 업로드와 Serial 이 모두 되므로 외부 프로브가 필요 없다.
+#   `probe-rs list` 에 "Seeed Studio XIAO nrf54 CMSIS-DAP" 로 잡힌다 (2886:0066).
+#
+#   Sense 모델은 IMU(LSM6DS3TR-C)와 PDM 마이크가 더 실장된 것뿐이고
+#   핀맵·메모리가 같으므로 보드 항목과 variant 를 공유한다.
+#
+#   Serial 은 UARTE30 이 아니라 **UARTE20**(P1.08/P1.09)이다. 온보드 SAMD11 이
+#   USB CDC 브리지를 겸한다.
+# =====================================================================
+xiao_nrf54l15.name=XIAO nRF54L15 / Sense (Seeed)
+
+xiao_nrf54l15.build.arch=NRF54L
+xiao_nrf54l15.build.board=XIAO_NRF54L15
+xiao_nrf54l15.build.core=nrf54l
+xiao_nrf54l15.build.variant=xiao_nrf54l15
+xiao_nrf54l15.build.chip=NRF54L15_XXAA
+xiao_nrf54l15.build.extra_flags=
+
+xiao_nrf54l15.build.chip_probers=nRF54L15
+
+# 메모리 (docs/MEMORY-MAP.md — NU54V-DK 와 같은 nRF54L15 배치)
+#   application 0x00000000 ~ 0x00158800 (1378 KB)
+#   app RAM     0x20004780 ~ 0x20040000 (0x3B880)
+# 실장 칩 확인 (FICR): PART=0x00054B15, RAM=0x100(256KB), RRAM=0x5F4(1524KB)
+xiao_nrf54l15.upload.maximum_size=1411072
+xiao_nrf54l15.upload.maximum_data_size=243328
+
+# ── SoftDevice ────────────────────────────────────────────────────────
+xiao_nrf54l15.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)
+xiao_nrf54l15.menu.softdevice.s145v10.build.sd_name=s145
+xiao_nrf54l15.menu.softdevice.s145v10.build.sd_soc=nrf54l15
+xiao_nrf54l15.menu.softdevice.s145v10.build.sd_version=10.0.1
+xiao_nrf54l15.menu.softdevice.s145v10.build.sd_define=S145
+xiao_nrf54l15.menu.softdevice.s145v10.build.ldscript=nrf54l15_s145_v10.ld
+
+# ── 업로드 방식 ───────────────────────────────────────────────────────
+# 온보드 프로브라 보통 UID 지정이 필요 없다. 여러 대를 동시에 꽂을 때만 쓴다.
+xiao_nrf54l15.menu.upload_method.cmsisdap=CMSIS-DAP (probe-rs)
+xiao_nrf54l15.menu.upload_method.cmsisdap.upload.protocol=probers
+xiao_nrf54l15.menu.upload_method.cmsisdap.upload.tool=probers
+xiao_nrf54l15.menu.upload_method.cmsisdap.upload.tool.default=probers
+xiao_nrf54l15.menu.upload_method.cmsisdap.upload.use_1200bps_touch=false
+xiao_nrf54l15.menu.upload_method.cmsisdap.upload.wait_for_upload_port=false
+xiao_nrf54l15.menu.upload_method.cmsisdap.upload.native_usb=false
+
+xiao_nrf54l15.menu.upload_method.cmsisdapuid=CMSIS-DAP + Probe UID (probe-rs)
+xiao_nrf54l15.menu.upload_method.cmsisdapuid.upload.protocol=probers
+xiao_nrf54l15.menu.upload_method.cmsisdapuid.upload.tool=probers_uid
+xiao_nrf54l15.menu.upload_method.cmsisdapuid.upload.tool.default=probers_uid
+xiao_nrf54l15.menu.upload_method.cmsisdapuid.upload.use_1200bps_touch=false
+xiao_nrf54l15.menu.upload_method.cmsisdapuid.upload.wait_for_upload_port=false
+xiao_nrf54l15.menu.upload_method.cmsisdapuid.upload.native_usb=false
+
+# ── 디버그 레벨 ───────────────────────────────────────────────────────
+xiao_nrf54l15.menu.debug.l0=Level 0 (Release)
+xiao_nrf54l15.menu.debug.l0.build.debug_flags=-DCFG_DEBUG=0
+xiao_nrf54l15.menu.debug.l1=Level 1 (Errors)
+xiao_nrf54l15.menu.debug.l1.build.debug_flags=-DCFG_DEBUG=1
+xiao_nrf54l15.menu.debug.l2=Level 2 (Full)
+xiao_nrf54l15.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
+
+xiao_nrf54l15.bootloader.tool=bootburn
