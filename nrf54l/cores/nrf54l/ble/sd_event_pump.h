@@ -19,6 +19,23 @@
 extern "C" {
 #endif
 
+/*
+ * 동시에 맺을 수 있는 peripheral 연결 수.
+ *
+ * ⚠ 이건 **RAM 예약과 한 몸이다.** 링크 하나가 SoftDevice RAM 을 MTU 247 기준
+ *   약 3980 B 더 먹는데, 그 RAM 은 링커 스크립트가 정적으로 떼어 준다.
+ *   여기만 올리고 링커를 안 고치면 sd_ble_enable() 이 NRF_ERROR_NO_MEM 을 낸다.
+ *   그래서 값은 링커 스크립트를 고르는 곳 — boards.txt 의 build.extra_flags —
+ *   에서 보드별로 준다. 측정표는 docs/MEMORY-MAP.md.
+ *
+ * 헤더에 두는 이유: Bluefruit54Lib 이 연결 배열 크기(BLE_MAX_CONNECTION)를
+ * 여기에 맞춰야 한다. 코어와 라이브러리가 서로 다른 값을 보면
+ * SoftDevice 는 연결을 맺는데 라이브러리가 관리하지 못한다.
+ */
+#ifndef SD_BLE_PERIPH_LINK_COUNT
+#define SD_BLE_PERIPH_LINK_COUNT      (1)
+#endif
+
 /** BLE 이벤트 관찰자. 이벤트 태스크 컨텍스트에서 불린다 (ISR 아님). */
 typedef void (*sd_ble_observer_t)(const ble_evt_t *evt, void *ctx);
 

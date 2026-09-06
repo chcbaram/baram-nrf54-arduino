@@ -54,7 +54,14 @@ class BLECharacteristic
     uint16_t write(const void *data, uint16_t len);
     uint16_t write(const char *str);
 
-    /** 연결된 상대에게 notify 한다. write() 도 함께 수행한다. */
+    /**
+     * 연결된 상대에게 notify 한다. 상대가 알림을 안 켰으면 값만 갱신하고 false.
+     *
+     * ⚠ 핸들 없는 판은 **모든 연결이 아니라 `Bluefruit.connHandle()` 한 곳으로만**
+     *   간다 (Adafruit 과 같은 동작). 전체에 보내려면 스케치가 핸들을 돌아야 한다.
+     */
+    bool notify(uint16_t conn_hdl, const void *data, uint16_t len);
+    bool notify(uint16_t conn_hdl, const char *str);
     bool notify(const void *data, uint16_t len);
     bool notify(const char *str);
 

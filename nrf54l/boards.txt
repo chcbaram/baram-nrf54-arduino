@@ -17,7 +17,10 @@ nu54vdk.build.board=NU54VDK
 nu54vdk.build.core=nrf54l
 nu54vdk.build.variant=nu54dk
 nu54vdk.build.chip=NRF54L15_XXAA
-nu54vdk.build.extra_flags=
+# 동시 peripheral 연결 수. 링커 스크립트의 RAM 예약과 짝이다 —
+# 한쪽만 고치면 sd_ble_enable() 이 실패한다 (docs/MEMORY-MAP.md).
+# L15 — SD 예약 30 KB
+nu54vdk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=5
 
 # probe-rs 의 타깃 이름. `probe-rs chip list` 로 확인한 값이며
 # NRF54L15_XXAA(컴파일러 define)와는 표기가 다르다.
@@ -89,7 +92,12 @@ nu54dk.build.board=NU54DK
 nu54dk.build.core=nrf54l
 nu54dk.build.variant=nu54dk
 nu54dk.build.chip=NRF54L05_XXAA
-nu54dk.build.extra_flags=
+# 동시 peripheral 연결 수. 링커 스크립트의 RAM 예약과 짝이다 —
+# 한쪽만 고치면 sd_ble_enable() 이 실패한다 (docs/MEMORY-MAP.md).
+# L05 — 1 로 둔다. L15 실측(2링크 = 0x200046D8)을 그대로 옮기면 예약
+# 0x4780 안에 168 B 만 남는데, **L05 보드로 확인한 적이 없다.** 빗나가면
+# 그 보드는 BLE 를 아예 못 켠다. 실측 전까지 올리지 않는다.
+nu54dk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=1
 
 # probe-rs 에는 nRF54L05 타깃이 없다 (`probe-rs chip list` = nRF54L15 / nRF54LM20A).
 # L15 와 동일한 다이·동일한 RRAM 컨트롤러라 nRF54L15 타깃으로 플래시된다.
@@ -163,7 +171,10 @@ xiao_nrf54l15.build.board=XIAO_NRF54L15
 xiao_nrf54l15.build.core=nrf54l
 xiao_nrf54l15.build.variant=xiao_nrf54l15
 xiao_nrf54l15.build.chip=NRF54L15_XXAA
-xiao_nrf54l15.build.extra_flags=
+# 동시 peripheral 연결 수. 링커 스크립트의 RAM 예약과 짝이다 —
+# 한쪽만 고치면 sd_ble_enable() 이 실패한다 (docs/MEMORY-MAP.md).
+# L15 — SD 예약 30 KB
+xiao_nrf54l15.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=5
 
 xiao_nrf54l15.build.chip_probers=nRF54L15
 

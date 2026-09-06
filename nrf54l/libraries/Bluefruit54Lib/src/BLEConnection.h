@@ -17,8 +17,21 @@ class BLEConnection
   public:
     BLEConnection(void);
 
+    /*
+     * 수명은 세 단계다. Adafruit 이 new/delete 로 하는 것을 플래그로 옮긴 것이라
+     * 순서가 같다 (R12).
+     *   _begin()      연결됨.        Connection() 이 이 객체를 준다
+     *   _disconnect() 끊김.          **disconnect 콜백 전에** 부른다. 그래야
+     *                                콜백 안의 connected() 가 끊긴 링크를 빼고 센다.
+     *                                객체는 아직 살아 있어 peer 주소를 읽을 수 있다
+     *   _end()        슬롯 반납.     콜백이 끝난 뒤. 이후 Connection() 은 NULL
+     */
     void _begin(const ble_evt_t *evt);
+    void _disconnect(void);
     void _end(void);
+
+    /** 슬롯이 쓰이고 있는가 (끊긴 직후 콜백 동안에도 true). */
+    bool _inUse(void) const { return _in_use; }
     void _setMtu(uint16_t mtu) { _att_mtu = mtu; }
 
     uint16_t handle(void) const    { return _conn_hdl; }
@@ -60,6 +73,7 @@ class BLEConnection
 
   protected:
     uint16_t       _conn_hdl;
+    bool           _in_use;
     bool           _connected;
     uint8_t        _role;
     uint16_t       _att_mtu;

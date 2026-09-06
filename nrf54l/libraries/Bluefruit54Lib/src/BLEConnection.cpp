@@ -8,6 +8,7 @@
 BLEConnection::BLEConnection(void)
 {
   _conn_hdl  = BLE_CONN_HANDLE_INVALID;
+  _in_use    = false;
   _connected = false;
   _role      = BLE_GAP_ROLE_INVALID;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;
@@ -31,16 +32,25 @@ bool BLEConnection::stopRssi(void)
 void BLEConnection::_begin(const ble_evt_t *evt)
 {
   _conn_hdl  = evt->evt.gap_evt.conn_handle;
+  _in_use    = true;
   _connected = true;
   _role      = evt->evt.gap_evt.params.connected.role;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;   /* 협상 전 */
+  _rssi      = 0;
   _peer_addr = evt->evt.gap_evt.params.connected.peer_addr;
+}
+
+void BLEConnection::_disconnect(void)
+{
+  _connected = false;
 }
 
 void BLEConnection::_end(void)
 {
   _conn_hdl  = BLE_CONN_HANDLE_INVALID;
+  _in_use    = false;
   _connected = false;
+  _role      = BLE_GAP_ROLE_INVALID;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;
 }
 

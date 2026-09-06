@@ -83,9 +83,13 @@ err_t BLEUart::begin(void)
 
 bool BLEUart::notifyEnabled(void)
 {
-  uint16_t conn = Bluefruit.connHandle();
-  if (conn == BLE_CONN_HANDLE_INVALID) return false;
-  return _txchr.notifyEnabled(conn);
+  return notifyEnabled(Bluefruit.connHandle());
+}
+
+bool BLEUart::notifyEnabled(uint16_t conn_hdl)
+{
+  if (!Bluefruit.connected(conn_hdl)) return false;
+  return _txchr.notifyEnabled(conn_hdl);
 }
 
 void BLEUart::_rxHandler(uint16_t conn_hdl, uint8_t *data, uint16_t len)
@@ -122,34 +126,39 @@ size_t BLEUart::read(uint8_t *buf, size_t size)
 
 size_t BLEUart::write(uint16_t conn_hdl, const uint8_t *content, size_t len)
 {
-  if (conn_hdl != Bluefruit.connHandle()) return 0;
-  return write(content, len);
-}
-
-size_t BLEUart::write(uint8_t b)
-{
-  return write(&b, 1);
-}
-
-size_t BLEUart::write(const uint8_t *content, size_t len)
-{
-  if (!notifyEnabled()) return 0;
+  if (!notifyEnabled(conn_hdl)) return 0;
 
   /*
    * 한 번의 notify 로 보낼 수 있는 크기를 넘으면 잘라서 여러 번 보낸다.
-   * 실효 MTU 는 연결마다 협상되므로 Bluefruit.maxPayload() 를 쓴다.
+   * ⚠ MTU 는 **그 연결에서** 협상된 값을 써야 한다. 다른 링크의 MTU 로 자르면
+   *   더 큰 쪽 기준일 때 notify 가 통째로 실패한다.
    */
-  const size_t chunk = Bluefruit.maxPayload();
+  const size_t chunk = Bluefruit.maxPayload(conn_hdl);
   size_t sent = 0;
 
   while (sent < len) {
     size_t n = len - sent;
     if (n > chunk) n = chunk;
 
-    if (!_txchr.notify(content + sent, (uint16_t) n)) {
+    if (!_txchr.notify(conn_hdl, content + sent, (uint16_t) n)) {
       break;                 /* 큐가 찼거나 연결이 끊겼다 */
     }
     sent += n;
   }
   return sent;
+}
+
+size_t BLEUart::write(uint16_t conn_hdl, uint8_t b)
+{
+  return write(conn_hdl, &b, 1);
+}
+
+size_t BLEUart::write(uint8_t b)
+{
+  return write(Bluefruit.connHandle(), &b, 1);
+}
+
+size_t BLEUart::write(const uint8_t *content, size_t len)
+{
+  return write(Bluefruit.connHandle(), content, len);
 }

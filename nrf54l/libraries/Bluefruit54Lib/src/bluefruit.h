@@ -5,9 +5,8 @@
  * Adafruit Bluefruit52Lib 호환 진입점. 시그니처는 원본을 따르되
  * 구현은 S145 기준으로 새로 썼다 (CLAUDE.md R12 — 호환 우선).
  *
- * ⚠ 아직 전체가 아니다. 지금 있는 것: Bluefruit.begin(), 이름/TX 파워,
- *   GATT 서비스·characteristic, advertising, 연결/해제 콜백.
- *   BLEUart / BLEDis / BLEBas / 본딩 / BLEDfu 는 아직 없다
+ * ⚠ 아직 전체가 아니다. 없는 것: 본딩/페어링(BLESecurity), central 역할,
+ *   GATT 클라이언트(getPeerName 포함), HID, 실제 DFU.
  *   (docs/STATUS.md 의 B 단계 표 참조).
  */
 #ifndef _BLUEFRUIT_H_
@@ -17,6 +16,8 @@
 #include <ble.h>
 #include <ble_gap.h>
 
+#include "sd_event_pump.h"
+
 #include "BLEUuid.h"
 #include "BLEService.h"
 #include "BLECharacteristic.h"
@@ -24,6 +25,17 @@
 
 #define BLE_MAX_CHARS       32
 #define BLE_ADV_BUF_MAX     BLE_GAP_ADV_SET_DATA_SIZE_MAX
+
+/*
+ * 동시 연결 수. 코어와 **같은 값이어야 한다** — SoftDevice 가 이보다 많은 링크를
+ * 맺으면 라이브러리가 그 연결을 관리하지 못한다. 그래서 코어 헤더의 값을 그대로 쓴다.
+ * 보드별 값은 boards.txt 의 build.extra_flags 에 있다.
+ *
+ * ⚠ 연결 핸들을 **배열 인덱스로 그대로 쓴다.** SoftDevice 가 핸들을
+ *   [0, 링크수) 로 준다는 전제이며, Adafruit 도 같은 전제로 동작한다.
+ *   그래도 범위 밖 핸들은 걸러낸다 — 틀렸을 때 조용히 남의 메모리를 밟지 않도록.
+ */
+#define BLE_MAX_CONNECTION  SD_BLE_PERIPH_LINK_COUNT
 
 /*
  * 대역폭 프리셋. Adafruit 시그니처 호환을 위해 둔다.
@@ -109,6 +121,10 @@ class BLEPeriph
     void setConnectCallback(ble_connect_callback_t fp)       { _connect_cb = fp; }
     void setDisconnectCallback(ble_disconnect_callback_t fp) { _disconnect_cb = fp; }
 
+    /** peripheral 역할로 맺어진 연결 수. */
+    uint8_t connected(void);
+    bool    connected(uint16_t conn_hdl);
+
     /**
      * 선호 연결 간격. 단위는 1.25 ms 다 (BLE 규격).
      *
@@ -144,21 +160,37 @@ class AdafruitBluefruit
     /**
      * SoftDevice 와 BLE 스택을 켠다.
      *
-     * ⚠ 현재는 `prph_count = 1`, `central_count = 0` 만 지원한다.
-     *   다른 값을 주면 **false 를 돌려준다** — 조용히 1개로 깎지 않는다.
-     *   다중 연결과 central 은 아직 없다 (docs/STATUS.md B 단계 표).
+     * @param prph_count    동시 peripheral 연결 수. 1 ~ BLE_MAX_CONNECTION.
+     * @param central_count central 역할 연결 수. **0 만 지원한다.**
+     *
+     * ⚠ 지원하지 않는 값을 주면 **false 를 돌려준다** — 조용히 깎지 않는다.
+     *   그래야 스케치가 왜 두 번째 연결이 안 되는지 헤매지 않는다.
+     *   BLE_MAX_CONNECTION 은 보드가 정한다 (boards.txt).
      */
     bool begin(uint8_t prph_count = 1, uint8_t central_count = 0);
-    bool connected(void) const { return _conn_hdl != BLE_CONN_HANDLE_INVALID; }
+
+    /** 맺어진 연결 수. `if (Bluefruit.connected())` 로도 그대로 쓴다. */
+    uint8_t connected(void) const;
+    bool    connected(uint16_t conn_hdl) const;
+
+    /**
+     * 가장 최근에 맺어진 연결의 핸들. 하나도 없으면 BLE_CONN_HANDLE_INVALID.
+     *
+     * ⚠ 핸들을 받지 않는 write()/notify() 는 **전체가 아니라 여기로만** 간다.
+     *   모든 연결에 보내려면 스케치가 핸들을 돌며 불러야 한다
+     *   (examples/Peripheral/bleuart_multi 참고). Adafruit 과 같은 동작이다.
+     */
     uint16_t connHandle(void) const { return _conn_hdl; }
 
-    /** 현재 연결에서 협상된 ATT MTU. 연결 전에는 기본값(23)이다. */
-    uint16_t attMtu(void) const { return _att_mtu; }
+    /** 그 연결에서 협상된 ATT MTU. 연결 전이거나 없는 핸들이면 기본값(23)이다. */
+    uint16_t attMtu(uint16_t conn_hdl) const;
+    uint16_t attMtu(void) const { return attMtu(_conn_hdl); }
 
     /** 한 번에 보낼 수 있는 최대 페이로드 (MTU − ATT 헤더 3). */
-    uint16_t maxPayload(void) const { return (uint16_t)(_att_mtu - 3); }
+    uint16_t maxPayload(uint16_t conn_hdl) const { return (uint16_t)(attMtu(conn_hdl) - 3); }
+    uint16_t maxPayload(void) const { return maxPayload(_conn_hdl); }
 
-    /** 연결 핸들로 BLEConnection 을 얻는다. 없으면 NULL. */
+    /** 연결 핸들로 BLEConnection 을 얻는다. 연결돼 있지 않으면 NULL. */
     BLEConnection *Connection(uint16_t conn_hdl);
 
     /**
@@ -208,20 +240,24 @@ class AdafruitBluefruit
      * NRF_ERROR_RESOURCES 가 나고, 그때 그냥 포기하면 **데이터가 조용히
      * 사라진다.** BLE_GATTS_EVT_HVN_TX_COMPLETE 를 기다렸다 재시도해야 한다.
      *
+     * ⚠ 세마포어는 **연결마다 따로**다. 하나로 두면 A 링크의 완료가 B 링크
+     *   대기자를 깨워, 자리가 안 생겼는데 재시도하고 헛되이 횟수만 쓴다.
+     *
      * @return 자리가 생겼으면 true, 시간이 다 됐으면 false.
      */
-    bool _waitTxComplete(uint32_t ms);
+    bool _waitTxComplete(uint16_t conn_hdl, uint32_t ms);
 
   protected:
     char        _name[32];
-    uint16_t    _conn_hdl;
+    uint16_t    _conn_hdl;    /* 가장 최근 연결 */
+    uint8_t     _prph_count;
     BLEService *_cur_service;
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;
     bool        _begun;
-    void       *_tx_sem;      /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않는다 */
-    uint16_t    _att_mtu;
-    BLEConnection _connection;
+    /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않으려고 void* 로 둔다. */
+    void       *_tx_sem[BLE_MAX_CONNECTION];
+    BLEConnection _connection[BLE_MAX_CONNECTION];
     bool        _auto_conn_led;
     uint32_t    _conn_led_interval;
     ble_bandwidth_t _bandwidth;

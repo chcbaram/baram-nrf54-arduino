@@ -111,10 +111,6 @@ extern uint32_t __app_ram_start__;
 #define SD_BLE_CONN_CFG_TAG           (1)
 #endif
 
-#ifndef SD_BLE_PERIPH_LINK_COUNT
-#define SD_BLE_PERIPH_LINK_COUNT      (1)
-#endif
-
 /* 연결 이벤트 길이 (1.25 ms 단위). */
 #ifndef SD_BLE_EVENT_LENGTH
 #define SD_BLE_EVENT_LENGTH           (6)

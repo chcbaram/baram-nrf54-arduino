@@ -139,10 +139,9 @@ bool BLECharacteristic::notifyEnabled(uint16_t conn_hdl) const
   return (buf[0] & BLE_GATT_HVX_NOTIFICATION) != 0;
 }
 
-bool BLECharacteristic::notify(const void *data, uint16_t len)
+bool BLECharacteristic::notify(uint16_t conn, const void *data, uint16_t len)
 {
-  uint16_t conn = Bluefruit.connHandle();
-  if (conn == BLE_CONN_HANDLE_INVALID) return false;
+  if (!Bluefruit.connected(conn)) return false;
   if (!notifyEnabled(conn)) {
     /* 상대가 CCCD 를 켜지 않았다. 값만 갱신해 둔다. */
     write(data, len);
@@ -169,14 +168,24 @@ bool BLECharacteristic::notify(const void *data, uint16_t len)
     if (err == NRF_SUCCESS) return true;
     if (err != NRF_ERROR_RESOURCES) return false;
 
-    if (!Bluefruit._waitTxComplete(BLE_HVX_TX_TIMEOUT_MS)) return false;
+    if (!Bluefruit._waitTxComplete(conn, BLE_HVX_TX_TIMEOUT_MS)) return false;
   }
   return false;
 }
 
+bool BLECharacteristic::notify(uint16_t conn, const char *str)
+{
+  return notify(conn, (const void *) str, (uint16_t) strlen(str));
+}
+
+bool BLECharacteristic::notify(const void *data, uint16_t len)
+{
+  return notify(Bluefruit.connHandle(), data, len);
+}
+
 bool BLECharacteristic::notify(const char *str)
 {
-  return notify((const void *) str, (uint16_t) strlen(str));
+  return notify(Bluefruit.connHandle(), (const void *) str, (uint16_t) strlen(str));
 }
 
 void BLECharacteristic::_eventHandler(const ble_evt_t *evt)
