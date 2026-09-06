@@ -67,8 +67,8 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 
 | 시작 | 크기 | 영역 |
 |---|---|---|
-| `0x20000000` | `0x7000` (28 KB) | **SoftDevice** |
-| `0x20007000` | `0x39000` (233,472 B) | **application** |
+| `0x20000000` | `0x8000` (32 KB) | **SoftDevice** |
+| `0x20008000` | `0x38000` (229,376 B) | **application** |
 
 > **DTS 기본값(`0x4780`, 18.25 KB)보다 넉넉히 잡았다.** 이유는 **동시 연결**이다.
 > SoftDevice 는 링크마다 RAM 을 더 쓰는데, 그 크기는 `sd_ble_enable()` 이
@@ -143,18 +143,20 @@ SoftDevice 는 버퍼를 역할이 아니라 **연결 구성(`conn_cfg_tag`) 단
 
 **실측 (XIAO nRF54L15, MTU 247):**
 
-| periph + central | 큐 | 필요한 앱 RAM 시작 | 경계 `0x20007000` |
+| periph + central | 큐 | 필요한 앱 RAM 시작 | 경계 `0x20008000` |
 |---|---|---|---|
 | 4 + 0 | 3 | `0x20006DD8` | ✅ 여유 552 B |
-| **3 + 1** | **3** | **`0x20006DC0`** | ✅ 여유 576 B — **채택** |
+| 3 + 1 | 3 | `0x20006DC0` | ✅ (28 KB 예약이면 이 조합) |
 | 2 + 1 | 3 | `0x20005C38` | ✅ |
 | 3 + 1 | 1 | `0x200065E0` | ✅ |
-| 4 + 1 | 1 | `0x20007570` | ❌ 30 KB 필요 |
-| 4 + 1 | 3 | `0x20007F48` | ❌ 32 KB 필요 |
+| 4 + 1 | 1 | `0x20007570` | ✅ |
+| **4 + 1** | **3** | **`0x20007F48`** | ✅ 여유 184 B — **채택** |
 
 **비용은 역할이 아니라 링크 수에 붙는다.** peripheral 하나를 central 로 바꾸면
-오히려 24 B 싸다 (central 은 광고 관련 상태가 없다). 그래서 `4+0` 대신 `3+1` 을
-골랐다 — 예약도 앱 RAM 도 그대로인데 central 역할이 생긴다.
+오히려 24 B 싸다 (central 은 광고 관련 상태가 없다).
+
+예약을 28 KB 에서 32 KB 로 키워 `4+1` 을 담았다. 앱 RAM 은 233,472 -> 229,376 B
+(256 KB 중 1.6%). `3+1` 이면 28 KB 로 되지만 다중 peripheral 이 4 -> 3 으로 준다.
 
 nRF54L05 도 같은 성질이 실측으로 확인됐다: `periph 1 + central 1` = `0x20004AB0` 로
 `periph 2 + central 0`(`0x20004AC8`) 보다 24 B 싸다. 다만 L05 는 둘 다 갖기 위해
@@ -180,14 +182,14 @@ RAM 이 모자라면 `begin()` 이 **조용히 깎지 말고 실패해야 한다
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x158800
-RAM   (rwx) : ORIGIN = 0x20007000, LENGTH = 0x39000
+RAM   (rwx) : ORIGIN = 0x20008000, LENGTH = 0x38000
 ```
 
 `boards.txt`:
 ```
 upload.maximum_size      = 1411072   # 0x158800
-upload.maximum_data_size =  233472   # 0x39000
-build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=3 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+upload.maximum_data_size =  229376   # 0x38000
+build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 ```
 
 ---
