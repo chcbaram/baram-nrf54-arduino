@@ -124,7 +124,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B2**~~ ✅ | `BLEUart` (NUS) | **완료.** 18바이트 에코 왕복 일치 |
 | ~~**B3**~~ ✅ | MTU 협상(247), `BLEConnection`, `BLEDis`, `BLEBas`, `autoConnLed` 등 | **완료.** Adafruit `bleuart` 예제가 API 호출 그대로 동작 |
 | ~~**B4**~~ ✅ | `BLEDfu` 스텁, 파일시스템 안내 헤더, `bluefruit.h` 가 서비스 포함 | **완료. Adafruit 원본 `bleuart.ino` 가 include 2줄 삭제만으로 동작 = M3 DoD** |
-| B5 (남음) | `BLESecurity` / 본딩, `getPeerName()`(GATT 클라이언트), 예제 이식 | |
+| **B5** (진행 중) | **다중 연결(최대 5)** — 설계 확정, 구현 전 | `bleuart_multi` + 호스트 2대 |
+| B6 (남음) | `BLESecurity` / 본딩, `getPeerName()`(GATT 클라이언트), HID, Beacon, central | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -139,7 +140,7 @@ DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md �
 - **`getPeerName()`** — GATT 클라이언트 경로가 없다. 빈 문자열 + false
   (`docs/HIL/M3-softdevice.md` §3.8)
 - **central 역할** — peripheral 전용 구성이다
-- **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결 `nrf54l/libraries/Bluefruit52Lib/` 에
+- **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결 `nrf54l/libraries/Bluefruit54Lib/` 에
 `BLEUuid`/`BLEService`/`BLECharacteristic`/`bluefruit` 가 올라가 있고,
 커스텀 GATT 서비스로 읽기·알림·쓰기가 실기에서 확인됐다.
 시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT), `~/Documents/Arduino/nrf54_bleuart/` (NUS).
@@ -154,6 +155,76 @@ DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md �
 **파일시스템은 B4 전까지 필요 없다.** 예제의 `#include <Adafruit_LittleFS.h>` 는
 본딩 저장 때문이고, RRAM 에는 erase 가 없어 그대로 못 올린다.
 배경과 권장 경로는 CLAUDE.md §8.1.
+
+### B5 — 다중 연결 (2026-09-06 시점: RAM 확보 완료, 라이브러리 구현 전)
+
+**끝난 것: RAM.** nRF54L15 의 SoftDevice 예약을 26 KB → **30 KB(`0x20007800`)** 로
+넓혔다 (커밋 `7e4e2d5`). 실기에서 `SD_BLE_PERIPH_LINK_COUNT=5` + MTU 247 로
+`sd_ble_enable()` 이 성공하고 요구치가 `0x20007590` (여유 624 B) 인 것을 확인했다.
+연결당 실측 ~3980 B. 측정 표는 `docs/MEMORY-MAP.md`.
+
+**아직 안 된 것: 라이브러리.** 그래서 `SD_BLE_PERIPH_LINK_COUNT` 는 **1 로 되돌려 뒀다.**
+`AdafruitBluefruit` 이 연결 하나만 추적하므로 링크 수만 올리면 두 번째 연결이
+SoftDevice 에서는 맺어지는데 라이브러리가 관리하지 못한다.
+`begin()` 은 지금도 `prph_count != 1` 이면 **false 를 돌려준다** (조용히 깎지 않는다).
+
+#### 상류(Adafruit) 실제 동작 — 추측하지 말 것
+
+구현 전에 upstream 소스를 받아 확인한 결과다. 세 가지가 처음 예상과 달랐다:
+
+1. **`BLEUart` 의 RX FIFO 는 연결별이 아니라 하나를 공유한다.**
+   `available()` / `read()` 는 어느 연결에서 왔는지 구분하지 않는다.
+   `bleuart_multi.ino` 도 받은 것을 모든 연결에 그대로 되뿌린다.
+   → **우리도 공유 FIFO 로 간다.** 연결별로 나누면 무핸들 `available()` 이
+   어느 쪽을 봐야 할지 정의할 수 없고, 상류 예제의 동작이 달라진다 (R12).
+   섞이는 문제는 상류의 한계 그대로이므로 주석으로 남긴다.
+2. **핸들 없는 `write()` / `notify()` 는 "모든 연결" 이 아니라 `connHandle()` 한 곳으로 간다.**
+   `BLEUart::write(buf,len)` = `write(Bluefruit.connHandle(), buf, len)`.
+   전체에 보내는 것은 **스케치가** `for` 로 돈다.
+3. **연결 유지 중 advertising 재시작도 라이브러리가 아니라 스케치가 한다.**
+   `connect_callback` 안에서 `if (count < MAX) Advertising.start(0)`.
+   → 라이브러리에서 자동 재시작을 넣지 마라. 상류와 동작이 달라진다.
+
+또 하나: 상류는 `_connection[conn_hdl]` 로 **핸들을 배열 인덱스로 그대로 쓴다.**
+SoftDevice 가 핸들을 `[0, 링크수)` 로 준다는 전제다. 우리도 같이 가되
+`conn_hdl >= BLE_MAX_CONNECTION` 이면 NULL 을 돌려주는 경계 검사는 넣는다.
+
+받아 둔 상류 소스: `bluefruit.h`, `BLEPeriph.cpp`, `services/BLEUart.{h,cpp}`,
+`BLECharacteristic.h`, `examples/Peripheral/bleuart_multi/bleuart_multi.ino`.
+(스크래치패드에만 있다 — 저장소에는 넣지 않는다.)
+
+#### 구현 순서
+
+1. **`SD_BLE_PERIPH_LINK_COUNT` 를 보드별 설정으로 뺀다.**
+   `sd_event_pump.c` 의 `#ifndef` 블록을 **`sd_event_pump.h` 로 옮겨** 라이브러리에서도
+   보이게 하고, `boards.txt` 의 `build.extra_flags` 에 `-DSD_BLE_PERIPH_LINK_COUNT=N` 을 준다.
+   `build.extra_flags` 는 core/라이브러리/스케치 recipe 에 모두 들어가므로 한 곳에서 통한다.
+   값: `nu54vdk`/`xiao_nrf54l15` = **5**, `nu54dk`(L05) = **2**
+   (L05 는 예약이 `0x4780`=18,304 B 라 실측상 2개까지다), 헤더 기본값 = 1.
+2. **`bluefruit.h/.cpp`** — `BLE_MAX_CONNECTION` = `SD_BLE_PERIPH_LINK_COUNT`,
+   `BLEConnection _connection[BLE_MAX_CONNECTION]` (**고정 배열 — `new` 금지**,
+   상류는 `new` 를 쓰지만 전역 규칙 위반), `_prph_count` 보관,
+   `uint8_t connected(void)`(개수) + `bool connected(uint16_t)`,
+   `connHandle()` = 마지막 연결, `attMtu(conn_hdl)` / `maxPayload(conn_hdl)`.
+   `_att_mtu` 는 **연결별**로 옮겨야 한다 (지금은 싱글턴 멤버 하나다).
+3. **TX 세마포어를 연결별 배열로.** 지금 `_tx_sem` 이 하나라 A 링크의
+   `HVN_TX_COMPLETE` 가 B 링크 대기자를 깨운다. `_waitTxComplete(conn_hdl, ms)` 로 바꾼다.
+4. **`BLECharacteristic::notify(conn_hdl, ...)`** 추가, 무핸들판은 `connHandle()` 위임.
+5. **`BLEUart`** — `write(conn_hdl,...)` 를 실제 연결별 notify 로, 청크 크기는
+   그 연결의 MTU 를 쓴다. `notifyEnabled(conn_hdl)` 추가.
+6. **`BLEPeriph::connected()` / `connected(conn_hdl)`** (상류 호환).
+7. `Advertising::_restartIfNeeded()` 는 `_running` 이면 건너뛴다
+   (연결 중에도 광고를 켜 두는 경우가 생기므로 이중 start 를 막는다).
+8. 예제 `examples/Peripheral/bleuart_multi` 추가 → 링크 수를 5 로 올리고 실기 확인.
+
+#### 검증
+
+호스트 2대가 동시에 붙어야 한다. Mac(bleak) + 폰 조합을 쓴다.
+확인할 것: 연결 2개 동시 유지, 각 링크의 MTU 가 따로 협상되는지,
+한쪽만 끊었을 때 남은 링크가 살아 있는지, 광고가 다시 도는지.
+
+⚠ 링크가 늘면 라디오 시간을 나눠 쓰므로 **연결당 처리량이 떨어진다.**
+`SD_BLE_EVENT_LENGTH`(현재 6 = 7.5 ms) 를 같이 봐야 할 수 있다. 실측 대상이다.
 
 ### 이어서 작업할 때 알아 둘 것
 
