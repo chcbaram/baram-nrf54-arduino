@@ -27,13 +27,21 @@
 #define BLE_ADV_BUF_MAX     BLE_GAP_ADV_SET_DATA_SIZE_MAX
 
 /*
- * 동시 연결 수. 코어와 **같은 값이어야 한다** — SoftDevice 가 이보다 많은 링크를
- * 맺으면 라이브러리가 그 연결을 관리하지 못한다. 그래서 코어 헤더의 값을 그대로 쓴다.
+ * 동시 연결 수 = 연결 슬롯 수. 코어와 **같은 값이어야 한다** — SoftDevice 가
+ * 이보다 많은 링크를 맺으면 라이브러리가 그 연결을 관리하지 못한다.
  * 보드별 값은 boards.txt 의 build.extra_flags 에 있다.
  *
- * ⚠ 연결 핸들을 **배열 인덱스로 그대로 쓴다.** SoftDevice 가 핸들을
- *   [0, 링크수) 로 준다는 전제이며, Adafruit 도 같은 전제로 동작한다.
- *   그래도 범위 밖 핸들은 걸러낸다 — 틀렸을 때 조용히 남의 메모리를 밟지 않도록.
+ * ⚠ **연결 핸들은 배열 인덱스가 아니다.** 링크 수보다 큰 핸들이 온다.
+ *   실기에서 확인했다: 링크 수를 4 로 두고도 SoftDevice 가 핸들 4 를 줬다.
+ *   핸들은 슬롯 번호가 아니라 연결마다 새로 매기는 번호에 가깝다.
+ *
+ *   Adafruit 이 이 문제를 안 겪는 건 BLE_MAX_CONNECTION 을 설정된 링크 수와
+ *   무관하게 **20**(SoftDevice 최대)으로 잡아 배열을 넉넉히 두기 때문이다.
+ *   우리는 그 대신 핸들 -> 슬롯 매핑을 쓴다. 슬롯이 4개면 4개만 있으면 된다.
+ *   공개 API 는 그대로 핸들을 받으므로 스케치 쪽은 차이가 없다.
+ *
+ * ⚠ 그래서 `for (h = 0; h < BLE_MAX_CONNECTION; h++)` 로 연결을 훑으면 안 된다.
+ *   connHandleAt() 을 쓴다.
  */
 #define BLE_MAX_CONNECTION  SD_BLE_PERIPH_LINK_COUNT
 
@@ -182,6 +190,20 @@ class AdafruitBluefruit
      */
     uint16_t connHandle(void) const { return _conn_hdl; }
 
+    /**
+     * idx 번째 **슬롯**의 연결 핸들. 비어 있으면 BLE_CONN_HANDLE_INVALID.
+     *
+     * 붙어 있는 연결을 전부 훑을 때 쓴다. 핸들이 0..N-1 이 아니므로 핸들 값으로
+     * 반복하면 놓친다 (위 BLE_MAX_CONNECTION 주석 참조).
+     *
+     *   for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+     *     uint16_t h = Bluefruit.connHandleAt(i);
+     *     if (h == BLE_CONN_HANDLE_INVALID) continue;
+     *     ...
+     *   }
+     */
+    uint16_t connHandleAt(uint8_t idx) const;
+
     /** 그 연결에서 협상된 ATT MTU. 연결 전이거나 없는 핸들이면 기본값(23)이다. */
     uint16_t attMtu(uint16_t conn_hdl) const;
     uint16_t attMtu(void) const { return attMtu(_conn_hdl); }
@@ -229,6 +251,9 @@ class AdafruitBluefruit
       return _cur_service ? _cur_service->handle() : BLE_GATT_HANDLE_INVALID;
     }
     bool _registerChar(BLECharacteristic *chr);
+
+    /** 핸들이 들어 있는 슬롯. 없으면 -1. */
+    int8_t _slotOf(uint16_t conn_hdl) const;
 
     /* 이벤트 진입점 (sd_event_pump 가 부른다) */
     void _eventHandler(const ble_evt_t *evt);

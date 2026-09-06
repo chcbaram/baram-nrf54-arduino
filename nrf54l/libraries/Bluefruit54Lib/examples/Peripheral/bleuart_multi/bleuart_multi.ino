@@ -63,13 +63,21 @@ void startAdv(void)
 /* Send to every link except 'skip'. Pass BLE_CONN_HANDLE_INVALID for all.
  *
  * The handle-less bleuart.write() only reaches Bluefruit.connHandle(),
- * so reaching everyone means walking the handles yourself. */
+ * so reaching everyone means walking the links yourself.
+ *
+ * Walk slots with connHandleAt(), not handle values: a handle is not a slot
+ * index and can be larger than the link count. Looping conn_hdl from 0 to
+ * MAX_PRPH_CONNECTION silently misses those links. */
 void sendToAll(uint16_t skip, const uint8_t *buf, int count)
 {
-  for (uint16_t conn_hdl = 0; conn_hdl < MAX_PRPH_CONNECTION; conn_hdl++)
+  for (uint8_t i = 0; i < MAX_PRPH_CONNECTION; i++)
   {
+    uint16_t conn_hdl = Bluefruit.connHandleAt(i);
+
+    if ( conn_hdl == BLE_CONN_HANDLE_INVALID ) continue;
     if ( conn_hdl == skip ) continue;
-    bleuart.write(conn_hdl, buf, count);       // 0 if that link is not up
+
+    bleuart.write(conn_hdl, buf, count);
   }
 }
 

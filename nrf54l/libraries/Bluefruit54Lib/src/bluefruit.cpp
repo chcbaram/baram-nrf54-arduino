@@ -223,8 +223,9 @@ bool AdafruitBluefruit::setTxPower(int8_t power)
     ok &= (sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV, 0, power) == NRF_SUCCESS);
   }
   /* 연결별로 걸어야 한다 — 역할이 아니라 링크 단위 설정이다. */
-  for (uint16_t h = 0; h < BLE_MAX_CONNECTION; h++) {
-    if (!connected(h)) continue;
+  for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+    uint16_t h = connHandleAt(i);
+    if (h == BLE_CONN_HANDLE_INVALID) continue;
     ok &= (sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_CONN, h, power) == NRF_SUCCESS);
   }
   return ok;
@@ -237,9 +238,10 @@ bool AdafruitBluefruit::disconnect(uint16_t conn_hdl)
 
 bool AdafruitBluefruit::_waitTxComplete(uint16_t conn_hdl, uint32_t ms)
 {
-  if (conn_hdl >= BLE_MAX_CONNECTION) return false;
-  if (_tx_sem[conn_hdl] == NULL)      return false;
-  return xSemaphoreTake((SemaphoreHandle_t) _tx_sem[conn_hdl], pdMS_TO_TICKS(ms)) == pdTRUE;
+  int8_t slot = _slotOf(conn_hdl);
+  if (slot < 0)             return false;
+  if (_tx_sem[slot] == NULL) return false;
+  return xSemaphoreTake((SemaphoreHandle_t) _tx_sem[slot], pdMS_TO_TICKS(ms)) == pdTRUE;
 }
 
 void BLEPeriph::setConnInterval(uint16_t min, uint16_t max)
@@ -271,37 +273,58 @@ void BLEPeriph::_applyPpcp(void)
   (void) sd_ble_gap_ppcp_set(&p);
 }
 
+/*
+ * ⚠ 연결 핸들은 슬롯 번호가 **아니다.** 링크 수보다 큰 핸들이 온다 — 링크 수를
+ *   4 로 두고도 SoftDevice 가 핸들 4 를 주는 것을 실기에서 봤다. 그래서 핸들로
+ *   배열을 찍지 않고 슬롯을 뒤진다. 슬롯이 몇 개 안 되므로 선형 탐색으로 충분하다.
+ */
+int8_t AdafruitBluefruit::_slotOf(uint16_t conn_hdl) const
+{
+  if (conn_hdl == BLE_CONN_HANDLE_INVALID) return -1;
+
+  for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+    if (_connection[i]._inUse() && _connection[i].handle() == conn_hdl) return (int8_t) i;
+  }
+  return -1;
+}
+
 BLEConnection *AdafruitBluefruit::Connection(uint16_t conn_hdl)
 {
-  if (conn_hdl >= BLE_MAX_CONNECTION)   return NULL;
   /*
    * 끊긴 직후 disconnect 콜백 동안에도 준다 — 스케치가 peer 주소 같은 마지막
    * 정보를 읽을 수 있어야 한다. 연결 여부는 connected() 로 따로 본다.
    */
-  if (!_connection[conn_hdl]._inUse())  return NULL;
-  return &_connection[conn_hdl];
+  int8_t slot = _slotOf(conn_hdl);
+  return (slot < 0) ? NULL : &_connection[slot];
+}
+
+uint16_t AdafruitBluefruit::connHandleAt(uint8_t idx) const
+{
+  if (idx >= BLE_MAX_CONNECTION)   return BLE_CONN_HANDLE_INVALID;
+  if (!_connection[idx].connected()) return BLE_CONN_HANDLE_INVALID;
+  return _connection[idx].handle();
 }
 
 bool AdafruitBluefruit::connected(uint16_t conn_hdl) const
 {
-  if (conn_hdl >= BLE_MAX_CONNECTION) return false;
-  return _connection[conn_hdl].connected();
+  int8_t slot = _slotOf(conn_hdl);
+  return (slot >= 0) && _connection[slot].connected();
 }
 
 uint8_t AdafruitBluefruit::connected(void) const
 {
   uint8_t n = 0;
 
-  for (uint16_t h = 0; h < BLE_MAX_CONNECTION; h++) {
-    if (_connection[h].connected()) n++;
+  for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+    if (_connection[i].connected()) n++;
   }
   return n;
 }
 
 uint16_t AdafruitBluefruit::attMtu(uint16_t conn_hdl) const
 {
-  if (conn_hdl >= BLE_MAX_CONNECTION) return BLE_GATT_ATT_MTU_DEFAULT;
-  return _connection[conn_hdl].getMtu();
+  int8_t slot = _slotOf(conn_hdl);
+  return (slot < 0) ? BLE_GATT_ATT_MTU_DEFAULT : _connection[slot].getMtu();
 }
 
 bool BLEPeriph::connected(uint16_t conn_hdl)
@@ -315,8 +338,9 @@ uint8_t BLEPeriph::connected(void)
 {
   uint8_t n = 0;
 
-  for (uint16_t h = 0; h < BLE_MAX_CONNECTION; h++) {
-    if (this->connected(h)) n++;
+  for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+    uint16_t h = Bluefruit.connHandleAt(i);
+    if (h != BLE_CONN_HANDLE_INVALID && this->connected(h)) n++;
   }
   return n;
 }
@@ -361,20 +385,25 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
   const uint16_t conn_hdl = evt->evt.common_evt.conn_handle;
 
   switch (evt->header.evt_id) {
-    case BLE_GAP_EVT_CONNECTED:
+    case BLE_GAP_EVT_CONNECTED: {
       /*
-       * ⚠ 핸들을 배열 인덱스로 쓰므로 범위 밖이면 **연결을 끊는다.**
-       *   무시하면 SoftDevice 는 링크를 유지하는데 우리는 모르는 상태가 되고,
-       *   그 링크의 이벤트가 계속 들어와도 아무 데도 안 닿는다.
-       *   여기 걸리면 SD_BLE_PERIPH_LINK_COUNT 와 BLE_MAX_CONNECTION 이
-       *   어긋난 것이다 (boards.txt 확인).
+       * 빈 슬롯을 찾는다. **핸들 값과 슬롯 번호는 무관하다.**
+       *
+       * 슬롯이 없으면 연결을 끊는다. 그냥 두면 SoftDevice 는 링크를 유지하는데
+       * 우리는 모르는 상태가 되고, 그 링크의 이벤트가 어디에도 안 닿는다.
+       * 여기 걸린다는 건 SoftDevice 가 설정한 링크 수보다 많이 받았다는 뜻이라
+       * SD_BLE_PERIPH_LINK_COUNT 와 begin() 인자를 봐야 한다.
        */
-      if (conn_hdl >= BLE_MAX_CONNECTION) {
+      int8_t slot = -1;
+      for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+        if (!_connection[i]._inUse()) { slot = (int8_t) i; break; }
+      }
+      if (slot < 0) {
         sd_ble_gap_disconnect(conn_hdl, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
         break;
       }
       _conn_hdl = conn_hdl;
-      _connection[conn_hdl]._begin(evt);
+      _connection[slot]._begin(evt);
 
       /*
        * 연결이 맺어지면 SoftDevice 가 광고를 멈춘다. 자리가 남았어도
@@ -387,26 +416,28 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
 #endif
       if (Periph._connect_cb) Periph._connect_cb(conn_hdl);
       break;
+    }
 
-    case BLE_GAP_EVT_DISCONNECTED:
+    case BLE_GAP_EVT_DISCONNECTED: {
       /*
        * ⚠ 순서가 중요하다. **콜백 전에** 끊긴 것으로 표시해야 콜백 안의
        *   Bluefruit.connected() 가 이 링크를 빼고 센다. 스케치는 그 값으로
        *   광고를 다시 켤지 정한다 — 반대로 두면 항상 하나 많게 보인다.
        *   객체 자체는 콜백이 끝난 뒤에 반납하므로 콜백 안에서는 아직 읽힌다.
        */
-      if (conn_hdl < BLE_MAX_CONNECTION) _connection[conn_hdl]._disconnect();
+      int8_t slot = _slotOf(conn_hdl);
+      if (slot >= 0) _connection[slot]._disconnect();
 
       if (Periph._disconnect_cb) {
         Periph._disconnect_cb(conn_hdl, evt->evt.gap_evt.params.disconnected.reason);
       }
-      if (conn_hdl < BLE_MAX_CONNECTION) _connection[conn_hdl]._end();
+      if (slot >= 0) _connection[slot]._end();
 
       /* 최근 연결이 끊겼으면 남아 있는 것 중 하나로 옮긴다. */
       if (_conn_hdl == conn_hdl) {
         _conn_hdl = BLE_CONN_HANDLE_INVALID;
-        for (uint16_t h = 0; h < BLE_MAX_CONNECTION; h++) {
-          if (_connection[h].connected()) { _conn_hdl = h; break; }
+        for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++) {
+          if (_connection[i].connected()) { _conn_hdl = _connection[i].handle(); break; }
         }
       }
 #ifdef LED_CONN
@@ -415,6 +446,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
 #endif
       Advertising._restartIfNeeded();
       break;
+    }
 
     /*
      * ⚠ 이 두 가지에 응답하지 않으면 연결이 조용히 끊긴다.
@@ -459,8 +491,9 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
 
       /* MTU 는 **연결마다 따로** 협상된다. 링크별로 보관해야 한다. */
       if (theirs < BLE_GATT_ATT_MTU_DEFAULT) theirs = BLE_GATT_ATT_MTU_DEFAULT;
-      if (conn_hdl < BLE_MAX_CONNECTION) {
-        _connection[conn_hdl]._setMtu((theirs < ours) ? theirs : ours);
+      int8_t slot = _slotOf(conn_hdl);
+      if (slot >= 0) {
+        _connection[slot]._setMtu((theirs < ours) ? theirs : ours);
       }
       break;
     }
@@ -470,19 +503,23 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       Advertising._onStopped();
       break;
 
-    case BLE_GAP_EVT_RSSI_CHANGED:
-      if (conn_hdl < BLE_MAX_CONNECTION) {
-        _connection[conn_hdl]._setRssi(evt->evt.gap_evt.params.rssi_changed.rssi);
+    case BLE_GAP_EVT_RSSI_CHANGED: {
+      int8_t slot = _slotOf(conn_hdl);
+      if (slot >= 0) {
+        _connection[slot]._setRssi(evt->evt.gap_evt.params.rssi_changed.rssi);
       }
       if (_rssi_cb) _rssi_cb(conn_hdl, evt->evt.gap_evt.params.rssi_changed.rssi);
       break;
+    }
 
     /* notify 한 건이 무선으로 나갔다. **그 링크에서** 기다리던 쪽만 깨운다. */
-    case BLE_GATTS_EVT_HVN_TX_COMPLETE:
-      if (conn_hdl < BLE_MAX_CONNECTION && _tx_sem[conn_hdl]) {
-        xSemaphoreGive((SemaphoreHandle_t) _tx_sem[conn_hdl]);
+    case BLE_GATTS_EVT_HVN_TX_COMPLETE: {
+      int8_t slot = _slotOf(conn_hdl);
+      if (slot >= 0 && _tx_sem[slot]) {
+        xSemaphoreGive((SemaphoreHandle_t) _tx_sem[slot]);
       }
       break;
+    }
 
     case BLE_GATTS_EVT_SYS_ATTR_MISSING:
       /* 본딩을 안 하므로 시스템 속성이 없다. NULL 로 답한다. */
