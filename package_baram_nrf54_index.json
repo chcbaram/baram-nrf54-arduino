@@ -8,7 +8,44 @@
       "help": {
         "online": "https://github.com/chcbaram/baram-nrf54-arduino"
       },
-      "platforms": [],
+      "platforms": [
+        {
+          "name": "BARAM nRF54L Boards",
+          "architecture": "nrf54l",
+          "version": "0.1.0",
+          "category": "Contributed",
+          "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/0.1.0/baram-nrf54l-0.1.0.tar.bz2",
+          "archiveFileName": "baram-nrf54l-0.1.0.tar.bz2",
+          "checksum": "SHA-256:E4F8B5F920B038B13F1A4594E7D6259130A1AB8EF6E0CD9BD4F5F2613FD89A4A",
+          "size": "1744171",
+          "help": {
+            "online": "https://github.com/chcbaram/baram-nrf54-arduino"
+          },
+          "boards": [
+            {
+              "name": "NU54V-DK (nRF54L15)"
+            },
+            {
+              "name": "NU54-DK (nRF54L05)"
+            },
+            {
+              "name": "XIAO nRF54L15 / Sense (Seeed)"
+            }
+          ],
+          "toolsDependencies": [
+            {
+              "packager": "baram-nrf54",
+              "name": "xpack-arm-none-eabi-gcc",
+              "version": "14.2.1-1.1"
+            },
+            {
+              "packager": "baram-nrf54",
+              "name": "probe-rs",
+              "version": "0.32.0"
+            }
+          ]
+        }
+      ],
       "tools": [
         {
           "name": "xpack-arm-none-eabi-gcc",
@@ -68,7 +105,50 @@
         {
           "name": "probe-rs",
           "version": "0.32.0",
-          "systems": []
+          "systems": [
+            {
+              "host": "arm64-apple-darwin",
+              "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-aarch64-apple-darwin.tar.bz2",
+              "archiveFileName": "probe-rs-0.32.0-aarch64-apple-darwin.tar.bz2",
+              "checksum": "SHA-256:C9875E15C11773AA78C0C0F4F2537F95466CFF71C232CE0683C0110FB669EAAE",
+              "size": "10670755"
+            },
+            {
+              "host": "x86_64-apple-darwin",
+              "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-x86_64-apple-darwin.tar.bz2",
+              "archiveFileName": "probe-rs-0.32.0-x86_64-apple-darwin.tar.bz2",
+              "checksum": "SHA-256:2FE44009208F99ED71F0489F1EE3219459B3C942F793BE83C9DE94667E0E88A4",
+              "size": "10897651"
+            },
+            {
+              "host": "x86_64-pc-linux-gnu",
+              "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-x86_64-unknown-linux-gnu.tar.bz2",
+              "archiveFileName": "probe-rs-0.32.0-x86_64-unknown-linux-gnu.tar.bz2",
+              "checksum": "SHA-256:53B59C07DE19813465BA8EC46ED61B1B7E2B52943F68042B77899F4096737A7A",
+              "size": "34359895"
+            },
+            {
+              "host": "aarch64-linux-gnu",
+              "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-aarch64-unknown-linux-gnu.tar.bz2",
+              "archiveFileName": "probe-rs-0.32.0-aarch64-unknown-linux-gnu.tar.bz2",
+              "checksum": "SHA-256:8B5A297EC76FD80C147293CFE55DD32C3A0F5559591250554D715A894B45B732",
+              "size": "33241967"
+            },
+            {
+              "host": "i686-mingw32",
+              "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-x86_64-pc-windows-msvc.zip",
+              "archiveFileName": "probe-rs-0.32.0-x86_64-pc-windows-msvc.zip",
+              "checksum": "SHA-256:C46496317DE541C08BB2C5F97F2E4A9F2A062759015DDA76E5ACFF551E0B3C7B",
+              "size": "10658112"
+            },
+            {
+              "host": "x86_64-mingw32",
+              "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-x86_64-pc-windows-msvc.zip",
+              "archiveFileName": "probe-rs-0.32.0-x86_64-pc-windows-msvc.zip",
+              "checksum": "SHA-256:C46496317DE541C08BB2C5F97F2E4A9F2A062759015DDA76E5ACFF551E0B3C7B",
+              "size": "10658112"
+            }
+          ]
         }
       ]
     }
