@@ -156,8 +156,9 @@ SoftDevice 는 버퍼를 역할이 아니라 **연결 구성(`conn_cfg_tag`) 단
 오히려 24 B 싸다 (central 은 광고 관련 상태가 없다). 그래서 `4+0` 대신 `3+1` 을
 골랐다 — 예약도 앱 RAM 도 그대로인데 central 역할이 생긴다.
 
-⚠ nRF54L05 는 아직 `peripheral 2 + central 0` 이다. 총 링크 수가 같으니 `1+1` 도
-들어갈 것으로 보이지만 **L05 보드로 재지 않았다.** 잰 뒤에 올린다.
+nRF54L05 도 같은 성질이 실측으로 확인됐다: `periph 1 + central 1` = `0x20004AB0` 로
+`periph 2 + central 0`(`0x20004AC8`) 보다 24 B 싸다. 다만 L05 는 둘 다 갖기 위해
+예약을 키웠다 (아래 L05 절).
 
 ⚠ 코어 기본값은 **1 이다** (Adafruit 기본과 같다). 보드가 `boards.txt` 의
 `build.extra_flags` 에서 `-DSD_BLE_HVN_TX_QUEUE_SIZE=N` 으로 올린다.
@@ -186,7 +187,7 @@ RAM   (rwx) : ORIGIN = 0x20007000, LENGTH = 0x39000
 ```
 upload.maximum_size      = 1411072   # 0x158800
 upload.maximum_data_size =  233472   # 0x39000
-build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=3 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 ```
 
 ---
@@ -211,27 +212,31 @@ build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SI
 
 | 시작 | 크기 | 영역 |
 |---|---|---|
-| `0x20000000` | `0x4B80` | **SoftDevice** |
-| `0x20004B80` | `0x13480` (78,976 B) | **application** |
+| `0x20000000` | `0x5D00` | **SoftDevice** |
+| `0x20005D00` | `0x12300` (74,496 B) | **application** |
 | `0x20018000` | — | RAM 끝 |
 
 **실측 (NU54-DK 실기, nRF54L05, MTU 247):**
 
-| 링크 · 큐 | 필요한 앱 RAM 시작 | `0x20004B80` 안에 |
+| periph + central · 큐 | 필요한 앱 RAM 시작 | `0x20005D00` 안에 |
 |---|---|---|
-| 1 · 1 | `0x20003750` | ✅ |
-| 2 · 1 | `0x200046D8` | ✅ |
-| 2 · 2 | `0x200048D0` | ✅ |
-| **2 · 3** | **`0x20004AC8`** | ✅ 여유 184 B |
-| 3 · 1 | `0x20005668` | ❌ |
+| 1 + 0 · 1 | `0x20003750` | ✅ |
+| 2 + 0 · 1 | `0x200046D8` | ✅ |
+| 2 + 0 · 2 | `0x200048D0` | ✅ |
+| 2 + 0 · 3 | `0x20004AC8` | ✅ |
+| 1 + 1 · 3 | `0x20004AB0` | ✅ central 이 24 B 싸다 |
+| **2 + 1 · 3** | **`0x20005C38`** | ✅ 여유 200 B — **채택** |
+| 3 + 0 · 1 | `0x20005668` | ✅ |
 
 **L15 와 숫자가 완전히 같다 — SoftDevice RAM 요구량은 SoC 와 무관하다.**
 L05 용 S145 는 재배치된 별도 빌드지만 RAM 요구량은 설정만 따른다.
-그래서 한쪽에서 잰 값을 다른 쪽에 그대로 쓸 수 있다.
+그래서 한쪽에서 잰 값을 다른 쪽에 그대로 쓸 수 있다. 다만 여유가 얇을 때는
+**옮겨 쓰지 말고 재라** — 빗나가면 그 보드는 BLE 를 아예 못 켠다.
 
-96 KB 로는 **링크 2개가 한계다.** 3개는 `0x5668` 이 필요하고, 그러면 앱 RAM 이
-75 KB 밑으로 떨어져 得보다 失이 크다. 링크 2 · 큐 3 은 L15(링크 4 · 큐 3)와
-같은 성격의 선택이고, 앱 RAM 은 80,000 → 78,976 B 로 1,024 B 만 준다.
+peripheral 2 + central 1 을 담으려고 예약을 `0x4B80` -> `0x5D00` 으로 키웠다.
+앱 RAM 은 80,000 -> 74,496 B (96 KB 중 5.7%). 다중 peripheral 과 central 을
+둘 다 갖기 위한 값이다 — 예약을 그대로 두면 둘 중 하나를 포기해야 한다
+(`2+0` 이거나 `1+1`).
 
 > DTS 의 `app_ram` 은 `DT_SIZE_K(78)` = `0x13800` 이라 상단 128 바이트가 남는다.
 > 디바이스 트리가 크기를 K 단위로만 적기 때문에 생긴 내림이지 예약 영역이 아니다.
@@ -245,7 +250,7 @@ L05 용 S145 는 재배치된 별도 빌드지만 RAM 요구량은 설정만 따
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x58800
-RAM   (rwx) : ORIGIN = 0x20004B80, LENGTH = 0x13480
+RAM   (rwx) : ORIGIN = 0x20005D00, LENGTH = 0x12300
 ```
 
 `boards.txt`:

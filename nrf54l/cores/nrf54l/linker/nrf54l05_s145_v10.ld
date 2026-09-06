@@ -26,17 +26,18 @@
  *   (L15 용은 0x0015A800). 크기는 137 KB 로 동일하지만 서로 호환되지 않는다.
  *
  *   RAM 전체 배치 (96 KB):
- *     0x20000000  SoftDevice    0x04B80
- *     0x20004B80  application   0x13480             <- 이 스크립트
+ *     0x20000000  SoftDevice    0x05D00
+ *     0x20005D00  application   0x12300             <- 이 스크립트
  *     0x20018000  (RAM 끝)
  *
- *   SoftDevice 예약은 **링크 2개 + notify 큐 3** 에 맞춘 값이다.
+ *   SoftDevice 예약은 **peripheral 2 + central 1 + notify 큐 3** 에 맞춘 값이다.
  *   실측 (nRF54L05 실기, MTU 247):
- *     링크 1 · 큐 1   0x20003750
- *     링크 2 · 큐 1   0x200046D8
- *     링크 2 · 큐 2   0x200048D0
- *     링크 2 · 큐 3   0x20004AC8   <- 이 값이 기준, 0x4B80 안에 184 B 남는다
- *     링크 3 · 큐 1   0x20005668   (안 들어간다)
+ *     periph 1 + central 0 · 큐 1   0x20003750
+ *     periph 2 + central 0 · 큐 1   0x200046D8
+ *     periph 2 + central 0 · 큐 2   0x200048D0
+ *     periph 2 + central 0 · 큐 3   0x20004AC8
+ *     periph 1 + central 1 · 큐 3   0x20004AB0   (central 이 24 B 싸다)
+ *     periph 2 + central 1 · 큐 3   0x20005C38   <- 이 값이 기준, 200 B 남는다
  *   L15 와 숫자가 같다 — SoftDevice RAM 요구량은 SoC 와 무관하다.
  *   링크 수와 큐 깊이의 교환 관계는 docs/MEMORY-MAP.md 참조.
  *
@@ -48,7 +49,7 @@
 MEMORY
 {
   FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x58800
-  RAM   (rwx) : ORIGIN = 0x20004B80, LENGTH = 0x13480
+  RAM   (rwx) : ORIGIN = 0x20005D00, LENGTH = 0x12300
 }
 
 /*

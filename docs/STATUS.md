@@ -385,9 +385,15 @@ AD 타입 파싱(이름), active scan(스캔 응답), 16비트 UUID 필터까지
 `BLEClientService` / `BLEClientCharacteristic` / `BLEClientUart`.
 GATT 클라이언트 읽기 경로는 B7 에서 이미 만들었다.
 
-⚠ nRF54L05 는 아직 `SD_BLE_CENTRAL_LINK_COUNT` 가 0 이라 central 예제가
-`begin(0,1)` 에서 **false 를 돌려주고 멈춘다** (조용히 실패하지는 않는다).
-`periph 1 + central 1` 이 들어갈 것으로 보이지만 그 보드로 재지 않았다.
+nRF54L05 도 실측해서 **peripheral 2 + central 1** 로 올렸다 (`0x20005C38`).
+둘 다 가지려고 예약을 `0x4B80` -> `0x5D00` 으로 키웠고, 앱 RAM 은
+78,976 -> 74,496 B 다.
+
+⚠ **프로브가 두 개 붙어 있으면 arduino-cli 업로드가 실패한다.**
+어느 프로브인지 못 고른다. `probe-rs ... --probe <VID:PID:serial>` 로 직접 굽되,
+**그 과정에서 SoftDevice 영역이 지워질 수 있다** — 실제로 겪었고 증상은
+`begin=0 err=0 need=0` (cfg_set 이 아예 안 불린 상태) 이었다.
+SoftDevice hex 를 다시 구우면 복구된다.
 
 ### 이어서 작업할 때 알아 둘 것
 

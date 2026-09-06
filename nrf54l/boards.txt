@@ -96,9 +96,8 @@ nu54dk.build.variant=nu54dk
 nu54dk.build.chip=NRF54L05_XXAA
 # 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
 # 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 252 B 다.
-# L05 — SD 예약 0x4B80, 링크 2 + 큐 3 = 0x20004AC8 (실기 실측, 여유 184 B)
-# 링크 3개는 0x20005668 이 필요해 96 KB 로는 안 된다.
-nu54dk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=2 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+# L05 — SD 예약 0x5D00, peripheral 2 + central 1 + 큐 3 = 0x20005C38 (실기 실측, 여유 200 B)
+nu54dk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=2 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 # probe-rs 에는 nRF54L05 타깃이 없다 (`probe-rs chip list` = nRF54L15 / nRF54LM20A).
 # L15 와 동일한 다이·동일한 RRAM 컨트롤러라 nRF54L15 타깃으로 플래시된다.
@@ -108,9 +107,9 @@ nu54dk.build.chip_probers=nRF54L15
 
 # 메모리 (docs/MEMORY-MAP.md)
 #   application 0x00000000 ~ 0x00058800 (354 KB)
-#   app RAM     0x20004B80 ~ 0x20018000 (0x13480)  — SD 예약 0x4B80 (연결 2개 + notify 큐 3)
+#   app RAM     0x20005D00 ~ 0x20018000 (0x12300)  — SD 예약 0x5D00 (peripheral 2 + central 1 + 큐 3)
 nu54dk.upload.maximum_size=362496
-nu54dk.upload.maximum_data_size=78976
+nu54dk.upload.maximum_data_size=74496
 
 # ── SoftDevice ────────────────────────────────────────────────────────
 # S145 hex 는 SoC 별로 재배치된 별도 빌드다. L05 용은 0x0005A800 에 로드된다.
