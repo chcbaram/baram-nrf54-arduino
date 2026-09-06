@@ -74,6 +74,28 @@
 #define NRF54L_ASSERT_DOMAIN30_PIN(pin, what) \
     NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN30_PORT, what " : x30 계열 인스턴스는 P0 도메인만 쓸 수 있다")
 
+/**
+ * PERI(x20) 도메인의 **UARTE / SPIS 에 한한 예외**. P1 뿐 아니라 P2 도 허용한다.
+ *
+ * Nordic 핀 계획 가이드 원문:
+ *   "Selected pins on P2 can also be used by certain serial interfaces
+ *    (SPIS, UARTE) located in PERI, although this configuration is less
+ *    power-efficient."
+ *
+ * ⚠ 두 가지를 알고 써라.
+ *   1. **전력이 불리하다.** 기본 규칙(P1)으로 되는 배정이면 그쪽을 써라
+ *   2. P2 의 **어느 핀이** 되는지는 아직 확인하지 못했다
+ *      (docs/PERIPHERAL-PINMAP.md §4). 그래서 이 매크로는 포트만 보고
+ *      핀 번호까지 검사하지 못한다
+ *
+ * TWIM/PWM/SAADC 등에는 쓰지 마라. 예외 대상이 아니다.
+ * 상세는 docs/PERIPHERAL-PINMAP.md.
+ */
+#define NRF54L_ASSERT_PERI_SERIAL_PIN(pin, what)                              \
+    NRF54L_STATIC_ASSERT(NRF54L_PORT_OF(pin) == NRF54L_DOMAIN20_PORT ||       \
+                         NRF54L_PORT_OF(pin) == NRF54L_DOMAIN00_PORT,         \
+                         what " : PERI 의 UARTE/SPIS 는 P1 또는 P2 만 쓸 수 있다")
+
 /** SAADC 는 P1 도메인이다. AIN 핀은 반드시 P1. */
 #define NRF54L_ASSERT_ANALOG_PIN(pin, what) \
     NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN20_PORT, what " : SAADC 는 P1 도메인만 쓸 수 있다")

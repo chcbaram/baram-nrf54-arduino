@@ -21,17 +21,36 @@
 
 외우기 쉽다: `UARTE30` → P0, `TWIM20` → P1, `SPIM00` → P2.
 
-> ⚠ **이 규칙에 반례가 하나 있다. 규칙은 아직 확정이 아니다.**
+### ⚠ 예외가 하나 있다 — PERI 의 UARTE/SPIS 는 P2 도 쓸 수 있다
+
+위 표가 기본 규칙이지만 **전부는 아니다.** Nordic 이 직접 쓴 핀 계획 가이드의 원문:
+
+> Rule 1: "Generally, peripherals must use pins in their own power domain."
 >
-> upstream Zephyr 의 XIAO nRF54L15 보드 정의가 **`uart21` 을 P2.08 / P2.07 에**
-> 배정한다 (`boards/seeed/xiao_nrf54l15/xiao_nrf54l15-pinctrl.dtsi`).
-> 인스턴스 21 은 위 표대로면 P1 만 써야 하는데 P2 를 쓴다.
+> "**Selected pins on P2 can also be used by certain serial interfaces
+> (SPIS, UARTE) located in PERI**, although this configuration is less
+> power-efficient."
+
+즉 **도메인 20 의 UARTE/SPIS 는 P2 의 일부 핀을 쓸 수 있고, 대신 전력이 불리하다.**
+upstream Zephyr 의 XIAO 보드가 `uart21` 을 P2.08/P2.07 에 배정하는 것이 이 예외다
+(`boards/seeed/xiao_nrf54l15/xiao_nrf54l15-pinctrl.dtsi`) — 회로도 표기가 틀린 게
+아니었다.
+
+**"selected pins" 가 정확히 어느 핀인지는 아직 확인하지 못했다.** PS 의 핀 배정표를
+봐야 하는데 문서 사이트가 스크립트 접근을 막는다 (`docs/DATASHEETS.md`).
+브라우저나 Pin Planner 로 확인해서 아래 §3 에 채울 것.
+
+그 전까지 `nrf54l_domains.h` 는 기본 규칙을 강제하고, 예외를 쓰는 보드는
+**전용 매크로로 명시**한다 (`NRF54L_ASSERT_PERI_SERIAL_PIN`). 그래야 예외가
+어디서 쓰이는지 코드에서 바로 보인다.
+
+이 규칙의 다른 조항도 함께 적어 둔다:
+
+> Rule 2: "Some peripherals with clock signals (like SPI, TWI, and TRACE) require
+> the use of specific dedicated clock pins."
 >
-> 같은 보드의 `spi00`(P2), `i2c22`(P1), `i2c30`(P0), `pdm20`(P1) 는 전부 규칙과
-> 맞으므로, **"P2 는 도메인 00 과 20 양쪽에서 접근된다"** 는 쪽이 유력하다.
-> 하지만 근거가 벤더 보드 파일 하나뿐이라 확정하지 않는다.
-> §4 에 미확인 항목으로 올려 두었고, `nrf54l_domains.h` 의 `static_assert` 는
-> 표 그대로 두었다 — **유효한 구성을 막을 수 있다는 뜻이다.**
+> Rule 4: 전용 핀만 쓰는 페리페럴 — FLPR, SPIM00/UARTE00, GRTC, TAMPC, NFC,
+> RADIO direction-finding.
 
 ### 근거
 
@@ -154,11 +173,10 @@ P1 헤더의 4번·5번으로 **물리적으로도 인접**하다.
 
 ## 4. 아직 확인 안 된 것
 
-**(a) 도메인 규칙 자체가 완전하지 않다.** §1 의 반례 참조 — Zephyr 이 `uart21` 을
-P2 에 배정한다. "P2 는 도메인 00 과 20 양쪽에서 접근 가능" 인지 확인해야 한다.
-확인되면 `nrf54l_domains.h` 의 `NRF54L_ASSERT_DOMAIN20_PIN` 을 P1+P2 허용으로
-넓히고, XIAO variant 에 `Serial1`(UARTE21, D6/D7)을 붙인다.
-검증 방법: D6-D7 을 점퍼로 잇고 루프백. 실기가 있으므로 M2 에서 바로 된다.
+**(a) P2 예외가 적용되는 핀 목록이 미확인이다.** §1 참조. PERI 의 UARTE/SPIS 가
+P2 의 **일부** 핀을 쓸 수 있다는 것까지는 Nordic 문서로 확인했지만, 그 "일부"가
+어디인지는 PS 핀 배정표를 봐야 한다 (`docs/DATASHEETS.md`).
+실기 검증은 XIAO 의 D6-D7 을 점퍼로 잇고 UARTE21 루프백으로 한다.
 
 **(b)** 도메인 안에서 **어느 핀이 어느 신호로 갈 수 있는지**도 미확정이다. 예: SPIM00 의 SCK 가 P2 중 아무 핀이나 되는지, 아니면 정해진 핀만 되는지.
 

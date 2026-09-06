@@ -28,3 +28,6 @@ baram-nrf54l-*.tar.bz2
 nrf54l/platform.local.txt
 nrf54l/boards.local.txt
 dist/
+
+# 벤더 데이터시트 (용량이 크고 재배포 대상이 아니다)
+docs/datasheets/
