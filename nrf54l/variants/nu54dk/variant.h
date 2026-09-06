@@ -137,17 +137,21 @@ static const uint8_t SCK  = PIN_SPI_SCK;
 static const uint8_t MOSI = PIN_SPI_MOSI;
 static const uint8_t MISO = PIN_SPI_MISO;
 
-/* ── I2C — TWIM30 (M2) ────────────────────────────────────────────────
- * P0.02 / P0.03 을 쓴다. TWIM30 은 P0 도메인이다.
+/* ── I2C — TWIM22 (M2) ────────────────────────────────────────────────
+ * ⚠ **P0.02 / P0.03 에 두면 안 된다.** 그 핀들이 비어 있는 것은 맞지만
+ *   (CP2102N 의 RTS/CTS, 흐름제어 미사용 — Uart.h 주석), P0 는 도메인 30 이고
+ *   **TWIM30 은 Serial 이 쓰는 UARTE30 과 같은 하드웨어 블록이다**
+ *   (둘 다 0x50104000). 동시에 켤 수 없다. docs/PERIPHERAL-PINMAP.md §0.
  *
- * 이 핀들은 원래 CP2102N 의 RTS/CTS 인데 **흐름제어를 쓰지 않기로 해서**
- * 비었다 (Uart.h 주석). P1 을 쓰면 AIN 이나 버튼/LED 와 반드시 겹치는데
- * (P1 15핀이 전부 무언가에 배정돼 있다) 여기로 오면 충돌이 없다.
- * 게다가 P1 헤더의 4번·5번으로 물리적으로 인접해 있다.
+ * P2 도 대안이 아니다 — **TWIM00 이 존재하지 않는다.**
+ * 그래서 P1(도메인 20) 뿐이고, 다른 기능과 겹치지 않는 유일한 쌍이 P1.11/P1.12 다.
  *
- * Wire1 이 필요하면 TWIM20~22(P1 도메인)로 별도 배정한다. */
-#define PIN_WIRE_SDA          _PINNUM(0, 2)
-#define PIN_WIRE_SCL          _PINNUM(0, 3)
+ * ⚠ **대가: Wire 를 쓰면 A4 / A5 를 못 쓴다.** 같은 핀이다.
+ *   동시에 켜지 않으면 문제없다. */
+#define PIN_WIRE_SDA          _PINNUM(1, 11)   /* = A4 */
+#define PIN_WIRE_SCL          _PINNUM(1, 12)   /* = A5 */
+#define WIRE_TWIM_INSTANCE        NRF_TWIM22
+#define WIRE_TWIM_IRQ_HANDLER     SERIAL22_IRQHandler
 static const uint8_t SDA = PIN_WIRE_SDA;
 static const uint8_t SCL = PIN_WIRE_SCL;
 
@@ -165,8 +169,8 @@ NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_SCK,      "SPI SCK");
 NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MOSI,     "SPI MOSI");
 NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MISO,     "SPI MISO");
 
-NRF54L_ASSERT_DOMAIN30_PIN(PIN_WIRE_SDA,   "Wire(TWIM30) SDA");
-NRF54L_ASSERT_DOMAIN30_PIN(PIN_WIRE_SCL,   "Wire(TWIM30) SCL");
+NRF54L_ASSERT_DOMAIN20_PIN(PIN_WIRE_SDA,   "Wire(TWIM22) SDA");
+NRF54L_ASSERT_DOMAIN20_PIN(PIN_WIRE_SCL,   "Wire(TWIM22) SCL");
 
 NRF54L_ASSERT_ANALOG_PIN(PIN_A0, "A0"); NRF54L_ASSERT_ANALOG_PIN(PIN_A1, "A1");
 NRF54L_ASSERT_ANALOG_PIN(PIN_A2, "A2"); NRF54L_ASSERT_ANALOG_PIN(PIN_A3, "A3");

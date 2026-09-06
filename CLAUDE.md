@@ -651,6 +651,11 @@ extern "C" void SERIAL30_IRQHandler(void) { nrfx_uarte_irq_handler(&_uarte30); }
 
 #### ④ 페리페럴 추가 체크리스트 (M2)
 
+- [ ] **⭐ 같은 번호대 SERIAL 블록과 충돌하지 않는지 먼저 본다.**
+      `SPIM`/`SPIS`/`TWIM`/`TWIS`/`UARTE` 는 번호가 같으면 **같은 하드웨어 블록**이라
+      동시에 못 쓴다 (`docs/PERIPHERAL-PINMAP.md` §0). 실제로 NU54-DK variant 가
+      `Serial`(UARTE30)과 `Wire`(TWIM30)를 함께 잡고 있었다 — 붙이는 순간
+      `Serial` 이 죽었을 구성이다. **TWIM00 은 없다** = P2 에 I2C 불가
 - [ ] `nrfx_config.h` 에 `NRFX_xxx_ENABLED` 와 `NRFX_xxxNN_ENABLED` **둘 다**
 - [ ] 채널/인스턴스 마스크를 바꿨다면 개수 매크로도 같이 (F3 ①)
 - [ ] IRQ 우선순위는 **5~7** (F2). `...FromISR` 을 부르면 필수

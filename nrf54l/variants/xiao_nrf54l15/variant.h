@@ -216,11 +216,24 @@ static const uint8_t MISO = PIN_SPI_MISO;
  *         Sense 모델이 아니면 아무것도 안 붙어 있다. */
 #define PIN_WIRE_SDA          _PINNUM(1, 10)   /* D4 */
 #define PIN_WIRE_SCL          _PINNUM(1, 11)   /* D5 */
+#define WIRE_TWIM_INSTANCE        NRF_TWIM22
+#define WIRE_TWIM_IRQ_HANDLER     SERIAL22_IRQHandler
 static const uint8_t SDA = PIN_WIRE_SDA;
 static const uint8_t SCL = PIN_WIRE_SCL;
 
 #define PIN_WIRE1_SDA         PIN_IMU_SDA
 #define PIN_WIRE1_SCL         PIN_IMU_SCL
+#define WIRE1_TWIM_INSTANCE       NRF_TWIM30
+#define WIRE1_TWIM_IRQ_HANDLER    SERIAL30_IRQHandler
+
+/*
+ * 블록 충돌 확인 (docs/PERIPHERAL-PINMAP.md §0):
+ *   Serial  UARTE20  0x500C6000
+ *   Wire    TWIM22   0x500C8000
+ *   Wire1   TWIM30   0x50104000
+ *   SPI     SPIM00   0x5004A000
+ * 넷 다 다른 블록이라 동시에 쓸 수 있다.
+ */
 
 /* ═══════════════════════════════════════════════════════════════════
  * 전원 도메인 검증 (nrf54l_domains.h)

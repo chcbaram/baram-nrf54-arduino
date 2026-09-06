@@ -169,6 +169,6 @@ VIN (J2, 5~14V) ─ D1 ─┴─ AZ1117CR-3.3 (U1) ─ 3V3 ─ VMCU
 | 6 | **포트가 3개**(P0/P1/P2) — Adafruit의 2포트 `digitalPinToPort()`를 확장해야 함 |
 | 7 | 온보드 프로브 없음 — 외부 CMSIS-DAP 필요 |
 | 8 | **`USE_LFXO` 정의 필수** — 빠뜨리면 내부 RC 로 돌아 클럭이 0.9% 틀린다 (CLAUDE.md §7 F12) |
-| 9 | **흐름제어 미사용** → P0.02 / P0.03 은 `Wire`(TWIM30) 가 쓴다 |
+| 9 | **흐름제어 미사용** → P0.02 / P0.03 은 비어 있다. 단 **`Wire` 를 여기 두면 안 된다** — TWIM30 이 `Serial`(UARTE30)과 같은 블록이다. `Wire` 는 P1.11/P1.12(TWIM22)이고 **A4/A5 와 겹친다** |
 | 10 | **레지스터 오프셋이 nRF52 와 다르다** — GPIO `OUT` 이 `0x504` 가 아니라 **`0x000`**. 리셋 원인은 `NRF_RESET`. 상세는 [HIL/M1-nu54dk.md](../HIL/M1-nu54dk.md) §3 |
 | 11 | 페리페럴은 **전원 도메인이 소유한 GPIO 포트만** 쓸 수 있다 — [PERIPHERAL-PINMAP.md](../PERIPHERAL-PINMAP.md) |
