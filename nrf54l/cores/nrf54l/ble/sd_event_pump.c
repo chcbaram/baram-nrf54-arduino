@@ -117,6 +117,24 @@ extern uint32_t __app_ram_start__;
 #endif
 
 /*
+ * notify 송신 큐 깊이 (연결당).
+ *
+ * ⚠ 이게 사실상 **연결 이벤트당 보낼 수 있는 notify 수**다.
+ *   HVN_TX_COMPLETE 는 패킷이 나가고 ACK 된 뒤 — 연결 이벤트 끝 무렵 — 오므로,
+ *   큐가 1이면 그 완료를 기다려야 다음 건을 넣는다. 상대가 이벤트당 여러 건을
+ *   받아 줘도 우리가 한 건밖에 못 채운다. 처리량을 정하는 값이다.
+ *
+ * ⚠ 링크 수와 **같은 RAM 을 놓고 다툰다.** 한 칸이 링크마다 MTU 크기의 버퍼를
+ *   더 먹는다. 링크를 많이 쓰면 큐를 못 키우고, 반대도 마찬가지다.
+ *   실측표는 docs/MEMORY-MAP.md.
+ *
+ * Adafruit 은 BANDWIDTH_HIGH 에서 2, BANDWIDTH_MAX 에서 3 을 쓴다.
+ */
+#ifndef SD_BLE_HVN_TX_QUEUE_SIZE
+#define SD_BLE_HVN_TX_QUEUE_SIZE      BLE_GATTS_HVN_TX_QUEUE_SIZE_DEFAULT
+#endif
+
+/*
  * LFCLK 설정. 소스는 variant 가 정한 크리스털 유무를 따른다.
  *
  * ⚠ accuracy 는 **선언**이지 측정치가 아니다. 실제보다 타이트하게 선언하면
@@ -170,6 +188,7 @@ static uint32_t          m_ram_required = 0;
 /* cfg_set 각 항목의 반환값. sdCfgResults() 로 읽는다 (진단용). */
 static uint32_t          m_cfg_role    = 0xFFFFFFFFu;
 static uint32_t          m_cfg_gap     = 0xFFFFFFFFu;
+static uint32_t          m_cfg_gatts   = 0xFFFFFFFF;
 static uint32_t          m_cfg_gatt    = 0xFFFFFFFFu;
 
 static SemaphoreHandle_t m_evt_sem     = NULL;
@@ -358,6 +377,11 @@ void sdCfgResults(uint32_t *role, uint32_t *gap, uint32_t *gatt, uint32_t *ram_r
     if (ram_required) *ram_required = m_ram_required;
 }
 
+uint32_t sdCfgGattsResult(void)
+{
+    return m_cfg_gatts;
+}
+
 bool sdBleObserverAdd(sd_ble_observer_t handler, void *ctx)
 {
     if (handler == NULL || m_observer_count >= SD_BLE_MAX_OBSERVERS) {
@@ -403,6 +427,11 @@ static void sd_ble_cfg_apply(uint32_t ram_base)
     cfg.conn_cfg.conn_cfg_tag                 = SD_BLE_CONN_CFG_TAG;
     cfg.conn_cfg.params.gatt_conn_cfg.att_mtu = SD_BLE_ATT_MTU;
     m_cfg_gatt = sd_ble_cfg_set(BLE_CONN_CFG_GATT, &cfg, ram_base);
+
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.conn_cfg.conn_cfg_tag                              = SD_BLE_CONN_CFG_TAG;
+    cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size   = SD_BLE_HVN_TX_QUEUE_SIZE;
+    m_cfg_gatts = sd_ble_cfg_set(BLE_CONN_CFG_GATTS, &cfg, ram_base);
 }
 
 bool sdEnable(void)

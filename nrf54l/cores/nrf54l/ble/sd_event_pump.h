@@ -79,6 +79,9 @@ uint8_t sdConnCfgTag(void);
  */
 void sdCfgResults(uint32_t *role, uint32_t *gap, uint32_t *gatt, uint32_t *ram_required);
 
+/** BLE_CONN_CFG_GATTS(notify 큐 깊이) 설정의 반환값. 0 이 성공. */
+uint32_t sdCfgGattsResult(void);
+
 #ifdef __cplusplus
 }
 #endif
