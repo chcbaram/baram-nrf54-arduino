@@ -20,9 +20,23 @@
 #include "BLEUuid.h"
 #include "BLEService.h"
 #include "BLECharacteristic.h"
+#include "BLEConnection.h"
 
 #define BLE_MAX_CHARS       32
 #define BLE_ADV_BUF_MAX     BLE_GAP_ADV_SET_DATA_SIZE_MAX
+
+/*
+ * 대역폭 프리셋. Adafruit 시그니처 호환을 위해 둔다.
+ * 지금은 값을 받아 두기만 하고 실제 조정은 하지 않는다 — MTU 와 연결 이벤트
+ * 길이는 sd_event_pump.c 의 컴파일 타임 설정으로 정해진다.
+ */
+typedef enum {
+  BANDWIDTH_AUTO = 0,
+  BANDWIDTH_LOW,
+  BANDWIDTH_NORMAL,
+  BANDWIDTH_HIGH,
+  BANDWIDTH_MAX,
+} ble_bandwidth_t;
 
 typedef void (*ble_connect_callback_t)   (uint16_t conn_hdl);
 typedef void (*ble_disconnect_callback_t)(uint16_t conn_hdl, uint8_t reason);
@@ -106,6 +120,20 @@ class AdafruitBluefruit
     /** 한 번에 보낼 수 있는 최대 페이로드 (MTU − ATT 헤더 3). */
     uint16_t maxPayload(void) const { return (uint16_t)(_att_mtu - 3); }
 
+    /** 연결 핸들로 BLEConnection 을 얻는다. 없으면 NULL. */
+    BLEConnection *Connection(uint16_t conn_hdl);
+
+    /**
+     * 연결되면 LED_CONN 을 켠다.
+     * ⚠ variant 에 LED 가 하나뿐이면 LED_BUILTIN 과 같은 핀이다
+     *   (XIAO 가 그렇다). 스케치의 blink 와 겹쳐 보일 수 있다.
+     */
+    void autoConnLed(bool enable);
+
+    /** Adafruit 시그니처 호환. 값만 받아 둔다 (위 ble_bandwidth_t 주석 참조). */
+    void configPrphBandwidth(ble_bandwidth_t bw) { _bandwidth = bw; }
+    void configPrphConn(uint16_t mtu, uint8_t event_len, uint8_t hvn_qsize, uint8_t wrcmd_qsize);
+
     void setName(const char *name);
     const char *getName(void) const { return _name; }
     bool setTxPower(int8_t power);
@@ -143,6 +171,9 @@ class AdafruitBluefruit
     bool        _begun;
     void       *_tx_sem;      /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않는다 */
     uint16_t    _att_mtu;
+    BLEConnection _connection;
+    bool        _auto_conn_led;
+    ble_bandwidth_t _bandwidth;
 };
 
 extern AdafruitBluefruit Bluefruit;

@@ -285,6 +285,46 @@ RAM: 링커=0x20004780  SD요구=0x20003750
 
 ---
 
+## 3.8 B3 나머지 — DIS / 배터리 / 연결 객체 (2026-09-06)
+
+Adafruit `Peripheral/bleuart` 예제를 **API 호출을 그대로 둔 채** 옮겨 돌렸다
+(`BLEDfu` 와 파일시스템 include 만 뺐다. 그건 B4 다).
+
+| 항목 | 결과 |
+|---|---|
+| 서비스 3종 탐색 | ✅ Device Information / Nordic UART / Battery |
+| `BLEDis` 문자열 | ✅ `BARAM` / `XIAO nRF54L15` / `0.1.0` |
+| `BLEBas` 배터리 | ✅ 100 % |
+| `BLEUart` 왕복 | ✅ |
+| 협상 MTU | ✅ 247 |
+| `Bluefruit.Connection(h)` / `autoConnLed` / `configPrphBandwidth` | ✅ 예제가 부르는 대로 컴파일·동작 |
+
+### 잡은 것 — 고정 길이 속성 뒤에 0xFF 가 붙는다
+
+DIS 문자열을 읽으면 `b'BARAM\xff\xff...'` 처럼 뒤에 쓰레기가 붙었다.
+
+`setFixedLen()` 이 `_max_len` 을 **"더 클 때만"** 갱신하고 있었다. 그래서 기본값
+20 이 남고, 5바이트 문자열이 20바이트 고정 속성에 들어가 나머지 15바이트가
+초기화되지 않은 채 노출됐다.
+
+→ 고정 길이는 `max_len` 도 **정확히 같아야 한다.**
+
+> 겉으로는 "문자열이 깨진다" 로 보이지만 원인은 GATT 속성 길이 설정이다.
+> 값을 쓰는 쪽(`write()`)이 아니라 **속성을 만드는 쪽**을 봐야 한다.
+
+### 미구현으로 남긴 것 — `getPeerName()`
+
+상대의 GAP 서비스에서 Device Name 을 읽으려면 우리가 GATT **클라이언트**로
+동작해야 한다 (`sd_ble_gattc_*` + `BLE_CONN_CFG_GATTC`). 그 경로가 아직 없다.
+
+**빈 문자열을 넣고 `false` 를 돌려준다.** 조용히 성공한 척하지 않는다.
+Adafruit 예제는 반환값을 보지 않고 출력하므로 `Connected to ` 뒤가 빈 줄이 된다.
+
+참고로 `connect_callback` 에서 `getMtu()` 는 아직 23 이다. MTU 교환이 연결
+**이후**에 일어나기 때문이고, Adafruit 도 같은 순서다. 버그가 아니다.
+
+---
+
 ## 4. 남은 것
 
 - **GATT 서비스가 없다.** 연결은 되지만 서비스 탐색이 빈 손이라 호스트가 곧 끊는다.

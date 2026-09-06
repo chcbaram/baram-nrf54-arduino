@@ -142,7 +142,9 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _char_count  = 0;
   _begun       = false;
   _tx_sem      = NULL;
-  _att_mtu     = BLE_GATT_ATT_MTU_DEFAULT;
+  _att_mtu       = BLE_GATT_ATT_MTU_DEFAULT;
+  _auto_conn_led = false;
+  _bandwidth     = BANDWIDTH_AUTO;
   memset(_chars, 0, sizeof(_chars));
 }
 
@@ -215,6 +217,36 @@ bool AdafruitBluefruit::_waitTxComplete(uint32_t ms)
   return xSemaphoreTake((SemaphoreHandle_t) _tx_sem, pdMS_TO_TICKS(ms)) == pdTRUE;
 }
 
+BLEConnection *AdafruitBluefruit::Connection(uint16_t conn_hdl)
+{
+  if (conn_hdl == BLE_CONN_HANDLE_INVALID) return NULL;
+  if (_connection.handle() != conn_hdl)    return NULL;
+  return &_connection;
+}
+
+void AdafruitBluefruit::autoConnLed(bool enable)
+{
+  _auto_conn_led = enable;
+#ifdef LED_CONN
+  if (enable) {
+    pinMode(LED_CONN, OUTPUT);
+    if (connected()) ledOn(LED_CONN); else ledOff(LED_CONN);
+  }
+#endif
+}
+
+void AdafruitBluefruit::configPrphConn(uint16_t mtu, uint8_t event_len,
+                                       uint8_t hvn_qsize, uint8_t wrcmd_qsize)
+{
+  /*
+   * Adafruit 시그니처 호환용. 이 값들은 sd_ble_cfg_set() 으로 **sd_ble_enable()
+   * 전에** 정해져야 하는데, 그 시점은 sdEnable() 안이고 여기보다 앞이다.
+   * 지금은 sd_event_pump.c 의 컴파일 타임 설정(SD_BLE_ATT_MTU 등)을 쓴다.
+   * 런타임으로 바꾸려면 sdEnable() 을 파라미터화해야 한다.
+   */
+  (void) mtu; (void) event_len; (void) hvn_qsize; (void) wrcmd_qsize;
+}
+
 bool AdafruitBluefruit::_registerChar(BLECharacteristic *chr)
 {
   if (_char_count >= BLE_MAX_CHARS) return false;
@@ -227,7 +259,11 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
   switch (evt->header.evt_id) {
     case BLE_GAP_EVT_CONNECTED:
       _conn_hdl = evt->evt.gap_evt.conn_handle;
+      _connection._begin(evt);
       Advertising._setRunning(false);
+#ifdef LED_CONN
+      if (_auto_conn_led) ledOn(LED_CONN);
+#endif
       if (Periph._connect_cb) Periph._connect_cb(_conn_hdl);
       break;
 
@@ -238,6 +274,10 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       }
       _conn_hdl = BLE_CONN_HANDLE_INVALID;
       _att_mtu  = BLE_GATT_ATT_MTU_DEFAULT;   /* 다음 연결에서 다시 협상한다 */
+      _connection._end();
+#ifdef LED_CONN
+      if (_auto_conn_led) ledOff(LED_CONN);
+#endif
       Advertising._restartIfNeeded();
       break;
 
@@ -284,6 +324,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
 
       if (theirs < BLE_GATT_ATT_MTU_DEFAULT) theirs = BLE_GATT_ATT_MTU_DEFAULT;
       _att_mtu = (theirs < ours) ? theirs : ours;
+      _connection._setMtu(_att_mtu);
       break;
     }
 

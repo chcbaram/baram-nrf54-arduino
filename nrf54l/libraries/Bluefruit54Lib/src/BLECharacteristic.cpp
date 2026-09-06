@@ -30,7 +30,17 @@ BLECharacteristic::BLECharacteristic(uint8_t const uuid128[16]) : uuid(uuid128) 
 
 void BLECharacteristic::setUuid(BLEUuid bleuuid)        { uuid = bleuuid; }
 void BLECharacteristic::setProperties(uint8_t prop)     { _properties = prop; }
-void BLECharacteristic::setFixedLen(uint16_t len)       { _fixed_len = len; if (len > _max_len) _max_len = len; }
+void BLECharacteristic::setFixedLen(uint16_t len)
+{
+  /*
+   * ⚠ 고정 길이는 max_len 도 **정확히 같아야 한다.**
+   *   "더 클 때만 늘린다" 로 두면 기본값(20)이 남아, 짧은 문자열을 넣어도
+   *   속성이 20바이트로 잡히고 남는 부분이 초기화되지 않은 0xFF 로 노출된다.
+   *   실제로 DIS 문자열 뒤에 0xFF 가 붙어 나왔다.
+   */
+  _fixed_len = len;
+  _max_len   = len;
+}
 void BLECharacteristic::setMaxLen(uint16_t len)         { _max_len = len; }
 void BLECharacteristic::setWriteCallback(write_cb_t fp) { _wr_cb = fp; }
 
