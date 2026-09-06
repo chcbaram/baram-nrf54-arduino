@@ -36,9 +36,9 @@ FQBN  baram-nrf54:nrf54l:nu54dk          NU54-DK    (nRF54L05, 500KB/96KB)
 
 빌드 크기(blink + Serial + 2태스크): Flash 38004 B, RAM 3856 B.
 
-### BLE (M3) — peripheral 역할 실기 확인
+### BLE (M3) — 실기 확인
 
-XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) 로 확인한 것:
+XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 
 | 항목 | 상태 |
 |---|---|
@@ -49,14 +49,63 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) 로 확인한 것:
 | **동시 연결** | ✅ L15 4개 / L05 2개, 폰+Mac 2링크 양방향 실증 |
 | `BLEBeacon`(iBeacon) · `EddyStoneUrl` | ✅ 광고 바이트 단위 검증 |
 | `getPeerName()` (GATT 클라이언트) | ✅ `Connected to Mac` |
+| **central — 스캔 / 필터 / 연결** | ✅ 두 보드 간 |
+| **central — GATT 탐색 + `BLEClientUart`** | ✅ MTU 247, 양방향 |
+| 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
-**없는 것:** central 역할(스캔·연결), 본딩/페어링, HID, 실제 DFU.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 14개 통과).
+**없는 것:** `BLEClientService`/`BLEClientCharacteristic` 일반화(그래서
+`BLEClientBas`/`BLEClientDis` 없음), 본딩/페어링, HID, 실제 DFU.
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 15개 통과).
 
 ---
 
 ## 2. 바로 다음에 할 일
+
+### ⭐ 다음 세션은 여기서 시작한다 (2026-09-07 마감 시점)
+
+**우선순위**
+
+1. **`BLEClientService` / `BLEClientCharacteristic` 일반화** — 지금은 NUS 전용
+   `BLEClientUart` 만 있다. 일반화하면 `BLEClientBas` / `BLEClientDis` 가 따라오고
+   상류 `central_bleuart` 가 컴파일된다 (지금은 그 둘 때문에 막혀 있다).
+   예제 ~8개가 여기 걸려 있다. 탐색 절차(`BLEGatt::discoverService/Chars/Cccd`)는
+   이미 있으니 그 위에 얹으면 된다
+2. **본딩 / `BLESecurity`** — 키를 RRAM 에 어떻게 넣을지가 먼저다 (CLAUDE.md §8.1)
+3. **HID** — 본딩에 의존한다. 암호화된 링크를 요구해서 본딩 없이는 폰이 붙어도 안 된다
+4. **온보드 주변장치** — `Wire`(XIAO 의 LSM6DS3TR-C 로 `WHO_AM_I`),
+   `attachInterrupt`, `analogWrite`
+5. 마지막이 외부 측정이 필요한 것들 — SPI 루프백, `analogRead` 정확도, **전류 측정**
+
+⚠ **구현 전에 레퍼런스부터 확인한다.** 상류(Adafruit), Nordic DevZone, Zephyr
+드라이버를 먼저 본다. 오늘 두 번 이게 방향을 바꿨다 — UARTE FRAMETIMEOUT 은
+nRF54L 에서 쓰면 안 되는 것이었고(§2.5), 연결 핸들은 배열 인덱스가 아니었다(B5).
+
+**아직 안 잰 것**: BLE 실효 처리량 (notify 큐를 3 으로 올려 뒀지만 수치가 없다).
+상류 `throughput` / `central_throughput` 예제로 잴 수 있다.
+
+**로컬 커밋만 있고 push 하지 않았다.**
+
+### 실기 환경 메모
+
+| | |
+|---|---|
+| XIAO nRF54L15 | probe `2886:0066:5784477E`, 시리얼 `/dev/cu.usbmodem5784477E3` |
+| NU54-DK (L05) | probe `0d28:0204:1070…2820`, 시리얼 `/dev/cu.usbserial-2110` |
+
+⚠ **프로브가 둘 붙어 있으면 `arduino-cli upload` 가 실패한다** — 어느 쪽인지 못 고른다.
+`probe-rs download --probe <VID:PID:serial>` 로 직접 굽는다.
+그때 **SoftDevice 영역이 지워질 수 있다.** 증상은 `begin=0 err=0 need=0`
+(cfg_set 이 아예 안 불린 상태). `nrf54l/softdevice/s145_nrf54l05_*.hex` 를 다시 구우면 된다.
+
+⚠ 시리얼 포트 번호는 다시 꽂을 때마다 바뀐다 (`usbserial-110` -> `usbserial-2110`).
+
+**central 시험 조합**: XIAO 에 `Central/central_bleuart`, NU54-DK 에
+`Peripheral/bleuart`. 다만 두 예제 모두 시리얼 입력을 쓰는데 XIAO VCOM 이
+약하므로(§2.5), 주기 송신 스케치로 시험하는 편이 낫다.
+
+---
+
 
 ### (a) 전류 측정 — M1 을 닫으려면 이게 남았다
 
@@ -145,8 +194,9 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B5**~~ ✅ | **다중 연결** (nRF54L15 4개) + notify 큐 설정 | **완료.** 폰 + Mac 동시 2링크 실증 |
 | ~~**B6**~~ ✅ | **Beacon** — `BLEBeacon`(iBeacon) + `EddyStoneUrl` | **완료.** 광고 페이로드 실측 검증 |
 | ~~**B7**~~ ✅ | **GATT 클라이언트** + 콜백 지연 실행 -> `getPeerName()` | **완료.** `Connected to Mac` 실증 |
-| B8 (진행 중) | **central 역할** — RAM 배분 확정, 스캔/연결 구현 전 | |
-| B9 (남음) | 본딩/`BLESecurity`, HID | |
+| ~~**B8**~~ ✅ | **central 역할** — 스캔 / 연결 / GATT 탐색 / `BLEClientUart` | **완료.** 두 보드 간 양방향 실증 |
+| B9 (남음) | `BLEClientService`/`BLEClientCharacteristic` 일반화 -> `BLEClientBas`/`BLEClientDis` | |
+| B10 (남음) | 본딩/`BLESecurity`, HID | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
