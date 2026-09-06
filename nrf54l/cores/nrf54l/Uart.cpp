@@ -151,10 +151,19 @@ void Uart::begin(unsigned long baudrate, uint16_t config)
   _txBusy   = false;
   _rxDmaIdx = 0;
 
-  /* 연속 수신 시작. 첫 버퍼를 주고, 이후는 RX_BUF_REQUEST 에서 번갈아 준다. */
+  /*
+   * 수신 시작. 첫 버퍼를 주고, 이후는 RX_BUF_REQUEST 에서 번갈아 준다.
+   *
+   * ⚠ NRFX_UARTE_RX_ENABLE_CONT 를 **쓰지 않는다.** 그 플래그는 ENDRX 를
+   *   STARTRX 로 바로 잇는 하드웨어 short 인데, nrfx 문서가 "짧은 버퍼와 함께
+   *   쓰지 말라" 고 못박는다 — 다음 버퍼를 제때 못 주면 현재 버퍼를 덮어쓴다.
+   *   RX_CHUNK 가 1 이므로 해당된다. 끄면 드라이버가 ENDRX 인터럽트에서 다음
+   *   전송을 시작하고, 그 틈에 오는 바이트는 UARTE 의 하드웨어 FIFO 가 받는다.
+   *   실측으로 64 / 256 / 1024 바이트 연속 수신에서 손실이 없었다.
+   */
   if (rx != NRF54L_PIN_NC) {
     (void) nrfx_uarte_rx_buffer_set((nrfx_uarte_t *) _instance, _rxDma[0], RX_CHUNK);
-    (void) nrfx_uarte_rx_enable((nrfx_uarte_t *) _instance, NRFX_UARTE_RX_ENABLE_CONT);
+    (void) nrfx_uarte_rx_enable((nrfx_uarte_t *) _instance, 0);
   }
 
   _begun = true;
