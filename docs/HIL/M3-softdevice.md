@@ -128,6 +128,51 @@ g_sd_stage = 10 ->  sd_ble_enable() 까지 갔다. 0x08 은 여기서 나온 것
 
 ---
 
+## 3.5 B1 — 커스텀 GATT 서비스 (2026-09-06)
+
+`nrf54l/libraries/Bluefruit52Lib/` 에 `BLEUuid` / `BLEService` /
+`BLECharacteristic` + 최소 `Bluefruit` 싱글턴을 올렸다. 호스트(bleak)에서 확인:
+
+| 항목 | 결과 |
+|---|---|
+| 서비스 탐색 | ✅ 128비트 UUID 그대로 보인다 |
+| 특성 속성 | ✅ `notify/read`, `write/write-without-response` |
+| 읽기 | ✅ |
+| 알림(notify) | ✅ CCCD 구독 후 수신 |
+| 쓰기 → 콜백 | ✅ 장치에서 `rx=1 last=ping-42` |
+| 연결 해제 후 자동 재광고 | ✅ |
+
+### 막힌 것 — 연결은 되는데 ATT 가 전혀 안 흐른다 ⭐
+
+`BLE_GAP_EVT_DATA_LENGTH_UPDATE_REQUEST` (0x23) 에 답하지 않았다.
+그러면 **연결은 20초 넘게 멀쩡히 유지되는데** 링크 계층 절차가 끝나지 않아
+호스트의 서비스 탐색이 시작조차 못 하고, 결국 호스트가 끊는다 (reason 0x13).
+
+찾은 방법은 단순했다 — **관찰자를 하나 더 달아 이벤트 ID 를 그대로 찍었다.**
+
+```
+[BLE] connected 3
+  evt 0x10   BLE_GAP_EVT_CONNECTED
+  evt 0x21   BLE_GAP_EVT_PHY_UPDATE_REQUEST      <- 우리가 답했다
+  evt 0x22   BLE_GAP_EVT_PHY_UPDATE              <- 그래서 왔다
+  evt 0x23   BLE_GAP_EVT_DATA_LENGTH_UPDATE_REQUEST  <- 답하지 않았다
+  (GATTS 이벤트가 하나도 오지 않는다)
+[BLE] disconnected 3 reason=0x13
+```
+
+→ `sd_ble_gap_data_length_update(conn, NULL, NULL)`. NULL 이면 SoftDevice 가
+최대치를 고른다. 함께 `CONN_PARAM_UPDATE_REQUEST` 도 상대 제안대로 수락한다.
+
+> **연결이 성립했는데 아무 데이터도 안 흐르면 GAP 이벤트부터 찍어라.**
+> "GATT 구현이 잘못됐나" 를 먼저 의심하기 쉬운데, 실제로는 그 앞 단계에서
+> 멈춰 있었다.
+
+또 하나: notify 를 쓰는 특성은 **CCCD 의 쓰기 권한을 열어야 한다.**
+상대가 CCCD 에 써야 알림이 켜지기 때문이다. 빠뜨리면 증상이
+"연결은 되는데 데이터가 안 온다" 로 똑같이 보인다.
+
+---
+
 ## 4. 남은 것
 
 - **GATT 서비스가 없다.** 연결은 되지만 서비스 탐색이 빈 손이라 호스트가 곧 끊는다.
