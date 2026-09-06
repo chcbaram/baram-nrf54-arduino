@@ -48,14 +48,36 @@ extern "C" {
 typedef void (*sd_ble_observer_t)(const ble_evt_t *evt, void *ctx);
 
 /**
+ * BLE 스택 구성. sdEnable() 에 넘긴다.
+ *
+ * ⚠ 이 값들은 **sd_ble_enable() 전에만** 정할 수 있고, 그 뒤로는 못 바꾼다.
+ *   그래서 Bluefruit.begin() 이 부르기 전에 확정돼야 한다.
+ *
+ * ⚠ RAM 은 링커가 정적으로 떼어 준다. 여기 값을 키워 RAM 이 모자라면
+ *   sdEnable() 이 **실패한다** — 조용히 깎지 않는다. 얼마가 필요한지는
+ *   sdCfgResults() 의 ram_required 로 알 수 있다.
+ */
+typedef struct {
+    uint8_t  prph_count;         /**< peripheral 동시 연결 수 */
+    uint8_t  central_count;      /**< central 동시 연결 수 */
+    uint16_t att_mtu;            /**< ATT MTU. SD_BLE_ATT_MTU 를 넘을 수 없다 */
+    uint16_t event_length;       /**< 연결 이벤트 길이 (1.25 ms 단위) */
+    uint8_t  hvn_tx_queue_size;  /**< notify 송신 큐 깊이 (연결당) */
+} sd_ble_conf_t;
+
+/** 보드가 정한 컴파일 타임 기본값으로 채운다 (boards.txt 의 -D 들). */
+void sdConfigDefault(sd_ble_conf_t *conf);
+
+/**
  * SoftDevice 를 켜고 BLE 스택을 활성화한다.
  *
- * 순서가 중요하다 (아래 구현 주석 참조). 이미 켜져 있으면 아무것도 하지 않고
- * true 를 돌려준다.
+ * 순서가 중요하다 (구현 주석 참조). 이미 켜져 있으면 아무것도 하지 않고
+ * true 를 돌려준다 — **두 번째 호출의 conf 는 무시된다.**
  *
+ * @param conf 구성. NULL 이면 sdConfigDefault() 값을 쓴다.
  * @return 성공하면 true. 실패 원인은 sdLastError() 로 확인한다.
  */
-bool sdEnable(void);
+bool sdEnable(const sd_ble_conf_t *conf);
 
 /** SoftDevice 가 켜져 있는가. */
 bool sdIsEnabled(void);
@@ -72,7 +94,10 @@ uint32_t sdLastError(void);
 /** SoftDevice 가 실제로 쓴 RAM 크기 (바이트). sd_ble_enable() 이후에 유효하다. */
 uint32_t sdRamUsed(void);
 
-/** 이 스택이 구성된 ATT MTU. MTU 교환 응답에 반드시 이 값을 써야 한다. */
+/**
+ * 이 스택이 **실제로 구성된** ATT MTU. MTU 교환 응답에 반드시 이 값을 써야 한다.
+ * sdEnable() 전에는 기본값을 돌려준다.
+ */
 uint16_t sdAttMtu(void);
 
 /**

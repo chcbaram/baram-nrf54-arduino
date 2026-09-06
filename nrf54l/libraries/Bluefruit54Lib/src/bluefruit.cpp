@@ -232,8 +232,9 @@ AdafruitBluefruit::AdafruitBluefruit(void)
 {
   strcpy(_name, "BARAM nRF54L");
   _conn_hdl    = BLE_CONN_HANDLE_INVALID;
-  _prph_count    = 1;
+  _prph_count    = 0;
   _central_count = 0;
+  sdConfigDefault(&_conf);
   _cur_service = NULL;
   _char_count  = 0;
   _begun       = false;
@@ -279,14 +280,20 @@ bool AdafruitBluefruit::begin(uint8_t prph_count, uint8_t central_count)
    * 역할별 상한도 따로다. peripheral 과 central 은 버퍼를 공유하지만
    * (S145 는 연결 구성이 하나뿐이다) 역할 수는 role_count 로 따로 정해진다.
    */
-  if (prph_count > BLE_MAX_PERIPH_CONNECTION)     return false;
-  if (central_count > BLE_MAX_CENTRAL_CONNECTION) return false;
-  if (prph_count == 0 && central_count == 0)      return false;
+  /*
+   * 슬롯 배열 크기만 컴파일 타임 상한이다. 그 밖의 상한은 **RAM 이 정한다** —
+   * 안 들어가면 sdEnable() 이 실패하고 여기서 false 가 나간다.
+   */
+  if (prph_count + central_count > BLE_MAX_CONNECTION) return false;
+  if (prph_count == 0 && central_count == 0)           return false;
 
   _prph_count    = prph_count;
   _central_count = central_count;
 
-  if (!sdEnable()) return false;
+  _conf.prph_count    = prph_count;
+  _conf.central_count = central_count;
+
+  if (!sdEnable(&_conf)) return false;
 
   if (!sdBleObserverAdd(bluefruit_evt_observer, NULL)) return false;
 
@@ -461,16 +468,52 @@ void AdafruitBluefruit::autoConnLed(bool enable)
 #endif
 }
 
-void AdafruitBluefruit::configPrphConn(uint16_t mtu, uint8_t event_len,
+void AdafruitBluefruit::configPrphConn(uint16_t mtu, uint16_t event_len,
                                        uint8_t hvn_qsize, uint8_t wrcmd_qsize)
 {
   /*
-   * Adafruit 시그니처 호환용. 이 값들은 sd_ble_cfg_set() 으로 **sd_ble_enable()
-   * 전에** 정해져야 하는데, 그 시점은 sdEnable() 안이고 여기보다 앞이다.
-   * 지금은 sd_event_pump.c 의 컴파일 타임 설정(SD_BLE_ATT_MTU 등)을 쓴다.
-   * 런타임으로 바꾸려면 sdEnable() 을 파라미터화해야 한다.
+   * ⚠ begin() 보다 먼저 불러야 한다. 이 값들은 sd_ble_cfg_set() 으로
+   *   sd_ble_enable() 전에 정해지고, 그 뒤로는 못 바꾼다.
+   *   begin() 뒤에 부르면 **아무 일도 일어나지 않는다.**
    */
-  (void) mtu; (void) event_len; (void) hvn_qsize; (void) wrcmd_qsize;
+  if (_begun) return;
+
+  _conf.att_mtu           = mtu;
+  _conf.event_length      = event_len;
+  _conf.hvn_tx_queue_size = hvn_qsize;
+
+  /* GATTC write command 큐는 아직 설정하지 않는다. */
+  (void) wrcmd_qsize;
+}
+
+void AdafruitBluefruit::configPrphBandwidth(ble_bandwidth_t bw)
+{
+  _bandwidth = bw;
+
+  /*
+   * 값은 Adafruit 의 프리셋 그대로다. 우리 기본값(MTU 247 · 큐 3)이 이미
+   * BANDWIDTH_MAX 수준이라, AUTO/NORMAL 에서 굳이 23 으로 낮추지 않는다 —
+   * 낮추면 이 코어에서 잘 되던 스케치가 프리셋 한 줄 때문에 느려진다.
+   */
+  switch (bw) {
+    case BANDWIDTH_LOW:
+      configPrphConn(BLE_GATT_ATT_MTU_DEFAULT, BLE_GAP_EVENT_LENGTH_MIN, 1, 1);
+      break;
+
+    case BANDWIDTH_HIGH:
+      configPrphConn(128, 6, 2, 1);
+      break;
+
+    case BANDWIDTH_MAX:
+      configPrphConn(247, 6, 3, 1);
+      break;
+
+    case BANDWIDTH_AUTO:
+    case BANDWIDTH_NORMAL:
+    default:
+      /* 보드 기본값을 그대로 둔다 */
+      break;
+  }
 }
 
 bool AdafruitBluefruit::_registerChar(BLECharacteristic *chr)

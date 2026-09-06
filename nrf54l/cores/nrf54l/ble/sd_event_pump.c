@@ -213,6 +213,9 @@ static uint32_t          m_ram_required = 0;
 static uint32_t          m_cfg_role    = 0xFFFFFFFFu;
 static uint32_t          m_cfg_gap     = 0xFFFFFFFFu;
 static uint32_t          m_cfg_gatts   = 0xFFFFFFFF;
+
+/* 실제로 적용된 구성. sd_ble_cfg_apply() 와 sdAttMtu() 가 이걸 본다. */
+static sd_ble_conf_t     m_conf;
 static uint32_t          m_cfg_gatt    = 0xFFFFFFFFu;
 
 static SemaphoreHandle_t m_evt_sem     = NULL;
@@ -385,7 +388,7 @@ uint32_t sdRamUsed(void)
 
 uint16_t sdAttMtu(void)
 {
-    return (uint16_t) SD_BLE_ATT_MTU;
+    return m_conf.att_mtu ? m_conf.att_mtu : (uint16_t) SD_BLE_ATT_MTU;
 }
 
 uint8_t sdConnCfgTag(void)
@@ -427,6 +430,17 @@ bool sdBleObserverAdd(sd_ble_observer_t handler, void *ctx)
  * BLE 스택 구성. **sd_ble_enable() 전에** 불러야 한다.
  * 실패해도 그 항목만 기본값으로 남으므로 기록만 하고 계속 간다.
  */
+void sdConfigDefault(sd_ble_conf_t *conf)
+{
+    if (conf == NULL) return;
+
+    conf->prph_count        = SD_BLE_PERIPH_LINK_COUNT;
+    conf->central_count     = SD_BLE_CENTRAL_LINK_COUNT;
+    conf->att_mtu           = SD_BLE_ATT_MTU;
+    conf->event_length      = SD_BLE_EVENT_LENGTH;
+    conf->hvn_tx_queue_size = SD_BLE_HVN_TX_QUEUE_SIZE;
+}
+
 static void sd_ble_cfg_apply(uint32_t ram_base)
 {
     ble_cfg_t cfg;
@@ -442,38 +456,57 @@ static void sd_ble_cfg_apply(uint32_t ram_base)
      *   로 실패한다. 증상은 "BLE 를 못 켠다" 로만 보인다.
      */
     cfg.gap_cfg.role_count_cfg.adv_set_count      = BLE_GAP_ADV_SET_COUNT_DEFAULT;
-    cfg.gap_cfg.role_count_cfg.periph_role_count  = SD_BLE_PERIPH_LINK_COUNT;
-    cfg.gap_cfg.role_count_cfg.central_role_count = SD_BLE_CENTRAL_LINK_COUNT;
+    cfg.gap_cfg.role_count_cfg.periph_role_count  = m_conf.prph_count;
+    cfg.gap_cfg.role_count_cfg.central_role_count = m_conf.central_count;
     /* SMP 인스턴스는 central 연결들이 나눠 쓴다. 페어링을 동시에 하지 않으면 1 이면 된다. */
-    cfg.gap_cfg.role_count_cfg.central_sec_count  = (SD_BLE_CENTRAL_LINK_COUNT > 0) ? 1 : 0;
+    cfg.gap_cfg.role_count_cfg.central_sec_count  = (m_conf.central_count > 0) ? 1 : 0;
     m_cfg_role = sd_ble_cfg_set(BLE_GAP_CFG_ROLE_COUNT, &cfg, ram_base);
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.conn_cfg.conn_cfg_tag                     = SD_BLE_CONN_CFG_TAG;
     /* 태그가 하나뿐이므로 두 역할의 링크를 모두 덮어야 한다. */
-    cfg.conn_cfg.params.gap_conn_cfg.conn_count   = SD_BLE_PERIPH_LINK_COUNT
-                                                    + SD_BLE_CENTRAL_LINK_COUNT;
-    cfg.conn_cfg.params.gap_conn_cfg.event_length = SD_BLE_EVENT_LENGTH;
+    cfg.conn_cfg.params.gap_conn_cfg.conn_count   = (uint8_t) (m_conf.prph_count + m_conf.central_count);
+    cfg.conn_cfg.params.gap_conn_cfg.event_length = m_conf.event_length;
     m_cfg_gap = sd_ble_cfg_set(BLE_CONN_CFG_GAP, &cfg, ram_base);
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.conn_cfg.conn_cfg_tag                 = SD_BLE_CONN_CFG_TAG;
-    cfg.conn_cfg.params.gatt_conn_cfg.att_mtu = SD_BLE_ATT_MTU;
+    cfg.conn_cfg.params.gatt_conn_cfg.att_mtu = m_conf.att_mtu;
     m_cfg_gatt = sd_ble_cfg_set(BLE_CONN_CFG_GATT, &cfg, ram_base);
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.conn_cfg.conn_cfg_tag                              = SD_BLE_CONN_CFG_TAG;
-    cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size   = SD_BLE_HVN_TX_QUEUE_SIZE;
+    cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size   = m_conf.hvn_tx_queue_size;
     m_cfg_gatts = sd_ble_cfg_set(BLE_CONN_CFG_GATTS, &cfg, ram_base);
 
 }
 
-bool sdEnable(void)
+bool sdEnable(const sd_ble_conf_t *conf)
 {
     uint32_t err;
 
     if (m_enabled) {
         return true;
+    }
+
+    if (conf) {
+        m_conf = *conf;
+    } else {
+        sdConfigDefault(&m_conf);
+    }
+
+    /*
+     * ⚠ 이벤트 버퍼는 **컴파일 타임에** SD_BLE_ATT_MTU 기준으로 잡혀 있다
+     *   (m_evt_buf). 그보다 큰 MTU 를 요청하면 이벤트를 못 담아 조용히
+     *   잘리므로 여기서 거절한다. 키우려면 SD_BLE_ATT_MTU 를 올려야 한다.
+     */
+    if (m_conf.att_mtu > SD_BLE_ATT_MTU) {
+        m_last_error = NRF_ERROR_INVALID_PARAM;
+        return false;
+    }
+    if (m_conf.prph_count == 0 && m_conf.central_count == 0) {
+        m_last_error = NRF_ERROR_INVALID_PARAM;
+        return false;
     }
 
     /* ── 1. 이벤트 태스크를 먼저 만든다 ────────────────────────────────

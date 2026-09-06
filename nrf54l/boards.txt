@@ -17,10 +17,11 @@ nu54vdk.build.board=NU54VDK
 nu54vdk.build.core=nrf54l
 nu54vdk.build.variant=nu54dk
 nu54vdk.build.chip=NRF54L15_XXAA
-# 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
-# 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 251 B 라
-# 서로 맞바꾸는 관계다 — 링크 5개면 큐를 못 올린다 (docs/MEMORY-MAP.md).
-# L15 — SD 예약 32 KB, peripheral 4 + central 1 + 큐 3 = 0x20007F48 (실측, 여유 184 B)
+# 인자 없는 Bluefruit.begin() 의 **기본값**이다. 상한이 아니다 —
+# 실제 상한은 링커가 떼어 준 SoftDevice RAM 이고, 배분은 스케치가
+# begin(prph, central) 로 정한다. 안 들어가면 begin() 이 false 를 돌려준다.
+# L15 — SD 예약 32 KB. 기본값 4+1+큐3 = 0x20007F48 (실측, 여유 184 B).
+#       같은 예약으로 begin(0,4)=0x6868, begin(0,5)=0x7828, begin(2,2)=0x6C00 도 된다.
 nu54vdk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 # probe-rs 의 타깃 이름. `probe-rs chip list` 로 확인한 값이며
@@ -93,9 +94,9 @@ nu54dk.build.board=NU54DK
 nu54dk.build.core=nrf54l
 nu54dk.build.variant=nu54dk
 nu54dk.build.chip=NRF54L05_XXAA
-# 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
-# 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 252 B 다.
-# L05 — SD 예약 0x5D00, peripheral 2 + central 1 + 큐 3 = 0x20005C38 (실기 실측, 여유 200 B)
+# 인자 없는 Bluefruit.begin() 의 **기본값**이다. 상한이 아니다 —
+# 실제 상한은 링커가 떼어 준 SoftDevice RAM 이다 (위 L15 주석 참조).
+# L05 — SD 예약 0x5D00. 기본값 2+1+큐3 = 0x20005C38 (실기 실측, 여유 200 B)
 nu54dk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=2 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 # probe-rs 에는 nRF54L05 타깃이 없다 (`probe-rs chip list` = nRF54L15 / nRF54LM20A).
@@ -170,10 +171,11 @@ xiao_nrf54l15.build.board=XIAO_NRF54L15
 xiao_nrf54l15.build.core=nrf54l
 xiao_nrf54l15.build.variant=xiao_nrf54l15
 xiao_nrf54l15.build.chip=NRF54L15_XXAA
-# 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
-# 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 251 B 라
-# 서로 맞바꾸는 관계다 — 링크 5개면 큐를 못 올린다 (docs/MEMORY-MAP.md).
-# L15 — SD 예약 32 KB, peripheral 4 + central 1 + 큐 3 = 0x20007F48 (실측, 여유 184 B)
+# 인자 없는 Bluefruit.begin() 의 **기본값**이다. 상한이 아니다 —
+# 실제 상한은 링커가 떼어 준 SoftDevice RAM 이고, 배분은 스케치가
+# begin(prph, central) 로 정한다. 안 들어가면 begin() 이 false 를 돌려준다.
+# L15 — SD 예약 32 KB. 기본값 4+1+큐3 = 0x20007F48 (실측, 여유 184 B).
+#       같은 예약으로 begin(0,4)=0x6868, begin(0,5)=0x7828, begin(2,2)=0x6C00 도 된다.
 xiao_nrf54l15.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 xiao_nrf54l15.build.chip_probers=nRF54L15

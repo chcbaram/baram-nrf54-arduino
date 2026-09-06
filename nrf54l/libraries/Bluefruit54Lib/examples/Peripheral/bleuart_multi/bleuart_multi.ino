@@ -8,10 +8,11 @@
 *********************************************************************/
 #include <bluefruit.h>
 
-/* How many peripheral links the board can hold. Set per board in boards.txt
- * (-DSD_BLE_PERIPH_LINK_COUNT) because the SoftDevice RAM reserved by the
- * linker script has to match. nRF54L15: 3, nRF54L05: 2. */
-#define MAX_PRPH_CONNECTION   BLE_MAX_PERIPH_CONNECTION
+/* How many peripheral links to ask for. The ceiling is the SoftDevice RAM the
+ * linker reserved, not a compile-time constant, so begin() below reports if
+ * this does not fit. BLE_DEFAULT_PERIPH_COUNT is what the board sets in
+ * boards.txt: 4 on nRF54L15, 2 on nRF54L05. */
+#define MAX_PRPH_CONNECTION   BLE_DEFAULT_PERIPH_COUNT
 
 BLEDis  bledis;
 BLEUart bleuart;

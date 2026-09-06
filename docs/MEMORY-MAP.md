@@ -130,6 +130,32 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 | 조금 더 | 링크 4 · 큐 4 | ❌ `0x200071C4` — 예약을 30 KB 로 되돌려야 한다 |
 | 연결 많이 | 링크 5 · 큐 1 | ❌ `0x20007590` — 예약 30 KB + **큐를 1 로 되돌려야** 한다 |
 
+#### 역할 배분은 **런타임**이다
+
+`Bluefruit.begin(prph, central)` 인자가 그대로 `sd_ble_cfg_set()` 까지 간다.
+링커가 고정하는 것은 **RAM 경계뿐**이고, 그 안에서 어떻게 나눌지는 스케치가 정한다
+(Adafruit 과 같다). `boards.txt` 의 `-DSD_BLE_*_LINK_COUNT` 는 **인자 없는
+`begin()` 의 기본값**일 뿐 상한이 아니다.
+
+**실측 (XIAO nRF54L15, 예약 32 KB = `0x20008000`, MTU 247 · 큐 3):**
+
+| begin(prph, central) | 필요한 앱 RAM 시작 | |
+|---|---|---|
+| `(4, 0)` | `0x20006DD8` | ✅ 보드 기본값의 peripheral 쪽 |
+| `(0, 4)` | `0x20006868` | ✅ central 이 링크당 더 싸다 |
+| `(2, 2)` | `0x20006C00` | ✅ |
+| `(0, 5)` | `0x20007828` | ✅ |
+| `(1, 1)` | `0x20004AB0` | ✅ |
+| `(8, 0)` | `0x2000B3F8` | ❌ `begin()` 이 false |
+| `(6, 2)` | `0x2000B220` | ❌ `begin()` 이 false |
+
+RAM 이 모자라면 **조용히 깎지 않고 실패한다.** `sdLastError()` 가 `0x04`
+(`NRF_ERROR_NO_MEM`), `sdCfgResults()` 의 `ram_required` 가 **얼마가 필요했는지**
+알려 준다. 링커 `RAM ORIGIN` 을 그 값 이상으로 올리면 된다.
+
+이 덕분에 상류 예제가 요구하는 배분이 그대로 통한다 — `central_bleuart_multi`
+는 `begin(0, 4)`, `dual_bleuart` 와 `rssi_proximity_central` 은 `begin(1, 1)` 이다.
+
 #### peripheral 과 central 은 버퍼를 **따로 못 잡는다**
 
 SoftDevice 는 버퍼를 역할이 아니라 **연결 구성(`conn_cfg_tag`) 단위**로 잡는다.

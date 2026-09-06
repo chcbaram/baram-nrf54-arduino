@@ -44,13 +44,25 @@
  * ⚠ 그래서 `for (h = 0; h < BLE_MAX_CONNECTION; h++)` 로 연결을 훑으면 안 된다.
  *   connHandleAt() 을 쓴다.
  *
- * BLE_MAX_CONNECTION 은 **두 역할을 합친 슬롯 수**다 (Adafruit 도 이 상수를
- * 배열 크기로 쓴다). 역할별 상한은 아래 두 개다 — peripheral 과 central 은
- * 버퍼를 공유하지만(S145 는 연결 구성이 하나뿐이다) 역할 수는 따로 정해진다.
+ * ⚠ **역할 배분은 컴파일 타임이 아니라 `begin(prph, central)` 이 정한다.**
+ *   RAM 경계만 링커가 고정하고, 그 안에서 어떻게 나눌지는 스케치의 몫이다
+ *   (Adafruit 과 같다). 그래서 같은 보드가 `begin(4,0)` 도 `begin(0,4)` 도 된다 —
+ *   둘 다 링크 4개분이라 같은 RAM 을 쓴다. 안 들어가면 begin() 이 실패한다.
+ *
+ *   boards.txt 의 `-DSD_BLE_*_LINK_COUNT` 는 **인자 없는 `begin()` 의 기본값**일
+ *   뿐이고 상한이 아니다.
+ *
+ * BLE_MAX_CONNECTION 은 연결 **슬롯 배열의 크기**다 (Adafruit 도 이 상수를
+ * 그렇게 쓴다 — 그쪽은 20 으로 고정). 실제 링크 수보다 크면 남는 슬롯은
+ * 쓰이지 않는다. 슬롯 하나가 앱 RAM 에서 수십 바이트라 넉넉히 잡아도 싸다.
  */
-#define BLE_MAX_PERIPH_CONNECTION   SD_BLE_PERIPH_LINK_COUNT
-#define BLE_MAX_CENTRAL_CONNECTION  SD_BLE_CENTRAL_LINK_COUNT
-#define BLE_MAX_CONNECTION          (BLE_MAX_PERIPH_CONNECTION + BLE_MAX_CENTRAL_CONNECTION)
+#ifndef BLE_MAX_CONNECTION
+#define BLE_MAX_CONNECTION          (8)
+#endif
+
+/** 인자 없는 begin() 이 쓰는 기본값. 보드가 boards.txt 에서 정한다. */
+#define BLE_DEFAULT_PERIPH_COUNT    SD_BLE_PERIPH_LINK_COUNT
+#define BLE_DEFAULT_CENTRAL_COUNT   SD_BLE_CENTRAL_LINK_COUNT
 
 /*
  * 대역폭 프리셋. Adafruit 시그니처 호환을 위해 둔다.
@@ -236,14 +248,18 @@ class AdafruitBluefruit
     /**
      * SoftDevice 와 BLE 스택을 켠다.
      *
-     * @param prph_count    동시 peripheral 연결 수. 0 ~ BLE_MAX_PERIPH_CONNECTION.
-     * @param central_count 동시 central 연결 수. 0 ~ BLE_MAX_CENTRAL_CONNECTION.
+     * @param prph_count    동시 peripheral 연결 수.
+     * @param central_count 동시 central 연결 수.
      *
-     * ⚠ 지원하지 않는 값을 주면 **false 를 돌려준다** — 조용히 깎지 않는다.
-     *   그래야 스케치가 왜 두 번째 연결이 안 되는지 헤매지 않는다.
-     *   상한은 보드가 정한다 (boards.txt 의 -DSD_BLE_*_LINK_COUNT).
+     * ⚠ 상한은 **RAM 이 정한다.** 링커가 떼어 준 SoftDevice 영역에 안 들어가면
+     *   **false 를 돌려준다** — 조용히 깎지 않는다. 그래야 스케치가 왜 N번째
+     *   연결이 안 되는지 헤매지 않는다. 얼마가 필요했는지는 `sdCfgResults()`
+     *   의 ram_required 로 볼 수 있다.
+     *
+     * ⚠ config*() 계열은 **이 함수보다 먼저** 불러야 한다. 여기서 값이 확정된다.
      */
-    bool begin(uint8_t prph_count = 1, uint8_t central_count = 0);
+    bool begin(uint8_t prph_count = BLE_DEFAULT_PERIPH_COUNT,
+               uint8_t central_count = BLE_DEFAULT_CENTRAL_COUNT);
 
     /** 맺어진 연결 수. `if (Bluefruit.connected())` 로도 그대로 쓴다. */
     uint8_t connected(void) const;
@@ -302,9 +318,25 @@ class AdafruitBluefruit
     /** RSSI 가 바뀌면 불린다. BLEConnection::monitorRssi() 로 시작해야 온다. */
     void setRssiCallback(ble_rssi_callback_t fp) { _rssi_cb = fp; }
 
-    /** Adafruit 시그니처 호환. 값만 받아 둔다 (위 ble_bandwidth_t 주석 참조). */
-    void configPrphBandwidth(ble_bandwidth_t bw) { _bandwidth = bw; }
-    void configPrphConn(uint16_t mtu, uint8_t event_len, uint8_t hvn_qsize, uint8_t wrcmd_qsize);
+    /**
+     * 대역폭 프리셋. **begin() 보다 먼저** 불러야 한다.
+     * 값은 Adafruit 과 같다 (구현 주석 참조).
+     */
+    void configPrphBandwidth(ble_bandwidth_t bw);
+    void configCentralBandwidth(ble_bandwidth_t bw) { configPrphBandwidth(bw); }
+
+    /**
+     * 연결 구성을 직접 준다. **begin() 보다 먼저** 불러야 한다.
+     *
+     * ⚠ S145 는 연결 구성을 하나만 허용하므로 peripheral 과 central 이
+     *   **같은 값을 공유한다.** Adafruit 처럼 역할별로 나눌 수 없다.
+     * ⚠ wrcmd_qsize 는 아직 반영하지 않는다 (GATTC write command 큐).
+     */
+    void configPrphConn(uint16_t mtu, uint16_t event_len, uint8_t hvn_qsize, uint8_t wrcmd_qsize);
+    void configCentralConn(uint16_t mtu, uint16_t event_len, uint8_t hvn_qsize, uint8_t wrcmd_qsize)
+    {
+      configPrphConn(mtu, event_len, hvn_qsize, wrcmd_qsize);
+    }
 
     void setName(const char *name);
     const char *getName(void) const { return _name; }
@@ -357,6 +389,7 @@ class AdafruitBluefruit
     uint16_t    _conn_hdl;    /* 가장 최근 연결 */
     uint8_t     _prph_count;
     uint8_t     _central_count;
+    sd_ble_conf_t _conf;       /* begin() 에 넘길 구성 */
     BLEService *_cur_service;
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;
