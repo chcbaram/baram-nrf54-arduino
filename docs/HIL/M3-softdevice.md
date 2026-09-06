@@ -1,0 +1,172 @@
+# M3 A단계 실기 검증 — SoftDevice 기동과 advertising
+
+날짜: 2026-09-06
+보드: Seeed XIAO nRF54L15 Sense (nRF54L15)
+SoftDevice: S145 v10.0.1 (`0x0015A800`, 137 KB)
+호스트: macOS / probe-rs 0.32.0 / bleak (BLE 스캔·연결)
+
+**이 단계의 목적은 advertising 자체가 아니라 §7 F9 의 답을 얻는 것이었다** —
+tickless idle 의 BASEPRI/PRIMASK 분리가 라디오와 실제로 공존하는가.
+CLAUDE.md 가 "M3 전까지 검증할 수 없다"고 적어 둔 이 프로젝트 최대의 미지수다.
+
+---
+
+## 1. 결과 — F9 는 통과다
+
+| 항목 | 결과 |
+|---|---|
+| `sd_softdevice_enable()` | ✅ SD RAM **18304 B** (= `0x4780`, 링커 예약치와 정확히 일치) |
+| `sd_ble_enable()` | ✅ |
+| advertising 시작 | ✅ `err = 0` |
+| **공중 확인** | ✅ `BARAM-nRF54L`, RSSI −44, 8초에 21회 (설정 100 ms 간격과 일치) |
+| **60초 연속 advertising** | ✅ 78회 탐지, 끊김 없음 |
+| **실제 연결 성립** | ✅ 장치에 `conn=1 disc=1` 기록 |
+| **틱 vs SYSCOUNTER** | ✅ **0.0 ppm** (138초, 70샘플) |
+| Δmillis | ✅ 전부 정확히 2000 |
+
+**advertising 과 연결이 도는 동안에도 틱이 어긋나지 않았다.** F9 의 BASEPRI/PRIMASK
+분리 구조를 바꿀 이유가 없다.
+
+> 호스트(bleak)는 연결 후 `TimeoutError` 를 냈다. **정상이다.** A 단계에는 GATT
+> 서비스가 하나도 없어서 서비스 탐색이 빈 손으로 끝난다. 링크 계층 연결 자체는
+> 장치 쪽 카운터로 확인됐다.
+
+### 관측된 것 두 가지
+
+**(a) Δmicros 지터 ±29 µs** — SD 를 켠 상태에서 69샘플 중 6개.
+SD 없이 같은 시험을 하면 ±1 µs 다. 라디오의 zero-latency IRQ(우선순위 0)가
+`loop()` 태스크를 선점해 출력 시점이 흔들리는 것이고, **누적되지 않는다**
+(Δmillis 는 항상 정확히 2000, 틱 vs SYSCOUNTER 0.0 ppm).
+
+**(b) 호스트 대비 클럭이 −19 ppm → +42 ppm 으로 이동** — SD 를 켰을 때만.
+원인 미확정. 확인한 것과 남은 것:
+
+- LFXO 내부 로드 캡은 **SD 가 건드리지 않았다.** 실측 `XOSC32KI.INTCAP = 0x15`(21)
+  로, 우리가 FICR 트림에서 계산해 넣은 값 그대로다 (`0x50120904`)
+- GRTC `AUTOEN` 을 0→1 로 바꾼 것 때문도 **아니다.** SD 없이 AUTOEN=1 로 재측정해
+  −19 ppm 이 나왔다 (AUTOEN=0 일 때 −14 ppm, 측정 오차 범위)
+- 남은 후보: SD 자체의 LFCLK 관리, 또는 라디오 부하에서 USB CDC 도착 시각이
+  체계적으로 밀리는 **측정 방식의 한계**. 지금 방법(시리얼 도착 시각)으로는
+  둘을 못 가른다. GPIO 토글 + 스코프 같은 독립 기준이 필요하다
+- **BLE 요구치 ±250 ppm 안이므로 M3 진행을 막지 않는다.** 다만 숫자를 기록해 둔다
+
+---
+
+## 2. 막혔던 곳 — 오류 코드 네 개를 순서대로 밟았다
+
+전부 "sd_softdevice_enable() 이 그냥 실패" 로 보이지만 원인은 매번 달랐다.
+**헤더의 retval 주석이 정답을 갖고 있었다.**
+
+### (1) `NRF_ERROR_INVALID_PARAM` (0x07)
+
+`nrf_clock_lf_cfg_t.hfint_ctiv = 0` 으로 뒀다. `nrf_sdm.h` 는 이 필드를
+**1~255** 로 규정한다. "LFCLK 이 크리스털이니 HFINT 보정은 무관하다" 고
+생각하기 쉬운데, 소스와 무관하게 유효한 값이어야 한다.
+→ sdk-nrf-bm Kconfig 기본값인 **60**.
+
+### (2) `NRF_ERROR_SDM_INCORRECT_GRTC_CONFIGURATION` (0x1003) ⭐
+
+`nrf_sdm.h` 원문이 조건을 그대로 적어 놨다:
+
+> "GRTC is not running with SYSCOUNTER on **or AUTOEN is not set**"
+
+우리는 `NRFX_GRTC_CONFIG_AUTOEN = 0` 이었다. M1 에서 "AUTOEN 을 끄고 명시적
+active request 를 건다" 고 정해 둔 것인데, **SoftDevice 는 AUTOEN 을 요구한다.**
+→ `NRFX_GRTC_CONFIG_AUTOEN = 1`. Zephyr 의 `nrf_grtc_timer.c` 도 같은 구성이다
+(`nrfx_grtc_active_request_set(true)` 를 쓴다).
+
+M1 회귀 없음: SD 없이 −19 ppm, 틱 0.0 ppm, Δmicros 지터 ±1 µs.
+
+**곁가지로 확인한 것**: GRTC `CLKSEL` 을 LFXO 로 직접 박아 둔 것도 같이 고쳤다
+(→ SystemLFCLK). 이건 이 오류의 원인은 아니었지만 — 바꿔도 0x1003 이 그대로였다 —
+SoftDevice 가 LFCLK 를 관리한다는 전제와 맞고 Zephyr 기본값과도 같다.
+정확도 손해는 없다. `lfclk_start()` 가 이미 시스템 LFCLK 를 LFXO 로 맞춰 둔다.
+
+### (3) `NRF_ERROR_INVALID_STATE` (0x08) — `sd_ble_enable()` 에서 ⭐
+
+`ble.h` 원문:
+
+> "The BLE stack had already been initialized and cannot be reinitialized,
+> **or the random number generator has not been seeded.** See sd_rand_seed_set."
+
+앞쪽만 읽으면 "이미 초기화됨" 으로 오해한다. 실제 원인은 **뒤쪽**이었다.
+SoftDevice 는 켜진 직후 `NRF_EVT_RAND_SEED_REQUEST` SoC 이벤트를 올리고,
+시드를 받기 전에는 `sd_ble_enable()` 을 거부한다.
+
+→ `sd_evt_get()` 으로 SoC 이벤트를 꺼내 **CRACEN TRNG**
+(`nrfx_cracen_entropy_get()`) 로 32바이트를 만들어 `sd_rand_seed_set()` 에 넘긴다.
+nRF52 의 RNG 페리페럴이 아니다 — `nrfx/VENDORING.md` 에서 `nrfx_rng.c` 를 뺀 이유다.
+
+**그리고 `sd_ble_enable()` 전에 동기적으로 폴링해야 한다.** 펌프 태스크가
+처리하기를 기다리면 순서가 어긋난다. 원본 `nrf_sdh.c` 도 같은 이유로
+`sd_ble_enable()` 앞에서 직접 폴링한다.
+
+### (4) 아무 출력도 없던 구간 — 오진이었다
+
+처음에 시리얼이 완전히 조용해서 "부팅부터 죽었다" 고 판단했는데 아니었다.
+스케치가 오류를 **한 번만** 찍고 무한 대기로 들어갔고, 그 한 줄이 나올 때
+포트를 아직 열지 않았을 뿐이다.
+
+→ 실패 경로에서도 계속 찍게 고쳤다. **부팅 직후 한 번만 찍는 진단은 USB CDC
+장치에서 놓치기 쉽다.**
+
+---
+
+## 3. 어떻게 찾았나 — 단계 마커
+
+`sd_softdevice_enable()` 이 실패한 건지 그 앞에서 멈춘 건지 구분이 안 됐다.
+probe-rs 는 halt 를 유지하지 못하므로(docs/HIL/M1-nu54dk.md §5) `g_sd_stage` 에
+진행 단계를 남기고 SWD 로 읽었다.
+
+```
+g_sd_stage = 7  ->  sd_softdevice_enable() 은 반환했다. 그 뒤가 문제다
+g_sd_stage = 10 ->  sd_ble_enable() 까지 갔다. 0x08 은 여기서 나온 것이다
+```
+
+`m_last_error` / `g_sd_already_enabled` 를 같이 읽어 **어느 호출이** 실패했는지를
+좁혔다. 이 마커들은 코드에 남겨 뒀다.
+
+---
+
+## 4. 남은 것
+
+- **GATT 서비스가 없다.** 연결은 되지만 서비스 탐색이 빈 손이라 호스트가 곧 끊는다.
+  B 단계(`BLEService` / `BLECharacteristic`)에서 채운다
+- **SoC 이벤트를 시드 요청 말고는 무시한다.** 플래시 동작 완료, 전원 경고,
+  라디오 타임슬롯은 필요해질 때 붙인다
+- **HardFault 를 SoftDevice 로 포워딩하지 않는다.** 개발 중 `g_fault` 기록기를
+  살리려는 의도적 결정이다 (`sd_irq_forward.S` 주석). SoftDevice 내부 폴트 처리가
+  필요해지면 되돌린다
+- **`sd_ble_cfg_set()` 을 아직 부르지 않는다.** 기본 구성(peripheral 1 링크)으로
+  돌고 있다. central 이나 MTU 확장이 필요하면 B 단계에서 넣는다
+- **전류 미측정.** SD 를 켜면 바닥 전류가 올라간다. XIAO 는 RF 스위치 전원 몫도 섞인다
+- **클럭 이동(+42 ppm) 원인 미확정.** §1 (b)
+
+---
+
+## 5. 재현
+
+```sh
+# SoftDevice 를 먼저 굽는다 (앱과 별개 영역이라 지워지지 않는다)
+probe-rs download --chip nRF54L15 --binary-format hex --verify \
+    nrf54l/softdevice/s145_nrf54l15_10.0.1_softdevice.hex
+
+arduino-cli compile --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 --build-path /tmp/b <스케치>
+arduino-cli upload  -b baram-nrf54:nrf54l:xiao_nrf54l15 --input-dir /tmp/b <스케치>
+
+# 포워딩 벡터가 실렸는지 — 전부 T 여야 한다
+arm-none-eabi-nm /tmp/b/*.elf | grep -E "T (RADIO_0|TIMER10|GRTC_3|SWI00)_IRQHandler"
+
+# 공중 확인 (macOS, bleak). Bluetooth 를 켜 두어야 한다
+python3 -c "
+import asyncio
+from bleak import BleakScanner
+async def m():
+    d = await BleakScanner.find_device_by_name('BARAM-nRF54L', timeout=10)
+    print(d)
+asyncio.run(m())"
+```
+
+⚠ macOS 에서 `BleakScanner` 가 `Bluetooth device is turned off` 를 내면 실제로
+꺼져 있거나 **상태 전이를 기다리지 않은 것**이다. CoreBluetooth 는 런루프를
+돌려야 `CBManagerState` 가 갱신된다.

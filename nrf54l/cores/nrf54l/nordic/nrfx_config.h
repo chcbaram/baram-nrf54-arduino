@@ -43,7 +43,7 @@
  *   CC8~11 을 포함해 SoftDevice 영역(CC7~11)과 겹친다. 쓰면 안 된다.
  */
 #define NRFX_GRTC_CONFIG_NUM_OF_CC_CHANNELS      7
-#define NRFX_GRTC_CONFIG_AUTOEN                  0
+#define NRFX_GRTC_CONFIG_AUTOEN                  1
 #define NRFX_GRTC_CONFIG_IRQ_PRIORITY            NRFX_DEFAULT_IRQ_PRIORITY
 
 /* ── M1 범위: GPIO는 HAL 직접 사용, UARTE만 드라이버 ────────────────── */

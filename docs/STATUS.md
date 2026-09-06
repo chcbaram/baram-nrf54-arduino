@@ -95,7 +95,24 @@ git add package_baram_nrf54_index.json nrf54l/platform.txt && git commit && git 
   스트립하고 없으면 경고한다 → **macOS 에서 돌리지 말고 Linux 나 `brew install llvm`
   환경에서 돌려라.** 스트립하면 136 MB → 42 MB 다
 
-### (d) M2 — Arduino API
+### (d) M3 A단계 — ✅ **끝났다. F9 가 풀렸다 (2026-09-06)**
+
+SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 성립한다.
+**그 상태에서 틱 vs SYSCOUNTER 0.0 ppm** — §7 F9(BASEPRI/PRIMASK 분리)가
+라디오와 공존한다는 것이 실측으로 확인됐다. 이 프로젝트 최대의 미지수였다.
+기록: `docs/HIL/M3-softdevice.md`.
+
+이 과정에서 코어가 두 군데 바뀌었다. **둘 다 M1 회귀 없음을 확인했다.**
+
+| 바뀐 것 | 왜 |
+|---|---|
+| `NRFX_GRTC_CONFIG_AUTOEN` 0 → **1** | SoftDevice 요구사항. 안 켜면 `0x1003` 으로 거부당한다 |
+| GRTC `CLKSEL` LFXO → **SystemLFCLK** | SoftDevice 가 LFCLK 를 관리한다는 전제와 맞춘다 |
+
+다음은 B 단계(Bluefruit API 계층)다. 지금은 GATT 서비스가 없어서 연결 후
+호스트가 서비스 탐색에 실패하고 곧 끊는다.
+
+### (e) M2 — Arduino API
 
 `analogRead`/`analogWrite`/`Wire`/`SPI`/`attachInterrupt`.
 **착수 전에 CLAUDE.md §7 F10(nrfx 4.x 규칙)의 체크리스트를 반드시 읽어라.**

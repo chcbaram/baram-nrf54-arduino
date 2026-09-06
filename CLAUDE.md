@@ -453,6 +453,15 @@ SysTick은 저전력 모드에서 정지하므로 못 쓴다. **GRTC SYSCOUNTER�
   tickless가 특수 경로가 아니라 기본 동작의 연장이 된다
 - `configTICK_RATE_HZ = 1000` — 1 MHz라 틱당 정확히 1000 µs. `millis()`가 오차 없이 떨어진다
 - `micros()`는 틱이 아니라 SYSCOUNTER를 직접 읽는다
+- **⚠ `AUTOEN` 을 켜 두어야 한다. SoftDevice 의 요구사항이다 (실기에서 겪음).**
+  끄고 명시적 active request 만 걸어 두면 `sd_softdevice_enable()` 이
+  **`NRF_ERROR_SDM_INCORRECT_GRTC_CONFIGURATION`(0x1003)** 으로 실패한다.
+  `nrf_sdm.h` 원문: *"GRTC is not running with SYSCOUNTER on or AUTOEN is not set"*.
+  → `NRFX_GRTC_CONFIG_AUTOEN = 1`. Zephyr 의 `nrf_grtc_timer.c` 도 같은 구성이다.
+  M1 타이밍에는 영향이 없다 (실측 −19 ppm, 틱 0.0 ppm)
+- **⚠ `CLKSEL` 은 SystemLFCLK 로 둔다.** LFXO 를 직접 지정하지 마라 —
+  SoftDevice 가 LFCLK 를 관리한다는 전제와 어긋난다. 정확도 손해는 없다
+  (`lfclk_start()` 가 이미 시스템 LFCLK 를 LFXO 로 맞춘다)
 - **⚠ 채널 마스크와 개수를 함께 고쳐라 (실기에서 겪음)**:
   `nrfx_grtc_init()` 은 `popcount(NRFX_GRTC_CONFIG_ALLOWED_CC_CHANNELS_MASK)` 와
   `NRFX_GRTC_CONFIG_NUM_OF_CC_CHANNELS` 가 다르면 `-ECANCELED` 로 실패한다.
@@ -559,8 +568,11 @@ NVIC를 가상화해서 앱 인터럽트만 가릴 수 있었던 것이라 nRF54
 `NVIC->ISPR` 폴링은 하지 않는다. nRF54L은 IRQ가 269번까지 있어
 Adafruit의 `ISPR[0]|ISPR[1]` 관용구는 애초에 쓸 수 없다.
 
-**이 구조가 BLE와 실제로 공존하는지는 M3 전까지 검증할 수 없다.**
-M3 진입 직후 advertising 유지 + tickless 동시 동작을 최우선으로 확인하라.
+**✅ 검증됐다 (2026-09-06, `docs/HIL/M3-softdevice.md`).**
+advertising 60초 연속 + 실제 연결 성립 상태에서 틱 vs SYSCOUNTER **0.0 ppm**,
+Δmillis 전부 정확히 2000. **이 구조를 바꿀 이유가 없다.**
+단 라디오의 zero-latency IRQ 가 `loop()` 을 선점해 Δmicros 에 **±29 µs 지터**가
+생긴다 (SD 없을 때는 ±1 µs). 누적되지 않으므로 정확도 문제는 아니다.
 
 ### F9b. tickless 틱 보정은 기상 시각이 아니라 **틱 그리드** 기준으로
 
@@ -935,8 +947,12 @@ UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터
 > **`BLEDfu` 를 빠뜨리지 마라.** Adafruit 예제 대부분이 `bledfu.begin()` 을 포함하므로
 > 클래스가 없으면 **컴파일이 실패한다** (R12: 호환 우선).
 
-- [ ] SoftDevice S145 활성화 + 이벤트 처리 태스크
-- [ ] `Bluefruit.begin()`, advertising
+- [x] **SoftDevice S145 활성화 + 이벤트 처리 태스크** — `cores/nrf54l/ble/sd_event_pump.c`.
+      IRQ 포워딩(`nordic/sd_irq_forward.S`), SoC 이벤트, CRACEN TRNG 로 RNG 시딩까지.
+      실기 확인: `docs/HIL/M3-softdevice.md`
+- [x] **raw advertising 동작** — 공중에서 `BARAM-nRF54L` 탐지, 연결 성립.
+      **§7 F9 공존 검증 통과**
+- [ ] `Bluefruit.begin()`, advertising (Bluefruit API 계층)
 - [ ] `BLEService` / `BLECharacteristic`
 - [ ] `BLEUart` (NUS)
 - [ ] 페어링 / 본딩

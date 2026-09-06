@@ -208,16 +208,20 @@ void vPortSetupTimerInterrupt(void)
     lfclk_start();
 
     /*
-     * GRTC 가 쓸 클럭을 명시한다.
-     * CLKSEL 기본값은 SystemLFCLK 이고 위에서 그걸 LFXO 로 맞췄지만,
-     * LFXO 를 직접 지정해 두면 의도가 코드에 남고 시스템 LFCLK 설정이
-     * 나중에 바뀌어도 틱은 영향받지 않는다.
+     * GRTC 가 쓸 클럭. **SystemLFCLK(LFCLK)을 쓴다.**
+     *
+     * ⚠ 여기서 LFXO 를 직접 지정하면 안 된다. 실기에서 겪었다:
+     *   그 상태로 SoftDevice 를 켜면 sd_softdevice_enable() 이
+     *   **NRF_ERROR_SDM_INCORRECT_GRTC_CONFIGURATION (0x1003)** 을 돌려준다.
+     *   SoftDevice 는 자기가 LFCLK 를 관리한다는 전제로 동작하므로
+     *   GRTC 가 시스템 LFCLK 를 따라가야 한다.
+     *
+     * 정확도는 손해가 없다. lfclk_start() 가 이미 시스템 LFCLK 를
+     * LFXO 로 맞추고 내부 로드 캡까지 잡아 두기 때문이다 (§7 F12).
+     * Zephyr 의 nrf_grtc_timer.c 도 기본값이 NRF_GRTC_CLKSEL_LFCLK 이고
+     * LFXO 직접 지정은 별도 옵션일 때만 쓴다.
      */
-#if defined(USE_LFXO)
-    nrf_grtc_clksel_set(NRF_GRTC, NRF_GRTC_CLKSEL_LFXO);
-#else
     nrf_grtc_clksel_set(NRF_GRTC, NRF_GRTC_CLKSEL_LFCLK);
-#endif
 
     /* nrfx_config.h 의 NRFX_GRTC_CONFIG_IRQ_PRIORITY(=6)를 쓰지 않고
      * 커널 우선순위(7, 최저)를 명시한다. 틱 핸들러가 xTaskIncrementTick()

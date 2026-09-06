@@ -58,7 +58,7 @@ build.stack_size=2048
 build.heap_size=0
 
 # include 경로
-compiler.nrf.includes="-I{build.core.path}" "-I{build.core.path}/avr" "-I{build.variant.path}" "-I{nordic.path}" "-I{nordic.path}/nrfx" "-I{nordic.path}/nrfx/drivers/include" "-I{nordic.path}/bsp" "-I{nordic.path}/bsp/mdk" "-I{nordic.path}/cmsis/Include" "-I{sd.path}" "-I{rtos.path}/include" "-I{rtos.path}/config" "-I{rtos.path}/portable/GCC/ARM_CM33_NTZ/non_secure"
+compiler.nrf.includes="-I{build.core.path}" "-I{build.core.path}/avr" "-I{build.core.path}/ble" "-I{build.variant.path}" "-I{nordic.path}" "-I{nordic.path}/nrfx" "-I{nordic.path}/nrfx/drivers/include" "-I{nordic.path}/bsp" "-I{nordic.path}/bsp/mdk" "-I{nordic.path}/cmsis/Include" "-I{sd.path}" "-I{rtos.path}/include" "-I{rtos.path}/config" "-I{rtos.path}/portable/GCC/ARM_CM33_NTZ/non_secure"
 
 # 공통 define
 #   NRF_APPLICATION : nRF54L15 는 application 코어와 FLPR 코어가 있다. FLPR 은 범위 밖 (CLAUDE.md R6)

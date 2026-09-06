@@ -42,4 +42,15 @@ MEMORY
  * 두 값 모두 platform.txt에서 -D로 넘긴다.
  */
 
+/*
+ * SoftDevice 파티션 시작 주소.
+ * ble/sd_event_pump.c 가 softdevice_vector_forward_address 에 넣는 값이고,
+ * SoftDevice hex 가 실제로 로드되는 주소와 같아야 한다 (nRF54L15).
+ * hex 안에 절대 주소로 박혀 있어 옮길 수 없다 (CLAUDE.md §7 F11).
+ */
+__softdevice_start__ = 0x0015A800;
+
+/* 애플리케이션 RAM 시작. sd_ble_enable() 에 넘긴다. */
+__app_ram_start__ = ORIGIN(RAM);
+
 INCLUDE "nrf_common.ld"
