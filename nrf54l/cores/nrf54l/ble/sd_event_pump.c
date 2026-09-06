@@ -117,6 +117,30 @@ extern uint32_t __app_ram_start__;
 #endif
 
 /*
+ * central 역할로 맺을 수 있는 동시 연결 수. 0 이면 central 을 아예 안 켠다.
+ *
+ * ⚠ **peripheral 과 central 은 버퍼를 따로 못 잡는다.**
+ *   SoftDevice 는 버퍼를 역할이 아니라 연결 구성(conn_cfg_tag) 단위로 잡는데,
+ *   S145 v10.0.1 은 **연결 구성을 하나만 허용한다.** 두 번째 태그를 만들려 하면
+ *   sd_ble_cfg_set() 이 NRF_ERROR_NOT_SUPPORTED(6) 를 낸다 (실기 확인).
+ *   ble.h 원문: "A second connection configuration (conn_cfg_tag) is attempted
+ *   to be created."
+ *
+ *   그래서 Adafruit 이 nRF52 에서 쓰는 방식 — CONN_CFG_PERIPHERAL 과
+ *   CONN_CFG_CENTRAL 을 나눠 역할마다 다른 MTU/큐를 주는 것 — 은 여기서 못 쓴다.
+ *   두 역할이 **MTU · 이벤트 길이 · notify 큐를 공유**하고, conn_count 는
+ *   양쪽 합을 덮어야 한다.
+ *
+ * ⚠ 비용은 역할이 아니라 **링크 수**에 붙는다. 실측 (MTU 247, 큐 3):
+ *     periph 4 + central 0   0x20006DD8
+ *     periph 3 + central 1   0x20006DC0   <- 24 B 더 싸다
+ *   peripheral 하나를 central 로 바꾸는 것은 사실상 공짜다.
+ */
+#ifndef SD_BLE_CENTRAL_LINK_COUNT
+#define SD_BLE_CENTRAL_LINK_COUNT     (0)
+#endif
+
+/*
  * notify 송신 큐 깊이 (연결당).
  *
  * ⚠ 이게 사실상 **연결 이벤트당 보낼 수 있는 notify 수**다.
@@ -382,6 +406,12 @@ uint32_t sdCfgGattsResult(void)
     return m_cfg_gatts;
 }
 
+uint8_t sdCentralConnCfgTag(void)
+{
+    /* 태그는 하나뿐이다 (위 SD_BLE_CENTRAL_LINK_COUNT 주석 참조). */
+    return SD_BLE_CONN_CFG_TAG;
+}
+
 bool sdBleObserverAdd(sd_ble_observer_t handler, void *ctx)
 {
     if (handler == NULL || m_observer_count >= SD_BLE_MAX_OBSERVERS) {
@@ -413,13 +443,16 @@ static void sd_ble_cfg_apply(uint32_t ram_base)
      */
     cfg.gap_cfg.role_count_cfg.adv_set_count      = BLE_GAP_ADV_SET_COUNT_DEFAULT;
     cfg.gap_cfg.role_count_cfg.periph_role_count  = SD_BLE_PERIPH_LINK_COUNT;
-    cfg.gap_cfg.role_count_cfg.central_role_count = 0;
-    cfg.gap_cfg.role_count_cfg.central_sec_count  = 0;
+    cfg.gap_cfg.role_count_cfg.central_role_count = SD_BLE_CENTRAL_LINK_COUNT;
+    /* SMP 인스턴스는 central 연결들이 나눠 쓴다. 페어링을 동시에 하지 않으면 1 이면 된다. */
+    cfg.gap_cfg.role_count_cfg.central_sec_count  = (SD_BLE_CENTRAL_LINK_COUNT > 0) ? 1 : 0;
     m_cfg_role = sd_ble_cfg_set(BLE_GAP_CFG_ROLE_COUNT, &cfg, ram_base);
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.conn_cfg.conn_cfg_tag                     = SD_BLE_CONN_CFG_TAG;
-    cfg.conn_cfg.params.gap_conn_cfg.conn_count   = SD_BLE_PERIPH_LINK_COUNT;
+    /* 태그가 하나뿐이므로 두 역할의 링크를 모두 덮어야 한다. */
+    cfg.conn_cfg.params.gap_conn_cfg.conn_count   = SD_BLE_PERIPH_LINK_COUNT
+                                                    + SD_BLE_CENTRAL_LINK_COUNT;
     cfg.conn_cfg.params.gap_conn_cfg.event_length = SD_BLE_EVENT_LENGTH;
     m_cfg_gap = sd_ble_cfg_set(BLE_CONN_CFG_GAP, &cfg, ram_base);
 
@@ -432,6 +465,7 @@ static void sd_ble_cfg_apply(uint32_t ram_base)
     cfg.conn_cfg.conn_cfg_tag                              = SD_BLE_CONN_CFG_TAG;
     cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size   = SD_BLE_HVN_TX_QUEUE_SIZE;
     m_cfg_gatts = sd_ble_cfg_set(BLE_CONN_CFG_GATTS, &cfg, ram_base);
+
 }
 
 bool sdEnable(void)

@@ -145,7 +145,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B5**~~ ✅ | **다중 연결** (nRF54L15 4개) + notify 큐 설정 | **완료.** 폰 + Mac 동시 2링크 실증 |
 | ~~**B6**~~ ✅ | **Beacon** — `BLEBeacon`(iBeacon) + `EddyStoneUrl` | **완료.** 광고 페이로드 실측 검증 |
 | ~~**B7**~~ ✅ | **GATT 클라이언트** + 콜백 지연 실행 -> `getPeerName()` | **완료.** `Connected to Mac` 실증 |
-| B8 (남음) | central 역할(스캔/연결) -> `BLEClientService` 계열, 본딩/`BLESecurity`, HID | |
+| B8 (진행 중) | **central 역할** — RAM 배분 확정, 스캔/연결 구현 전 | |
+| B9 (남음) | 본딩/`BLESecurity`, HID | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -343,6 +344,30 @@ Adafruit 이 `ada_callback()` 으로 콜백을 다른 태스크에 넘기는 이
 `getPeerName()` 은 **상대가 이름을 공개할 때만** 값이 온다. iOS 는 본딩 전에
 GAP Device Name 을 주지 않는 경우가 많아 0 이 정상일 수 있다.
 반환형은 상류에 맞춰 `bool` -> `uint16_t`(길이) 로 바꿨다.
+
+### B8 — central 역할 (2026-09-06: RAM 배분 확정)
+
+**nRF54L15 를 `peripheral 3 + central 1` 로 바꿨다.** 예약(28 KB)도 앱 RAM 도
+그대로다 — 필요량이 `0x20006DD8`(4+0) 에서 `0x20006DC0`(3+1) 로 오히려 24 B 줄었다.
+비용이 역할이 아니라 **링크 수**에 붙기 때문이다.
+
+#### ⚠ 역할별로 다른 MTU 를 줄 수 없다
+
+`sd_ble_cfg_set()` 으로 두 번째 `conn_cfg_tag` 를 만들려 하면
+**`NRF_ERROR_NOT_SUPPORTED`(6)** 이 온다. S145 v10.0.1 은 **연결 구성을 하나만**
+허용한다. Adafruit 은 nRF52 에서 `CONN_CFG_PERIPHERAL` / `CONN_CFG_CENTRAL` 을
+나눠 역할마다 다른 MTU·큐를 주는데, **그 설계를 그대로 옮길 수 없다.**
+
+결과: 두 역할이 MTU 247 · 이벤트 길이 · notify 큐 3 을 공유한다. central 에만
+작은 MTU 를 줘서 RAM 을 아끼는 길은 없다. 실측표는 `docs/MEMORY-MAP.md`.
+
+착수 전 추측은 "태그를 나누는 게 유리할 것" 이었는데 **애초에 선택지가 아니었다.**
+
+#### 다음
+
+스캔(`sd_ble_gap_scan_start`) -> 연결(`sd_ble_gap_connect`) ->
+서비스/특성 탐색 -> `BLEClientService` / `BLEClientCharacteristic` / `BLEClientUart`.
+GATT 클라이언트 읽기 경로는 B7 에서 이미 만들었다.
 
 ### 이어서 작업할 때 알아 둘 것
 

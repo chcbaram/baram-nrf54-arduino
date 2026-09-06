@@ -36,6 +36,14 @@ extern "C" {
 #define SD_BLE_PERIPH_LINK_COUNT      (1)
 #endif
 
+/*
+ * central 역할 동시 연결 수. 0 이면 central 을 켜지 않는다.
+ * peripheral 과 마찬가지로 boards.txt 의 build.extra_flags 에서 준다.
+ */
+#ifndef SD_BLE_CENTRAL_LINK_COUNT
+#define SD_BLE_CENTRAL_LINK_COUNT     (0)
+#endif
+
 /** BLE 이벤트 관찰자. 이벤트 태스크 컨텍스트에서 불린다 (ISR 아님). */
 typedef void (*sd_ble_observer_t)(const ble_evt_t *evt, void *ctx);
 
@@ -81,6 +89,14 @@ void sdCfgResults(uint32_t *role, uint32_t *gap, uint32_t *gatt, uint32_t *ram_r
 
 /** BLE_CONN_CFG_GATTS(notify 큐 깊이) 설정의 반환값. 0 이 성공. */
 uint32_t sdCfgGattsResult(void);
+
+/**
+ * central 로 연결할 때(`sd_ble_gap_connect`) 넘길 연결 구성 태그.
+ *
+ * ⚠ S145 는 연결 구성을 **하나만** 허용하므로 peripheral 태그와 같다.
+ *   역할마다 다른 MTU 를 줄 수 없다 (sd_event_pump.c 주석 참조).
+ */
+uint8_t sdCentralConnCfgTag(void);
 
 #ifdef __cplusplus
 }

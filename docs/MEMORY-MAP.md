@@ -130,6 +130,35 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 | 조금 더 | 링크 4 · 큐 4 | ❌ `0x200071C4` — 예약을 30 KB 로 되돌려야 한다 |
 | 연결 많이 | 링크 5 · 큐 1 | ❌ `0x20007590` — 예약 30 KB + **큐를 1 로 되돌려야** 한다 |
 
+#### peripheral 과 central 은 버퍼를 **따로 못 잡는다**
+
+SoftDevice 는 버퍼를 역할이 아니라 **연결 구성(`conn_cfg_tag`) 단위**로 잡는다.
+그런데 **S145 v10.0.1 은 연결 구성을 하나만 허용한다** — 두 번째 태그를 만들려 하면
+`sd_ble_cfg_set()` 이 `NRF_ERROR_NOT_SUPPORTED`(6) 를 낸다 (실기 확인).
+`ble.h` 원문: *"A second connection configuration (conn_cfg_tag) is attempted to be created."*
+
+그래서 Adafruit 이 nRF52 에서 쓰는 방식 — `CONN_CFG_PERIPHERAL` / `CONN_CFG_CENTRAL`
+을 나눠 peripheral 은 MTU 247, central 은 23 을 주는 것 — 은 **여기서 못 쓴다.**
+두 역할이 MTU · 이벤트 길이 · notify 큐를 공유하고, `conn_count` 는 양쪽 합을 덮는다.
+
+**실측 (XIAO nRF54L15, MTU 247):**
+
+| periph + central | 큐 | 필요한 앱 RAM 시작 | 경계 `0x20007000` |
+|---|---|---|---|
+| 4 + 0 | 3 | `0x20006DD8` | ✅ 여유 552 B |
+| **3 + 1** | **3** | **`0x20006DC0`** | ✅ 여유 576 B — **채택** |
+| 2 + 1 | 3 | `0x20005C38` | ✅ |
+| 3 + 1 | 1 | `0x200065E0` | ✅ |
+| 4 + 1 | 1 | `0x20007570` | ❌ 30 KB 필요 |
+| 4 + 1 | 3 | `0x20007F48` | ❌ 32 KB 필요 |
+
+**비용은 역할이 아니라 링크 수에 붙는다.** peripheral 하나를 central 로 바꾸면
+오히려 24 B 싸다 (central 은 광고 관련 상태가 없다). 그래서 `4+0` 대신 `3+1` 을
+골랐다 — 예약도 앱 RAM 도 그대로인데 central 역할이 생긴다.
+
+⚠ nRF54L05 는 아직 `peripheral 2 + central 0` 이다. 총 링크 수가 같으니 `1+1` 도
+들어갈 것으로 보이지만 **L05 보드로 재지 않았다.** 잰 뒤에 올린다.
+
 ⚠ 코어 기본값은 **1 이다** (Adafruit 기본과 같다). 보드가 `boards.txt` 의
 `build.extra_flags` 에서 `-DSD_BLE_HVN_TX_QUEUE_SIZE=N` 으로 올린다.
 nRF54L15 보드는 3 으로 켜 두었고, nRF54L05 는 기본값 그대로다. 상류처럼 스케치에서 고르게 하려면

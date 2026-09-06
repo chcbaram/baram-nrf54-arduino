@@ -20,8 +20,9 @@ nu54vdk.build.chip=NRF54L15_XXAA
 # 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
 # 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 251 B 라
 # 서로 맞바꾸는 관계다 — 링크 5개면 큐를 못 올린다 (docs/MEMORY-MAP.md).
-# L15 — SD 예약 28 KB, 링크 4 + 큐 3 = 0x20006DD8 (실측, 여유 552 B)
-nu54vdk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+# L15 — SD 예약 28 KB, peripheral 3 + central 1 + 큐 3 = 0x20006DC0 (실측, 여유 576 B)
+# peripheral 4 + central 0 은 0x20006DD8 — 링크 하나를 central 로 돌리는 건 사실상 공짜다.
+nu54vdk.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=3 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 # probe-rs 의 타깃 이름. `probe-rs chip list` 로 확인한 값이며
 # NRF54L15_XXAA(컴파일러 define)와는 표기가 다르다.
@@ -174,8 +175,9 @@ xiao_nrf54l15.build.chip=NRF54L15_XXAA
 # 동시 연결 수와 notify 큐 깊이. 둘 다 링커 스크립트의 RAM 예약과 짝이라
 # 한쪽만 고치면 sd_ble_enable() 이 실패한다. 큐 한 칸이 링크당 약 251 B 라
 # 서로 맞바꾸는 관계다 — 링크 5개면 큐를 못 올린다 (docs/MEMORY-MAP.md).
-# L15 — SD 예약 28 KB, 링크 4 + 큐 3 = 0x20006DD8 (실측, 여유 552 B)
-xiao_nrf54l15.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+# L15 — SD 예약 28 KB, peripheral 3 + central 1 + 큐 3 = 0x20006DC0 (실측, 여유 576 B)
+# peripheral 4 + central 0 은 0x20006DD8 — 링크 하나를 central 로 돌리는 건 사실상 공짜다.
+xiao_nrf54l15.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=3 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 
 xiao_nrf54l15.build.chip_probers=nRF54L15
 
