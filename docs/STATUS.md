@@ -126,7 +126,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B4**~~ ✅ | `BLEDfu` 스텁, 파일시스템 안내 헤더, `bluefruit.h` 가 서비스 포함 | **완료. Adafruit 원본 `bleuart.ino` 가 include 2줄 삭제만으로 동작 = M3 DoD** |
 | ~~**B5**~~ ✅ | **다중 연결** (nRF54L15 4개) + notify 큐 설정 | **완료.** 폰 + Mac 동시 2링크 실증 |
 | ~~**B6**~~ ✅ | **Beacon** — `BLEBeacon`(iBeacon) + `EddyStoneUrl` | **완료.** 광고 페이로드 실측 검증 |
-| B7 (남음) | GATT 클라이언트(`getPeerName()`) -> central, 본딩/`BLESecurity`, HID | |
+| ~~**B7**~~ ✅ | **GATT 클라이언트** + 콜백 지연 실행 -> `getPeerName()` | **완료.** `Connected to Mac` 실증 |
+| B8 (남음) | central 역할(스캔/연결) -> `BLEClientService` 계열, 본딩/`BLESecurity`, HID | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -287,6 +288,42 @@ SoftDevice 가 핸들을 `[0, 링크수)` 로 준다는 전제다. 우리도 같
 
 ⚠ 링크가 늘면 라디오 시간을 나눠 쓰므로 **연결당 처리량이 떨어진다.**
 `SD_BLE_EVENT_LENGTH`(현재 6 = 7.5 ms) 를 같이 봐야 할 수 있다. 실측 대상이다.
+
+### B7 — GATT 클라이언트 + 콜백 지연 실행 ✅ (2026-09-06)
+
+`getPeerName()` 이 빈 문자열 대신 실제 이름을 준다. 실기에서 `Connected to Mac`.
+
+#### 핵심은 GATT 가 아니라 **콜백을 어디서 도느냐** 였다
+
+`sd_ble_gattc_char_value_by_uuid_read()` 한 번이면 탐색과 읽기가 같이 끝나서
+GATT 쪽은 간단했다. 문제는 그게 **블로킹**이고, 상류 예제가 그걸
+**연결 콜백 안에서** 부른다는 것이었다.
+
+우리는 콜백을 BLE 이벤트 태스크에서 직접 불렀다. 거기서 블로킹하면
+기다리는 응답 이벤트를 처리할 주체가 자기 자신이라 **영영 안 온다.**
+Adafruit 이 `ada_callback()` 으로 콜백을 다른 태스크에 넘기는 이유가 그것이다.
+
+그래서 콜백 태스크(`ble_cb`, 우선순위 2 — 이벤트 태스크 3보다 낮게)와 큐를 뒀다.
+연결/해제 콜백이 거기서 돈다. 부수 효과로 **콜백이 오래 걸려도 이벤트 펌프가
+막히지 않는다.**
+
+⚠ 슬롯 반납(`_end()`)도 콜백 태스크로 옮겼다. 이벤트 핸들러에서 바로 반납하면
+콜백이 도는 시점엔 이미 다른 연결이 그 슬롯에 들어와 있을 수 있다.
+대신 링크가 꽉 찬 상태에서 끊고 곧바로 다시 붙으면 슬롯이 아직 안 비어
+거절될 수 있다 — 콜백 태스크가 금방 돌므로 실제로는 좁은 창이다.
+(Adafruit 은 반대로 즉시 free 해서, 그쪽은 해제 콜백에서 `Connection()` 이 NULL 이다.)
+
+#### GATTC 는 RAM 을 더 안 먹었다
+
+착수 전에 "`BLE_CONN_CFG_GATTC` 때문에 RAM 이 더 필요할 것" 이라고 봤는데 **틀렸다.**
+그 설정은 write command 큐 깊이만 조정하는 것이고, GATT 클라이언트 절차 자체는
+기본 구성으로 동작한다. cfg_set 을 추가하지 않았고 요구량은 `0x20006DD8` 그대로다.
+
+#### 남은 것
+
+`getPeerName()` 은 **상대가 이름을 공개할 때만** 값이 온다. iOS 는 본딩 전에
+GAP Device Name 을 주지 않는 경우가 많아 0 이 정상일 수 있다.
+반환형은 상류에 맞춰 `bool` -> `uint16_t`(길이) 로 바꿨다.
 
 ### 이어서 작업할 때 알아 둘 것
 

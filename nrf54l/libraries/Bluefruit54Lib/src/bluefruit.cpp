@@ -8,6 +8,8 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "task.h"
+#include "queue.h"
 
 AdafruitBluefruit Bluefruit;
 
@@ -150,6 +152,80 @@ void BLEAdvertising::_restartIfNeeded(void)
   if (_restart && !_running) start(0);
 }
 
+/* ── 스케치 콜백 지연 실행 ─────────────────────────────────────────── */
+
+/*
+ * ⚠ 스케치 콜백을 BLE 이벤트 태스크에서 직접 부르면 안 된다.
+ *
+ *   상류 예제는 연결 콜백 안에서 getPeerName() — 블로킹 GATT 읽기 — 을 부른다.
+ *   그걸 이벤트 태스크에서 하면 기다리는 응답 이벤트를 처리할 주체가 자기
+ *   자신이라 타임아웃까지 멈춘다. Adafruit 이 ada_callback() 으로 콜백을 다른
+ *   태스크에 넘기는 이유가 그것이다. 우리도 같은 구조를 쓴다.
+ *
+ *   부수 효과로 콜백이 오래 걸려도 이벤트 펌프가 막히지 않는다.
+ */
+enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT };
+
+typedef struct {
+  uint8_t  type;
+  uint8_t  reason;
+  uint16_t conn_hdl;
+} ble_cb_msg_t;
+
+/* 링크마다 연결+해제가 겹칠 수 있으므로 넉넉히 잡는다. */
+#define BLE_CB_QUEUE_LEN      (BLE_MAX_CONNECTION * 4)
+#define BLE_CB_TASK_STACK     (512)
+/* 이벤트 태스크(3)보다 낮게 둔다 — 펌프가 항상 먼저 돌아야 한다. */
+#define BLE_CB_TASK_PRIORITY  (2)
+
+static void ble_cb_task(void *arg)
+{
+  (void) arg;
+  Bluefruit._callbackTask();
+}
+
+void AdafruitBluefruit::_callbackTask(void)
+{
+  ble_cb_msg_t msg;
+
+  while (1) {
+    if (xQueueReceive((QueueHandle_t) _cb_queue, &msg, portMAX_DELAY) != pdTRUE) continue;
+
+    switch (msg.type) {
+      case BLE_CB_CONNECT:
+        if (Periph._connect_cb) Periph._connect_cb(msg.conn_hdl);
+        break;
+
+      case BLE_CB_DISCONNECT: {
+        if (Periph._disconnect_cb) Periph._disconnect_cb(msg.conn_hdl, msg.reason);
+
+        /*
+         * ⚠ 슬롯 반납은 **콜백이 끝난 뒤**다. 이벤트 핸들러에서 바로 반납하면
+         *   콜백이 도는 시점엔 이미 남의 연결이 그 슬롯에 들어와 있을 수 있다.
+         */
+        int8_t slot = _slotOf(msg.conn_hdl);
+        if (slot >= 0) _connection[slot]._end();
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+}
+
+void AdafruitBluefruit::_deferConnect(uint16_t conn_hdl)
+{
+  ble_cb_msg_t msg = { BLE_CB_CONNECT, 0, conn_hdl };
+  if (_cb_queue) xQueueSend((QueueHandle_t) _cb_queue, &msg, 0);
+}
+
+void AdafruitBluefruit::_deferDisconnect(uint16_t conn_hdl, uint8_t reason)
+{
+  ble_cb_msg_t msg = { BLE_CB_DISCONNECT, reason, conn_hdl };
+  if (_cb_queue) xQueueSend((QueueHandle_t) _cb_queue, &msg, 0);
+}
+
 /* ── 싱글턴 ────────────────────────────────────────────────────────── */
 
 AdafruitBluefruit::AdafruitBluefruit(void)
@@ -164,6 +240,8 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _conn_led_interval = 0;
   _bandwidth     = BANDWIDTH_AUTO;
   _rssi_cb       = NULL;
+  _cb_queue    = NULL;
+  _cb_task     = NULL;
   memset(_chars, 0, sizeof(_chars));
   memset(_tx_sem, 0, sizeof(_tx_sem));
 }
@@ -214,6 +292,19 @@ bool AdafruitBluefruit::begin(uint8_t prph_count, uint8_t central_count)
       if (_tx_sem[i] == NULL) return false;
     }
   }
+
+  if (_cb_queue == NULL) {
+    _cb_queue = (void *) xQueueCreate(BLE_CB_QUEUE_LEN, sizeof(ble_cb_msg_t));
+    if (_cb_queue == NULL) return false;
+  }
+  if (_cb_task == NULL) {
+    if (xTaskCreate(ble_cb_task, "ble_cb", BLE_CB_TASK_STACK, NULL,
+                    BLE_CB_TASK_PRIORITY, (TaskHandle_t *) &_cb_task) != pdPASS) {
+      return false;
+    }
+  }
+
+  if (!Gatt._begin()) return false;
 
   ble_gap_conn_sec_mode_t sec;
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec);
@@ -424,7 +515,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
 #ifdef LED_CONN
       if (_auto_conn_led) ledOn(LED_CONN);
 #endif
-      if (Periph._connect_cb) Periph._connect_cb(conn_hdl);
+      _deferConnect(conn_hdl);
       break;
     }
 
@@ -438,10 +529,8 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       int8_t slot = _slotOf(conn_hdl);
       if (slot >= 0) _connection[slot]._disconnect();
 
-      if (Periph._disconnect_cb) {
-        Periph._disconnect_cb(conn_hdl, evt->evt.gap_evt.params.disconnected.reason);
-      }
-      if (slot >= 0) _connection[slot]._end();
+      /* 콜백과 슬롯 반납은 콜백 태스크가 한다 (위 주석 참조). */
+      _deferDisconnect(conn_hdl, evt->evt.gap_evt.params.disconnected.reason);
 
       /* 최근 연결이 끊겼으면 남아 있는 것 중 하나로 옮긴다. */
       if (_conn_hdl == conn_hdl) {
@@ -539,6 +628,8 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
     default:
       break;
   }
+
+  Gatt._eventHandler(evt);
 
   /* characteristic 쓰기 이벤트 전달 */
   for (uint8_t i = 0; i < _char_count; i++) {

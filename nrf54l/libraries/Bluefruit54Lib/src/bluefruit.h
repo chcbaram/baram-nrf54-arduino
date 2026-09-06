@@ -168,6 +168,52 @@ class BLEPeriph
     uint16_t _sv_timeout   = 400; /* 4 초 */
 };
 
+/* ── GATT 클라이언트 ───────────────────────────────────────────────── */
+
+/** GATT 절차 기본 대기 한도 (ms). 상대가 느려도 이 정도면 온다. */
+#define BLE_GATT_TIMEOUT_MS   (3000)
+
+/**
+ * 상대(peer)의 GATT 서버를 읽는다.
+ *
+ * peripheral 링크에서도 쓸 수 있다 — GATT 의 클라이언트/서버는 연결의
+ * central/peripheral 역할과 **별개**다. 우리가 peripheral 이어도 상대의
+ * 서비스를 읽을 수 있고, getPeerName() 이 그 경우다.
+ *
+ * ⚠ 여기 함수들은 **블로킹**이다. 응답 이벤트를 기다린다.
+ *   그래서 BLE 이벤트 태스크에서 부르면 안 된다 — 기다리는 응답을 처리할
+ *   주체가 자기 자신이라 영영 안 온다. 연결/해제 콜백은 별도 태스크에서
+ *   돌리므로(AdafruitBluefruit 의 콜백 태스크) 콜백 안에서는 안전하다.
+ */
+class BLEGatt
+{
+  public:
+    BLEGatt(void);
+
+    /**
+     * UUID 로 characteristic 값을 읽는다. 핸들을 몰라도 된다 —
+     * SoftDevice 가 탐색과 읽기를 한 번에 한다.
+     *
+     * @return 읽은 바이트 수. 실패하면 0.
+     */
+    uint16_t readCharByUuid(uint16_t conn_hdl, BLEUuid bleuuid,
+                            void *buffer, uint16_t bufsize,
+                            uint16_t start_hdl = 1, uint16_t end_hdl = 0xFFFF);
+
+    /* 코어 내부용 */
+    bool _begin(void);
+    void _eventHandler(const ble_evt_t *evt);
+
+  protected:
+    void    *_sem;          /* SemaphoreHandle_t */
+    void    *_mutex;        /* 한 번에 한 절차만 — GATTC 는 링크당 1건이다 */
+    uint8_t *_buf;
+    uint16_t _bufsize;
+    uint16_t _len;
+    uint16_t _conn_hdl;
+    bool     _waiting;
+};
+
 /* ── 싱글턴 ────────────────────────────────────────────────────────── */
 class AdafruitBluefruit
 {
@@ -175,6 +221,7 @@ class AdafruitBluefruit
     BLEAdvertising Advertising;
     BLEAdvertisingData ScanResponse;
     BLEPeriph      Periph;
+    BLEGatt        Gatt;
 
     AdafruitBluefruit(void);
 
@@ -272,6 +319,18 @@ class AdafruitBluefruit
     void _eventHandler(const ble_evt_t *evt);
 
     /**
+     * 스케치 콜백을 실행할 태스크에 넘긴다.
+     *
+     * ⚠ 콜백을 BLE 이벤트 태스크에서 **직접 부르면 안 된다.** 상류 예제는
+     *   연결 콜백 안에서 getPeerName() 같은 블로킹 GATT 호출을 한다. 그걸
+     *   이벤트 태스크에서 하면 응답 이벤트를 처리할 주체가 자기 자신이라
+     *   영영 안 온다. Adafruit 이 ada_callback() 으로 미루는 이유가 그것이다.
+     */
+    void _deferConnect(uint16_t conn_hdl);
+    void _deferDisconnect(uint16_t conn_hdl, uint8_t reason);
+    void _callbackTask(void);      /* 위 태스크의 본체 */
+
+    /**
      * notify 송신 버퍼가 빌 때까지 기다린다.
      *
      * SoftDevice 의 notify 큐는 얕다 (기본 1). 연속으로 보내면 금방
@@ -296,6 +355,8 @@ class AdafruitBluefruit
     /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않으려고 void* 로 둔다. */
     void       *_tx_sem[BLE_MAX_CONNECTION];
     BLEConnection _connection[BLE_MAX_CONNECTION];
+    void       *_cb_queue;    /* QueueHandle_t. 콜백 지연 실행 */
+    void       *_cb_task;     /* TaskHandle_t */
     bool        _auto_conn_led;
     uint32_t    _conn_led_interval;
     ble_bandwidth_t _bandwidth;

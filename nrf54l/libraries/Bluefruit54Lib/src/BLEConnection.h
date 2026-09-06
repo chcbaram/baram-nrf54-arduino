@@ -42,19 +42,21 @@ class BLEConnection
     ble_gap_addr_t getPeerAddr(void) const { return _peer_addr; }
 
     /**
-     * 상대 장치의 이름을 읽는다.
+     * 상대 장치의 이름을 읽는다 (상대 GAP 서비스의 Device Name).
      *
-     * ⚠ **아직 구현되지 않았다.** 상대의 GAP 서비스에서 Device Name 을
-     *   읽어야 하는데, 그러려면 우리가 GATT **클라이언트**로 동작해야 한다
-     *   (`sd_ble_gattc_*` + `BLE_CONN_CFG_GATTC`). 그 경로는 아직 없다.
+     * 우리가 peripheral 이어도 읽을 수 있다 — GATT 의 클라이언트/서버는
+     * 연결의 central/peripheral 역할과 별개다.
      *
-     *   지금은 **빈 문자열을 넣고 false 를 돌려준다.** 조용히 성공한 척하지
-     *   않는다 — 호출한 쪽이 확인할 수 있어야 한다.
-     *   Adafruit 예제는 반환값을 보지 않고 출력하므로 빈 줄이 찍힌다.
+     * ⚠ **블로킹이다.** 상대의 응답을 기다린다. 연결 콜백 안에서 부르는 것은
+     *   안전하다 (콜백은 BLE 이벤트 태스크가 아니라 별도 태스크에서 돈다).
+     *   ISR 이나 이벤트 관찰자 안에서는 부르면 안 된다.
      *
-     * @return 항상 false (미구현).
+     * ⚠ 상대가 이름을 공개하지 않으면 0 이다. 흔한 일이다 —
+     *   iOS 는 본딩 전에는 GAP Device Name 을 안 준다.
+     *
+     * @return 읽은 바이트 수 (널 종료 포함하지 않음). 실패하면 0.
      */
-    bool getPeerName(char *buf, uint16_t bufsize);
+    uint16_t getPeerName(char *buf, uint16_t bufsize);
 
     bool disconnect(void);
 

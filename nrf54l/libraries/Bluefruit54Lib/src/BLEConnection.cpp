@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "BLEConnection.h"
+#include "bluefruit.h"
 #include <string.h>
 
 BLEConnection::BLEConnection(void)
@@ -54,10 +55,18 @@ void BLEConnection::_end(void)
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;
 }
 
-bool BLEConnection::getPeerName(char *buf, uint16_t bufsize)
+uint16_t BLEConnection::getPeerName(char *buf, uint16_t bufsize)
 {
-  if (buf && bufsize) buf[0] = 0;
-  return false;      /* 미구현 — 헤더 주석 참조 */
+  if (buf == NULL || bufsize == 0) return 0;
+  buf[0] = 0;
+  if (!_connected) return 0;
+
+  /* 널 자리를 남겨 둔다 — 스케치가 그대로 print 한다. */
+  uint16_t len = Bluefruit.Gatt.readCharByUuid(_conn_hdl,
+                                               BLEUuid(UUID16_CHR_DEVICE_NAME),
+                                               buf, (uint16_t) (bufsize - 1));
+  buf[len] = 0;
+  return len;
 }
 
 bool BLEConnection::disconnect(void)
