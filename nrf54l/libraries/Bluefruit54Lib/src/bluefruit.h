@@ -100,6 +100,12 @@ class AdafruitBluefruit
     bool connected(void) const { return _conn_hdl != BLE_CONN_HANDLE_INVALID; }
     uint16_t connHandle(void) const { return _conn_hdl; }
 
+    /** 현재 연결에서 협상된 ATT MTU. 연결 전에는 기본값(23)이다. */
+    uint16_t attMtu(void) const { return _att_mtu; }
+
+    /** 한 번에 보낼 수 있는 최대 페이로드 (MTU − ATT 헤더 3). */
+    uint16_t maxPayload(void) const { return (uint16_t)(_att_mtu - 3); }
+
     void setName(const char *name);
     const char *getName(void) const { return _name; }
     bool setTxPower(int8_t power);
@@ -136,6 +142,7 @@ class AdafruitBluefruit
     uint8_t     _char_count;
     bool        _begun;
     void       *_tx_sem;      /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않는다 */
+    uint16_t    _att_mtu;
 };
 
 extern AdafruitBluefruit Bluefruit;

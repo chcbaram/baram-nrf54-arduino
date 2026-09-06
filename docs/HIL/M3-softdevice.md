@@ -213,56 +213,75 @@ Adafruit 의 `Bluefruit.configPrphBandwidth()` 가 하는 일이 이것이다. �
 
 ---
 
-## 3.7 B3 시도 — MTU 협상 (미완, 되돌림)
+## 3.7 B3 — MTU 협상 (2026-09-06)
 
-기본 ATT MTU(23)로는 호스트가 20바이트를 넘겨 쓸 때 long write 가 필요해
-연결이 끊긴다. `sd_ble_cfg_set(BLE_CONN_CFG_GATT, att_mtu=247)` 로 풀려 했으나
-**완성하지 못하고 되돌렸다.** 알아낸 것을 남긴다 — 다시 붙일 때 여기서 시작하면 된다.
+기본 ATT MTU(23)로는 한 번에 20바이트밖에 못 싣고, 그보다 큰 쓰기는 ATT
+long write 가 필요해 **연결이 끊겼다.** `sd_ble_cfg_set()` 으로 MTU 를 키워
+해결했다.
 
-### 확인한 것
+| 항목 | 결과 |
+|---|---|
+| 협상된 MTU | ✅ **247** (호스트 확인) |
+| 75 바이트 쓰기 → 에코 | ✅ 완전 일치 |
+| 200 바이트 쓰기 → 에코 | ✅ 완전 일치 |
+| SoftDevice RAM 요구 | `0x20003750` (링커 `0x20004780` 아래 → **링커 변경 불필요**) |
 
-**(a) `conn_cfg_tag` 에 0 을 쓰면 안 된다.** `ble.h` 원문:
+### 막힌 것 네 개 — 전부 헤더 주석에 답이 있었다
+
+**(1) `conn_cfg_tag` 에 0 을 쓰면 안 된다.** `ble.h` 원문:
 
 > "Must be different for all connection configurations added and
 > **not `BLE_CONN_CFG_TAG_DEFAULT`**"
 
 0 을 넣으면 `sd_ble_cfg_set()` 이 **성공을 돌려주는데도 설정이 안 먹는다.**
-증상: MTU 를 247 로 구성했는데 협상 결과가 계속 23 이고 SoftDevice RAM 요구량도
-그대로다. 태그를 1 로 바꿔야 한다.
+증상은 "MTU 를 247 로 구성했는데 협상 결과가 계속 23" 이다.
 
-**(b) `sd_ble_gap_adv_start()` 에도 같은 태그를 넘겨야 한다.** 한쪽만 바꾸면
-설정은 등록됐는데 연결은 기본 구성으로 만들어진다. 실제로 태그만 1 로 바꾸고
+**(2) `sd_ble_gap_adv_start()` 에도 같은 태그를 넘겨야 한다.** 한쪽만 바꾸면
+설정은 등록됐는데 연결은 기본 구성으로 만들어진다. 태그만 1 로 바꾸고
 `adv_start` 를 그대로 뒀더니 **advertising 자체가 실패**했다.
 
-**(c) MTU 교환 응답에 기본값을 하드코딩하면 안 된다.** `bluefruit.cpp` 가
+**(3) `adv_set_count` 를 빠뜨리면 안 된다** ⭐ — 가장 찾기 어려웠다.
+
+`ble_gap_cfg_role_count_t` 의 **첫 필드**가 `adv_set_count` 다. `memset` 으로
+0 을 만들고 `periph_role_count` 만 채우기 쉬운데, `ble_gap.h` 가 이 조합을
+명시적으로 거부한다:
+
+> "`NRF_ERROR_INVALID_PARAM` — **adv_set_count is 0 and periph_role_count is
+> non-zero.**"
+
+그러면 역할 수가 기본값(peripheral 1 / central 3)으로 남고, 이어지는
+`sd_ble_enable()` 이 `conn_count` 와 안 맞아 **`NRF_ERROR_NOT_SUPPORTED`(0x06)**
+로 실패한다. 겉으로는 "BLE 를 못 켠다" 로만 보인다.
+
+→ `adv_set_count = BLE_GAP_ADV_SET_COUNT_DEFAULT`.
+
+**(4) MTU 교환 응답에 기본값을 하드코딩하면 안 된다.** `bluefruit.cpp` 가
 `BLE_GATT_ATT_MTU_DEFAULT` 로 답하고 있었다. 스택을 크게 구성해도 상대와는
 23 으로 협상된다. 실효 MTU 는 양쪽 제시값 중 작은 쪽이다.
 
-**(d) 이벤트 버퍼가 MTU 에 따라 커져야 한다.** `ble.h` 의 `BLE_EVT_LEN_MAX` 원문:
+### 그리고 하나 더 — 수신 FIFO 가 MTU 를 못 따라간다
 
-> "The highest value used for `ble_gatt_conn_cfg_t::att_mtu` in any connection
-> configuration shall be used as a parameter."
+MTU 247 로 협상된 뒤 75바이트를 보냈더니 **62바이트만 에코**됐다.
+`BLEUart` 가 코어의 `RingBuffer`(`SERIAL_BUFFER_SIZE` = 64)를 쓰고 있었고,
+넘치는 만큼 조용히 사라진 것이다.
 
-MTU 247 이면 378 바이트쯤 필요한데 우리 버퍼는 256 고정이었다. 모자라면
-`sd_ble_evt_get()` 이 `NRF_ERROR_DATA_SIZE` 를 내고 이벤트가 스택에 남아 멈춘다.
-→ `#define SD_BLE_EVT_BUF_SIZE BLE_EVT_LEN_MAX(SD_BLE_ATT_MTU)`
+→ 자체 링버퍼로 바꾸고 `BLE_UART_RX_FIFO_SIZE`(기본 256)로 뺐다.
+버려진 바이트는 `bleuart.dropped()` 로 보인다 — **조용히 사라지지 않게 했다.**
 
-### 왜 되돌렸나
+> **MTU 를 키우면 그 뒤의 버퍼도 같이 봐야 한다.** 스택만 키우고 애플리케이션
+> 버퍼를 그대로 두면 손실이 애플리케이션 쪽으로 옮겨갈 뿐이다.
 
-(a)~(d)를 모두 반영해도 advertising 이 뜨지 않았고, `sd_ble_cfg_set()` 의
-반환값을 담아 둔 전역이 ELF 에 남지 않아(`--gc-sections` 으로 보인다) 원인을
-좁히지 못했다. **동작하는 B2 상태를 깨 놓고 세션을 끝내는 것보다 되돌리는 편이
-낫다고 판단했다.**
+### 진단 방법
 
-### 다시 붙일 때
+`sd_ble_cfg_set()` 세 건의 반환값을 **시리얼로 직접 찍는 것**이 결정적이었다.
+전역에 담고 SWD 로 읽으려 했으나 `--gc-sections` 에 지워져 안 보였다.
+`sdCfgResults()` 로 남겨 뒀다.
 
-1. `sd_ble_cfg_set()` 세 건의 반환값을 **시리얼로 직접 찍어라.** 전역에 담고
-   SWD 로 읽는 방식은 최적화에 지워질 수 있다 (`__attribute__((used))` 필요)
-2. `NRF_ERROR_NO_MEM` 이면 `g_sd_ram_required` 가 링커 `RAM ORIGIN` 보다 큰지 본다.
-   크면 `docs/MEMORY-MAP.md` 와 두 링커 스크립트, `boards.txt` 의
-   `upload.maximum_data_size` 를 함께 고쳐야 한다
-3. MTU 를 247 대신 **작게(예: 64) 올려 보면서** 어디서 실패하는지 좁히는 것이
-   빠르다
+```
+begin=1  err=0x00000000
+cfg role=0x00000000 gap=0x00000000 gatt=0x00000000  MTU=247 tag=1
+RAM: 링커=0x20004780  SD요구=0x20003750
+```
 
 ---
 

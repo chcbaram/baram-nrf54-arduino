@@ -19,7 +19,18 @@
 
 #include <Arduino.h>
 #include <Stream.h>
-#include <RingBuffer.h>
+
+/*
+ * 수신 FIFO 크기.
+ *
+ * ⚠ 코어의 RingBuffer(SERIAL_BUFFER_SIZE = 64)를 쓰면 안 된다. MTU 를 키우면
+ *   한 번에 그보다 많이 들어오고, 넘치는 만큼 **조용히 사라진다.**
+ *   실제로 MTU 247 에서 75바이트를 보냈더니 62바이트만 에코됐다.
+ *   최소한 한 번에 받을 수 있는 최대치(MTU − 3)보다 커야 한다.
+ */
+#ifndef BLE_UART_RX_FIFO_SIZE
+#define BLE_UART_RX_FIFO_SIZE   (256)
+#endif
 
 #include "BLEService.h"
 #include "BLECharacteristic.h"
@@ -53,11 +64,23 @@ class BLEUart : public BLEService, public Stream
     /* 코어 내부용 */
     void _rxHandler(uint16_t conn_hdl, uint8_t *data, uint16_t len);
 
+    /** FIFO 가 넘쳐 버린 바이트 수. 0 이 아니면 BLE_UART_RX_FIFO_SIZE 를 키워라. */
+    uint32_t dropped(void) const { return _rx_dropped; }
+
   protected:
     BLECharacteristic _txchr;
     BLECharacteristic _rxchr;
-    RingBuffer        _rxfifo;
     ble_uart_rx_callback_t _rx_cb;
+
+    /* 단순 링버퍼. head == tail 이면 비어 있다. */
+    uint8_t           _rxbuf[BLE_UART_RX_FIFO_SIZE];
+    volatile uint16_t _rxhead;
+    volatile uint16_t _rxtail;
+    volatile uint32_t _rx_dropped;
+
+    uint16_t rxCount(void) const;
+    bool     rxPush(uint8_t b);
+    int      rxPop(void);
 };
 
 #endif

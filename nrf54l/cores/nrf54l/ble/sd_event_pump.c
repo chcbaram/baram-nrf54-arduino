@@ -74,12 +74,50 @@ extern uint32_t __app_ram_start__;
  * 부족하면 NRF_ERROR_DATA_SIZE 가 나오는데, 조용히 넘기지 않고 기록한다.
  * MTU 를 키우거나 긴 GATT 쓰기를 받으면 늘려야 한다.
  */
+/*
+ * ⚠ 이벤트 버퍼는 **MTU 에 따라 커져야 한다.** ble.h 의 BLE_EVT_LEN_MAX:
+ *   "The highest value used for ble_gatt_conn_cfg_t::att_mtu in any connection
+ *    configuration shall be used as a parameter."
+ *   모자라면 sd_ble_evt_get() 이 NRF_ERROR_DATA_SIZE 를 내고 이벤트가 스택에
+ *   남아 진행이 멈춘다.
+ */
 #ifndef SD_BLE_EVT_BUF_SIZE
-#define SD_BLE_EVT_BUF_SIZE           (256)
+#define SD_BLE_EVT_BUF_SIZE           BLE_EVT_LEN_MAX(SD_BLE_ATT_MTU)
 #endif
 
 #ifndef SD_BLE_MAX_OBSERVERS
 #define SD_BLE_MAX_OBSERVERS          (8)
+#endif
+
+/*
+ * ATT MTU. 기본값 23 이면 한 번에 20바이트(23 − ATT 헤더 3)밖에 못 싣고,
+ * 그보다 큰 쓰기는 ATT long write 경로가 필요해 연결이 끊긴다.
+ * ⚠ 키우면 SoftDevice RAM 요구량이 늘 수 있다. sdCfgResults() 로 확인하라.
+ */
+#ifndef SD_BLE_ATT_MTU
+#define SD_BLE_ATT_MTU                (247)
+#endif
+
+/*
+ * 연결 구성 태그.
+ *
+ * ⚠ **0(BLE_CONN_CFG_TAG_DEFAULT)을 쓰면 안 된다.** ble.h 원문:
+ *   "Must be different for all connection configurations added and
+ *    not BLE_CONN_CFG_TAG_DEFAULT"
+ *   0 이면 sd_ble_cfg_set() 이 성공을 돌려주는데도 설정이 적용되지 않는다.
+ * ⚠ sd_ble_gap_adv_start() 에 **같은 태그**를 넘겨야 그 구성이 쓰인다.
+ */
+#ifndef SD_BLE_CONN_CFG_TAG
+#define SD_BLE_CONN_CFG_TAG           (1)
+#endif
+
+#ifndef SD_BLE_PERIPH_LINK_COUNT
+#define SD_BLE_PERIPH_LINK_COUNT      (1)
+#endif
+
+/* 연결 이벤트 길이 (1.25 ms 단위). */
+#ifndef SD_BLE_EVENT_LENGTH
+#define SD_BLE_EVENT_LENGTH           (6)
 #endif
 
 /*
@@ -131,6 +169,12 @@ static uint8_t           m_observer_count = 0;
 static bool              m_enabled     = false;
 static uint32_t          m_last_error  = 0;
 static uint32_t          m_ram_used    = 0;
+static uint32_t          m_ram_required = 0;
+
+/* cfg_set 각 항목의 반환값. sdCfgResults() 로 읽는다 (진단용). */
+static uint32_t          m_cfg_role    = 0xFFFFFFFFu;
+static uint32_t          m_cfg_gap     = 0xFFFFFFFFu;
+static uint32_t          m_cfg_gatt    = 0xFFFFFFFFu;
 
 static SemaphoreHandle_t m_evt_sem     = NULL;
 static TaskHandle_t      m_evt_task    = NULL;
@@ -300,6 +344,24 @@ uint32_t sdRamUsed(void)
     return m_ram_used;
 }
 
+uint16_t sdAttMtu(void)
+{
+    return (uint16_t) SD_BLE_ATT_MTU;
+}
+
+uint8_t sdConnCfgTag(void)
+{
+    return (uint8_t) SD_BLE_CONN_CFG_TAG;
+}
+
+void sdCfgResults(uint32_t *role, uint32_t *gap, uint32_t *gatt, uint32_t *ram_required)
+{
+    if (role)         *role         = m_cfg_role;
+    if (gap)          *gap          = m_cfg_gap;
+    if (gatt)         *gatt         = m_cfg_gatt;
+    if (ram_required) *ram_required = m_ram_required;
+}
+
 bool sdBleObserverAdd(sd_ble_observer_t handler, void *ctx)
 {
     if (handler == NULL || m_observer_count >= SD_BLE_MAX_OBSERVERS) {
@@ -309,6 +371,42 @@ bool sdBleObserverAdd(sd_ble_observer_t handler, void *ctx)
     m_observers[m_observer_count].ctx     = ctx;
     m_observer_count++;
     return true;
+}
+
+/*
+ * BLE 스택 구성. **sd_ble_enable() 전에** 불러야 한다.
+ * 실패해도 그 항목만 기본값으로 남으므로 기록만 하고 계속 간다.
+ */
+static void sd_ble_cfg_apply(uint32_t ram_base)
+{
+    ble_cfg_t cfg;
+
+    memset(&cfg, 0, sizeof(cfg));
+    /*
+     * ⚠ adv_set_count 를 빠뜨리지 마라. 구조체 **첫 필드**라 memset 뒤에
+     *   periph_role_count 만 채우기 쉬운데, ble_gap.h 가 이 조합을 명시적으로
+     *   거부한다: "NRF_ERROR_INVALID_PARAM — adv_set_count is 0 and
+     *   periph_role_count is non-zero."
+     *   그러면 역할 수가 기본값(peripheral 1 / central 3)으로 남고, 이어지는
+     *   sd_ble_enable() 이 conn_count 와 안 맞아 NRF_ERROR_NOT_SUPPORTED(0x06)
+     *   로 실패한다. 증상은 "BLE 를 못 켠다" 로만 보인다.
+     */
+    cfg.gap_cfg.role_count_cfg.adv_set_count      = BLE_GAP_ADV_SET_COUNT_DEFAULT;
+    cfg.gap_cfg.role_count_cfg.periph_role_count  = SD_BLE_PERIPH_LINK_COUNT;
+    cfg.gap_cfg.role_count_cfg.central_role_count = 0;
+    cfg.gap_cfg.role_count_cfg.central_sec_count  = 0;
+    m_cfg_role = sd_ble_cfg_set(BLE_GAP_CFG_ROLE_COUNT, &cfg, ram_base);
+
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.conn_cfg.conn_cfg_tag                     = SD_BLE_CONN_CFG_TAG;
+    cfg.conn_cfg.params.gap_conn_cfg.conn_count   = SD_BLE_PERIPH_LINK_COUNT;
+    cfg.conn_cfg.params.gap_conn_cfg.event_length = SD_BLE_EVENT_LENGTH;
+    m_cfg_gap = sd_ble_cfg_set(BLE_CONN_CFG_GAP, &cfg, ram_base);
+
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.conn_cfg.conn_cfg_tag                 = SD_BLE_CONN_CFG_TAG;
+    cfg.conn_cfg.params.gatt_conn_cfg.att_mtu = SD_BLE_ATT_MTU;
+    m_cfg_gatt = sd_ble_cfg_set(BLE_CONN_CFG_GATT, &cfg, ram_base);
 }
 
 bool sdEnable(void)
@@ -413,17 +511,22 @@ bool sdEnable(void)
         uint32_t app_ram_base = (uint32_t) &__app_ram_start__;
         const uint32_t requested = app_ram_base;
 
+        sd_ble_cfg_apply(app_ram_base);
+
         g_sd_stage = 9;
         err = sd_ble_enable(&app_ram_base);
         g_sd_stage = 10;
+
+        /* app_ram_base 에 SoftDevice 가 요구하는 **최소 시작 주소**가 돌아온다. */
+        m_ram_required = app_ram_base;
+        (void) requested;
+
         if (err != NRF_SUCCESS) {
-            /* app_ram_base 에 필요한 최소값이 들어 있다. 진단에 쓰라고 남긴다. */
-            m_ram_used   = app_ram_base;
             m_last_error = err;
             return false;
         }
 
-        m_ram_used = requested - (uint32_t) 0x20000000UL;
+        m_ram_used = app_ram_base - (uint32_t) 0x20000000UL;
         (void) app_ram_base;
     }
 

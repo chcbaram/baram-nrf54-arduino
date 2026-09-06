@@ -114,7 +114,8 @@ bool BLEAdvertising::start(uint16_t timeout)
   uint32_t err = sd_ble_gap_adv_set_configure(&_handle, &data, &params);
   if (err != NRF_SUCCESS) return false;
 
-  err = sd_ble_gap_adv_start(_handle, BLE_CONN_CFG_TAG_DEFAULT);
+  /* 우리가 설정한 연결 구성(MTU 등)을 쓰려면 그 태그로 시작해야 한다. */
+  err = sd_ble_gap_adv_start(_handle, sdConnCfgTag());
   _running = (err == NRF_SUCCESS);
   return _running;
 }
@@ -141,6 +142,7 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _char_count  = 0;
   _begun       = false;
   _tx_sem      = NULL;
+  _att_mtu     = BLE_GATT_ATT_MTU_DEFAULT;
   memset(_chars, 0, sizeof(_chars));
 }
 
@@ -235,6 +237,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
                               evt->evt.gap_evt.params.disconnected.reason);
       }
       _conn_hdl = BLE_CONN_HANDLE_INVALID;
+      _att_mtu  = BLE_GATT_ATT_MTU_DEFAULT;   /* 다음 연결에서 다시 협상한다 */
       Advertising._restartIfNeeded();
       break;
 
@@ -267,10 +270,22 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
           &evt->evt.gap_evt.params.conn_param_update_request.conn_params);
       break;
 
-    case BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST:
-      sd_ble_gatts_exchange_mtu_reply(evt->evt.gatts_evt.conn_handle,
-                                      BLE_GATT_ATT_MTU_DEFAULT);
+    /*
+     * ⚠ 여기서 BLE_GATT_ATT_MTU_DEFAULT 를 하드코딩하면 안 된다.
+     *   스택을 큰 MTU 로 구성해 놓고도 상대와는 23 으로 협상돼, 큰 쓰기가
+     *   전부 ATT long write 로 가고 그 경로가 없어 연결이 끊긴다. 실제로 겪었다.
+     *   실효 MTU 는 양쪽 제시값 중 작은 쪽이다.
+     */
+    case BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST: {
+      uint16_t ours   = sdAttMtu();
+      uint16_t theirs = evt->evt.gatts_evt.params.exchange_mtu_request.client_rx_mtu;
+
+      sd_ble_gatts_exchange_mtu_reply(evt->evt.gatts_evt.conn_handle, ours);
+
+      if (theirs < BLE_GATT_ATT_MTU_DEFAULT) theirs = BLE_GATT_ATT_MTU_DEFAULT;
+      _att_mtu = (theirs < ours) ? theirs : ours;
       break;
+    }
 
     /* notify 한 건이 무선으로 나갔다. 기다리던 쪽을 깨운다. */
     case BLE_GATTS_EVT_HVN_TX_COMPLETE:

@@ -4,6 +4,7 @@
  */
 #include "BLEUart.h"
 #include "bluefruit.h"
+#include "sd_event_pump.h"
 #include <string.h>
 
 /* little-endian 배열. 위 헤더의 UUID 를 바이트 역순으로 적은 것이다. */
@@ -28,7 +29,33 @@ static void bleuart_write_cb(uint16_t conn_hdl, BLECharacteristic *chr, uint8_t 
 BLEUart::BLEUart(void)
   : BLEService(NUS_SVC), _txchr(NUS_TX), _rxchr(NUS_RX)
 {
-  _rx_cb = NULL;
+  _rx_cb  = NULL;
+  _rxhead = 0;
+  _rxtail = 0;
+  _rx_dropped = 0;
+}
+
+uint16_t BLEUart::rxCount(void) const
+{
+  uint16_t h = _rxhead, t = _rxtail;
+  return (uint16_t) ((h >= t) ? (h - t) : (BLE_UART_RX_FIFO_SIZE - t + h));
+}
+
+bool BLEUart::rxPush(uint8_t b)
+{
+  uint16_t next = (uint16_t) ((_rxhead + 1) % BLE_UART_RX_FIFO_SIZE);
+  if (next == _rxtail) return false;      /* 가득 참 */
+  _rxbuf[_rxhead] = b;
+  _rxhead = next;
+  return true;
+}
+
+int BLEUart::rxPop(void)
+{
+  if (_rxhead == _rxtail) return -1;
+  uint8_t b = _rxbuf[_rxtail];
+  _rxtail = (uint16_t) ((_rxtail + 1) % BLE_UART_RX_FIFO_SIZE);
+  return b;
 }
 
 err_t BLEUart::begin(void)
@@ -40,13 +67,14 @@ err_t BLEUart::begin(void)
 
   /* TX: 우리가 보내는 쪽. 상대는 notify 로 받는다. */
   _txchr.setProperties(CHR_PROPS_NOTIFY);
-  _txchr.setMaxLen(BLE_GATT_ATT_MTU_DEFAULT - 3);   /* ATT 헤더 3바이트를 뺀다 */
+  /* 협상 가능한 최대치로 잡아 둔다. 실제 전송량은 연결마다 협상된 MTU 를 따른다. */
+  _txchr.setMaxLen(sdAttMtu() - 3);
   err = _txchr.begin();
   if (err) return err;
 
   /* RX: 상대가 쓰는 쪽. 응답 있는/없는 쓰기 둘 다 받는다. */
   _rxchr.setProperties(CHR_PROPS_WRITE | CHR_PROPS_WRITE_WO_RESP);
-  _rxchr.setMaxLen(BLE_GATT_ATT_MTU_DEFAULT - 3);
+  _rxchr.setMaxLen(sdAttMtu() - 3);
   _rxchr.setWriteCallback(bleuart_write_cb);
   err = _rxchr.begin();
 
@@ -64,27 +92,28 @@ void BLEUart::_rxHandler(uint16_t conn_hdl, uint8_t *data, uint16_t len)
 {
   for (uint16_t i = 0; i < len; i++) {
     /*
-     * 링버퍼가 가득 차면 **새 데이터를 버린다.** 오래된 것을 밀어내면
-     * 이미 읽고 있던 프레임 중간이 잘려 더 나쁘다.
-     * 버퍼는 SERIAL_BUFFER_SIZE(64) 다 — 큰 덩어리를 받으려면 늘려야 한다.
+     * 가득 차면 **새 데이터를 버린다.** 오래된 것을 밀어내면 이미 읽고 있던
+     * 프레임 중간이 잘려 더 나쁘다. 버리는 것이 보이도록 카운트를 남긴다.
      */
-    if (_rxfifo.isFull()) break;
-    _rxfifo.store_char(data[i]);
+    if (!rxPush(data[i])) {
+      _rx_dropped += (uint32_t) (len - i);
+      break;
+    }
   }
 
   if (_rx_cb) _rx_cb(conn_hdl);
 }
 
-int  BLEUart::available(void) { return _rxfifo.available(); }
-int  BLEUart::peek(void)      { return _rxfifo.peek(); }
-int  BLEUart::read(void)      { return _rxfifo.read_char(); }
+int  BLEUart::available(void) { return (int) rxCount(); }
+int  BLEUart::peek(void)      { return (_rxhead == _rxtail) ? -1 : _rxbuf[_rxtail]; }
+int  BLEUart::read(void)      { return rxPop(); }
 void BLEUart::flush(void)     { /* 송신은 notify 라 버퍼링이 없다 */ }
 
 size_t BLEUart::read(uint8_t *buf, size_t size)
 {
   size_t n = 0;
   while (n < size) {
-    int c = _rxfifo.read_char();
+    int c = rxPop();
     if (c < 0) break;
     buf[n++] = (uint8_t) c;
   }
@@ -102,9 +131,9 @@ size_t BLEUart::write(const uint8_t *content, size_t len)
 
   /*
    * 한 번의 notify 로 보낼 수 있는 크기를 넘으면 잘라서 여러 번 보낸다.
-   * MTU 협상을 아직 안 하므로 기본값(23) - ATT 헤더(3) = 20 바이트다.
+   * 실효 MTU 는 연결마다 협상되므로 Bluefruit.maxPayload() 를 쓴다.
    */
-  const size_t chunk = BLE_GATT_ATT_MTU_DEFAULT - 3;
+  const size_t chunk = Bluefruit.maxPayload();
   size_t sent = 0;
 
   while (sent < len) {

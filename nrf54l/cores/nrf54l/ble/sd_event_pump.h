@@ -47,6 +47,21 @@ uint32_t sdLastError(void);
 /** SoftDevice 가 실제로 쓴 RAM 크기 (바이트). sd_ble_enable() 이후에 유효하다. */
 uint32_t sdRamUsed(void);
 
+/** 이 스택이 구성된 ATT MTU. MTU 교환 응답에 반드시 이 값을 써야 한다. */
+uint16_t sdAttMtu(void);
+
+/**
+ * 연결 구성 태그. `sd_ble_gap_adv_start()` 에 이 값을 넘겨야 우리가 설정한
+ * MTU / 연결 구성이 실제로 쓰인다.
+ */
+uint8_t sdConnCfgTag(void);
+
+/**
+ * sd_ble_cfg_set() 세 건의 반환값과 SoftDevice 가 요구한 최소 RAM 시작 주소.
+ * 0 이 성공. MTU 를 키웠는데 협상이 안 되면 여기부터 본다.
+ */
+void sdCfgResults(uint32_t *role, uint32_t *gap, uint32_t *gatt, uint32_t *ram_required);
+
 #ifdef __cplusplus
 }
 #endif
