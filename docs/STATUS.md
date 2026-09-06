@@ -24,7 +24,7 @@
 | 보드 3종 | ✅ NU54-DK / NU54V-DK / XIAO nRF54L15 |
 
 **XIAO nRF54L15 실기 확인 (2026-09-06)** — `docs/HIL/M1-xiao.md`:
-온보드 CMSIS-DAP 업로드 1.9초, `Serial`(UARTE20) 정상,
+온보드 CMSIS-DAP 업로드 1.9초, LED 점멸(active LOW) 및 `Serial`(UARTE20) 정상,
 틱 vs SYSCOUNTER **0.0 ppm**, 호스트 대비 **-14 ppm**, 180초 90샘플 이상 0건.
 LFXO 내부 로드 캡을 잡기 전에는 **+805 ppm** 이었다 (§ 아래 4-7).
 

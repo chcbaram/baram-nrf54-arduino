@@ -18,6 +18,7 @@
 | 온보드 CMSIS-DAP 접속 | ✅ 외부 프로브 불필요 |
 | RRAM 쓰기 + verify | ✅ **1.9 초** (38 KB hex) |
 | FreeRTOS + GRTC 틱 | ✅ |
+| GPIO / LED (P2.00, **active LOW**) | ✅ 육안 확인. 극성이 NU54-DK 와 반대인데 정상 점멸 |
 | `Scheduler.startLoop()` 두 번째 태스크 | ✅ |
 | `Serial` (UARTE20 → 온보드 SAMD11 → USB CDC) | ✅ |
 | 틱 vs SYSCOUNTER | ✅ **0.0 ppm** (180초, 90샘플) |
@@ -26,6 +27,8 @@
 | 크기 | Flash 38176 B (2%) / RAM 4008 B (1%) |
 
 케이블 하나(USB-C)로 업로드와 시리얼이 모두 됐다.
+LED 점멸과 `Serial` 출력을 **릴리스 0.1.0 설치본으로도 다시 확인**했다
+(Board Manager 로 설치한 코어 → 컴파일 → 업로드 → 동작).
 
 ---
 
