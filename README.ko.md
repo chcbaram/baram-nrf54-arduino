@@ -9,10 +9,10 @@
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
 [![Status](https://img.shields.io/badge/status-M1%20(pre--release)-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ 아직 릴리스 전이다
-> blink / `Serial` / 멀티태스킹 / tickless idle 까지 **보드 3종에서 실기 동작**한다.
-> **BLE 는 아직 구현되지 않았고**(M3), **Board Manager 릴리스도 아직 없다** —
-> [설치](#설치) 참조.
+> ### ⚠ 초기 릴리스 — v0.1.0
+> blink / `Serial` / 멀티태스킹 / tickless idle 까지 **보드 3종에서 실기 동작**하고
+> Board Manager 로 설치된다. **BLE 는 아직 구현되지 않았다**(M3).
+> `analogRead` / `Wire` / `SPI` 는 M2 다.
 > 진행 상황: [docs/STATUS.md](docs/STATUS.md)
 
 ---
@@ -88,10 +88,7 @@ FreeRTOS 위에서 같은 의미로 도는 `delay()`.
 
 ## 설치
 
-### Board Manager — **아직 공개 전이다**
-
-첫 릴리스가 나오면 이렇게 된다. **아래 URL 은 아직 열리지 않는다.**
-릴리스 시점은 [docs/STATUS.md](docs/STATUS.md) 에서 확인하라.
+### Board Manager (권장)
 
 1. **Arduino IDE → 환경설정** 을 연다
 2. **추가 보드 매니저 URL** 에 아래를 넣는다:
@@ -103,10 +100,12 @@ FreeRTOS 위에서 같은 의미로 도는 `delay()`.
 4. **툴 → 보드 → BARAM nRF54L Boards** 에서 보드를 고른다
 
 Board Manager 가 Arm 툴체인과 `probe-rs` 까지 함께 설치하므로 따로 준비할 것이 없다.
+macOS/arm64 에서 설치 → 컴파일 → 업로드 → 동작까지 확인했다.
+Linux / Windows 는 배포는 됐지만 아직 실기에서 확인하지 못했다.
 
-### 소스에서 설치 — **지금 되는 방법**
+### 소스에서 설치 — **코어를 직접 고칠 때**
 
-릴리스가 나오기 전까지는 저장소를 sketchbook 의 `hardware/` 밑에 두면 된다.
+코어 자체를 개발하려면 저장소를 sketchbook 의 `hardware/` 밑에 둔다.
 심볼릭 링크를 쓰면 git 작업은 원래 위치에서 그대로 한다.
 
 ```sh
@@ -226,7 +225,7 @@ UART / BLE OTA DFU 는 M4 에서 추가하며 SWD 경로는 그대로 남는다.
 
 **업로드가 `cannot execute upload tool: fork/exec {runtime.tools....}` 로 실패한다.**
 `platform.local.txt` 가 없거나 `probers.path` 가 틀린 것이다.
-[소스에서 설치](#소스에서-설치--지금-되는-방법) 참조.
+[소스에서 설치](#소스에서-설치--코어를-직접-고칠-때) 참조.
 
 **업로드 직후 시리얼 포트가 사라진다.**
 온보드 디버거가 있는 보드에서는 정상이다. 타깃을 리셋하면 USB 장치가 다시 열거되어

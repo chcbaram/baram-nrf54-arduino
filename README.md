@@ -9,10 +9,10 @@ Bluefruit (nRF52) sketches keep working.**
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
 [![Status](https://img.shields.io/badge/status-M1%20(pre--release)-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ Pre-release
+> ### ⚠ Early release — v0.1.0
 > Blink, `Serial`, multitasking and tickless idle run on real hardware across three
-> boards. **BLE is not implemented yet** (milestone M3), and there is **no Board
-> Manager release yet** — see [Installation](#installation).
+> boards, and the core installs from Board Manager. **BLE is not implemented yet**
+> (milestone M3), and `analogRead` / `Wire` / `SPI` land in M2.
 > Current state: [docs/STATUS.md](docs/STATUS.md)
 
 ---
@@ -91,10 +91,7 @@ Memory layout is per chip rather than per board: [docs/MEMORY-MAP.md](docs/MEMOR
 
 ## Installation
 
-### Board Manager — *not published yet*
-
-This is how it will work once the first release is tagged. **The URL below does not
-resolve yet**; watch [docs/STATUS.md](docs/STATUS.md) for the release.
+### Board Manager (recommended)
 
 1. Open **Arduino IDE → Preferences**
 2. Paste this into **Additional boards manager URLs**:
@@ -106,12 +103,13 @@ resolve yet**; watch [docs/STATUS.md](docs/STATUS.md) for the release.
 4. Select your board under **Tools → Board → BARAM nRF54L Boards**
 
 Board Manager also installs the Arm toolchain and `probe-rs`, so there is nothing
-else to set up.
+else to set up. Verified end to end on macOS/arm64: install, compile, upload and run.
+Linux and Windows are published but have not been tested on real machines yet.
 
-### From source — works today
+### From source — for working on the core
 
-Until the release exists, install by placing the repository in your sketchbook's
-`hardware/` directory. A symlink keeps your git checkout wherever you like.
+To develop the core itself, place the repository in your sketchbook's `hardware/`
+directory. A symlink keeps your git checkout wherever you like.
 
 ```sh
 git clone https://github.com/chcbaram/baram-nrf54-arduino
@@ -233,7 +231,7 @@ three boards.
 
 **Upload fails with `cannot execute upload tool: fork/exec {runtime.tools....}`.**
 `platform.local.txt` is missing or its `probers.path` is wrong. See
-[Installation](#from-source--works-today).
+[Installation](#from-source--for-working-on-the-core).
 
 **The serial port disappears right after uploading.**
 Expected on boards with an onboard debugger: resetting the target re-enumerates the

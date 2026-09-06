@@ -63,12 +63,13 @@ tickless 를 켠 목적이 전력인데 아직 재지 못했다. **SWD 프로브
 `waitForEvent()`, `systemOff(pin, wake_logic)`, `readResetReason()`.
 `readResetReason()` 은 `NRF_RESET` 이다 (`NRF_POWER->RESETREAS` 아님, `NRF_RESETINFO` 도 아님).
 
-### (c) 릴리스 파이프라인 — 스크립트는 준비됐다. 남은 건 업로드뿐
+### (c) 릴리스 파이프라인 — ✅ **0.1.0 배포 완료 (2026-09-06)**
 
-`package_baram_nrf54_index.json` + `extras/` 두 스크립트가 있고 `--dry-run` 으로
-검증했다. **저장소의 인덱스에는 아직 업로드 안 한 것을 넣지 않는다** —
-`platforms[]` 와 probe-rs `systems[]` 가 비어 있는 게 정상이고, 업로드하는 그
-실행이 채운다 (아카이브 바이트가 매번 달라 체크섬과 파일이 같은 실행에서 나와야 한다).
+깨끗한 환경에서 Board Manager 로 설치 → 컴파일 → **실기 업로드·동작까지 확인했다**
+(M5 DoD 중 macOS/arm64 부분). Linux / Windows 는 자산은 올라갔지만 미검증이다.
+
+재배포할 때는 아래 순서다. **저장소의 인덱스에는 업로드 안 한 것을 넣지 않는다** —
+아카이브 바이트가 매번 달라 체크섬과 파일이 같은 실행에서 나와야 한다.
 
 ```sh
 extras/make_tools.sh              # probe-rs 재포장 + 업로드 (버전 바뀔 때만)
@@ -81,6 +82,7 @@ git add package_baram_nrf54_index.json nrf54l/platform.txt && git commit && git 
 | packager (FQBN 앞부분) | **`baram-nrf54`** |
 | Board Manager URL | `https://raw.githubusercontent.com/chcbaram/baram-nrf54-arduino/main/package_baram_nrf54_index.json` |
 | 플랫폼 아카이브 | 1.7 MB (`tools/` 제외) |
+| 릴리스 태그 | `0.1.0` (플랫폼) / `probe-rs-0.32.0` (툴) |
 | 툴 — GCC | xPack `14.2.1-1.1`. **업스트림 URL 을 그대로 가리킨다** (재호스팅 안 함) |
 | 툴 — probe-rs | `0.32.0`. 업스트림 레이아웃이 `platform.txt` 의 `{...}/bin` 과 안 맞아 **재포장**해서 이 저장소 릴리스에 올린다 |
 
