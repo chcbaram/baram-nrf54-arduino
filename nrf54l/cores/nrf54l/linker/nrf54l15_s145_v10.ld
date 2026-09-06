@@ -79,6 +79,21 @@ MEMORY
  * SoftDevice hex 가 실제로 로드되는 주소와 같아야 한다 (nRF54L15).
  * hex 안에 절대 주소로 박혀 있어 옮길 수 없다 (CLAUDE.md §7 F11).
  */
+/*
+ * 본딩 키 저장 파티션 (peer_manager). 앱 파티션 **밖**이라 앱을 다시 구워도
+ * 지워지지 않는다.
+ *
+ * ⚠ RRAM 은 erase 가 없고 **제자리에서 덮어쓸 수 있다** — 0 -> 1 전이도 된다
+ *   (실기 확인: 00000000 -> FFFFFFFF). NOR 플래시처럼 append-log 를 만들 필요가
+ *   없고 고정 슬롯을 그냥 덮어쓰면 된다.
+ *
+ * ⚠ SoftDevice 가 켜져 있을 때는 **`sd_flash_write()` 로만** 써야 한다.
+ *   라디오와 겹치지 않게 SoftDevice 가 시점을 잡아 준다. 이 주소가 그 API 의
+ *   "application flash area" 안에 드는지는 실기로 확인했다 (성공).
+ */
+__bond_storage_start__ = 0x00158800;
+__bond_storage_size__  = 0x1000;
+
 __softdevice_start__ = 0x0015A800;
 
 /* 애플리케이션 RAM 시작. sd_ble_enable() 에 넘긴다. */

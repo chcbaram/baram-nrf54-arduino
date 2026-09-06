@@ -216,6 +216,10 @@ static uint32_t          m_cfg_gatts   = 0xFFFFFFFF;
 
 /* 실제로 적용된 구성. sd_ble_cfg_apply() 와 sdAttMtu() 가 이걸 본다. */
 static sd_ble_conf_t     m_conf;
+
+/* sd_flash_write() 완료 신호. 완료는 SoC 이벤트로만 온다. */
+static SemaphoreHandle_t m_flash_sem = NULL;
+static volatile bool     m_flash_ok  = false;
 static uint32_t          m_cfg_gatt    = 0xFFFFFFFFu;
 
 static SemaphoreHandle_t m_evt_sem     = NULL;
@@ -308,8 +312,14 @@ static void sd_soc_evts_poll(void)
                 m_last_error = err;
             }
         }
-        /* 그 밖의 SoC 이벤트는 M3 뒷단계에서 다룬다
-         * (플래시 동작 완료, 전원 경고, 라디오 타임슬롯 등). */
+        else if (evt_id == NRF_EVT_FLASH_OPERATION_SUCCESS ||
+                 evt_id == NRF_EVT_FLASH_OPERATION_ERROR) {
+            m_flash_ok = (evt_id == NRF_EVT_FLASH_OPERATION_SUCCESS);
+            if (m_flash_sem) {
+                xSemaphoreGive(m_flash_sem);
+            }
+        }
+        /* 그 밖의 SoC 이벤트는 뒷단계에서 다룬다 (전원 경고, 라디오 타임슬롯 등). */
     }
 }
 
@@ -413,6 +423,39 @@ uint8_t sdCentralConnCfgTag(void)
 {
     /* 태그는 하나뿐이다 (위 SD_BLE_CENTRAL_LINK_COUNT 주석 참조). */
     return SD_BLE_CONN_CFG_TAG;
+}
+
+bool sdFlashWrite(uint32_t *dst, const uint32_t *src, uint32_t words, uint32_t timeout_ms)
+{
+    if (dst == NULL || src == NULL || words == 0) return false;
+
+    /*
+     * SoftDevice 가 꺼져 있으면 sd_flash_write() 가 동기로 끝나고 이벤트가 없다
+     * (nrf_soc.h 원문). 그때는 반환값만 보면 된다.
+     */
+    if (!m_enabled) {
+        return sd_flash_write(dst, src, words) == NRF_SUCCESS;
+    }
+
+    if (m_flash_sem == NULL) {
+        m_flash_sem = xSemaphoreCreateBinary();
+        if (m_flash_sem == NULL) return false;
+    }
+    /* 지난 동작이 타임아웃 뒤 늦게 남긴 신호가 있으면 버린다. */
+    xSemaphoreTake(m_flash_sem, 0);
+
+    m_flash_ok = false;
+
+    uint32_t err = sd_flash_write(dst, src, words);
+    if (err != NRF_SUCCESS) {
+        m_last_error = err;
+        return false;
+    }
+
+    if (xSemaphoreTake(m_flash_sem, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+        return false;
+    }
+    return m_flash_ok;
 }
 
 bool sdBleObserverAdd(sd_ble_observer_t handler, void *ctx)

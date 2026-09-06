@@ -504,6 +504,7 @@ extern AdafruitBluefruit Bluefruit;
  * 순서 주의: 이 헤더들은 위의 클래스 선언에 의존하므로 파일 끝에 와야 한다.
  */
 #include "BLEUart.h"
+#include "bonding.h"
 #include "BLEClientService.h"
 #include "BLEClientCharacteristic.h"
 #include "BLEClientUart.h"

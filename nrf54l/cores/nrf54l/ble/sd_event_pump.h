@@ -44,6 +44,23 @@ extern "C" {
 #define SD_BLE_CENTRAL_LINK_COUNT     (0)
 #endif
 
+/**
+ * RRAM 에 쓴다 (SoftDevice 경유). 완료될 때까지 기다린다.
+ *
+ * ⚠ SoftDevice 가 켜져 있으면 **직접 RRAM 을 쓰면 안 된다.** 라디오 타이밍과
+ *   겹치기 때문이다. sd_flash_write() 가 시점을 잡아 주고, 완료는 SoC 이벤트로
+ *   온다 — 그 이벤트를 여기서 기다린다.
+ *
+ * ⚠ **BLE 이벤트 태스크에서 부르면 안 된다.** 기다리는 완료 이벤트를 퍼 올리는
+ *   주체가 자기 자신이라 타임아웃까지 멈춘다.
+ *
+ * @param dst   RRAM 주소. 4바이트 정렬이어야 한다
+ * @param src   원본. 4바이트 정렬이어야 한다
+ * @param words 쓸 32비트 워드 수
+ * @return 성공하면 true.
+ */
+bool sdFlashWrite(uint32_t *dst, const uint32_t *src, uint32_t words, uint32_t timeout_ms);
+
 /** BLE 이벤트 관찰자. 이벤트 태스크 컨텍스트에서 불린다 (ISR 아님). */
 typedef void (*sd_ble_observer_t)(const ble_evt_t *evt, void *ctx);
 
