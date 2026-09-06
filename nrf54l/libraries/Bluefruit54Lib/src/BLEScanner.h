@@ -22,6 +22,7 @@
 #endif
 
 class BLEService;
+class BLEClientService;
 
 class BLEScanner
 {
@@ -53,6 +54,7 @@ class BLEScanner
     void filterUuid(BLEUuid uuid1, BLEUuid uuid2);
     void filterUuid(BLEUuid uuid[], uint8_t count);
     void filterService(BLEService &svc);
+    void filterService(BLEClientService &svc);
     void clearFilters(void);
 
     bool start(uint16_t timeout = 0);    /* timeout 은 10 ms 단위, 0 = 무한 */
@@ -83,6 +85,7 @@ class BLEScanner
 
     bool checkReportForUuid(const ble_gap_evt_adv_report_t *report, BLEUuid uuid);
     bool checkReportForService(const ble_gap_evt_adv_report_t *report, BLEService &svc);
+    bool checkReportForService(const ble_gap_evt_adv_report_t *report, BLEClientService &svc);
 
     /* 코어 내부용 */
     void _eventHandler(const ble_evt_t *evt);

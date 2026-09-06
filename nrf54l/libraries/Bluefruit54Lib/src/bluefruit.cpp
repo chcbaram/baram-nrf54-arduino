@@ -266,9 +266,9 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _rssi_cb       = NULL;
   _cb_queue    = NULL;
   _cb_task     = NULL;
-  _client_uart_count = 0;
+  _client_svc_count = 0;
   memset(_chars, 0, sizeof(_chars));
-  memset(_client_uarts, 0, sizeof(_client_uarts));
+  memset(_client_svcs, 0, sizeof(_client_svcs));
   memset(_tx_sem, 0, sizeof(_tx_sem));
 }
 
@@ -540,13 +540,13 @@ void AdafruitBluefruit::configPrphBandwidth(ble_bandwidth_t bw)
   }
 }
 
-bool AdafruitBluefruit::_registerClientUart(BLEClientUart *uart)
+bool AdafruitBluefruit::_registerClientService(BLEClientService *svc)
 {
-  if (_client_uart_count >= BLE_MAX_CONNECTION) return false;
-  for (uint8_t i = 0; i < _client_uart_count; i++) {
-    if (_client_uarts[i] == uart) return true;
+  if (_client_svc_count >= BLE_MAX_CLIENT_SERVICE) return false;
+  for (uint8_t i = 0; i < _client_svc_count; i++) {
+    if (_client_svcs[i] == svc) return true;
   }
-  _client_uarts[_client_uart_count++] = uart;
+  _client_svcs[_client_svc_count++] = svc;
   return true;
 }
 
@@ -719,8 +719,8 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
     if (_chars[i]) _chars[i]->_eventHandler(evt);
   }
 
-  /* 클라이언트 쪽 알림(HVX) 전달 */
-  for (uint8_t i = 0; i < _client_uart_count; i++) {
-    if (_client_uarts[i]) _client_uarts[i]->_eventHandler(evt);
+  /* 클라이언트 쪽 알림(HVX) 과 연결 해제 전달 */
+  for (uint8_t i = 0; i < _client_svc_count; i++) {
+    if (_client_svcs[i]) _client_svcs[i]->_eventHandler(evt);
   }
 }

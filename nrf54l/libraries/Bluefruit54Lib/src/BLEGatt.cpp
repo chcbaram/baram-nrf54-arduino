@@ -181,6 +181,22 @@ uint16_t BLEGatt::discoverCccd(uint16_t conn_hdl, uint16_t value_hdl, uint16_t e
   return hdl;
 }
 
+uint16_t BLEGatt::readChar(uint16_t conn_hdl, uint16_t value_hdl, void *buffer, uint16_t bufsize)
+{
+  if (buffer == NULL || bufsize == 0)  return 0;
+  if (!beginProc(PROC_READ, conn_hdl)) return 0;
+
+  _buf     = (uint8_t *) buffer;
+  _bufsize = bufsize;
+
+  uint16_t len = 0;
+  if (sd_ble_gattc_read(conn_hdl, value_hdl, 0) == NRF_SUCCESS) {
+    if (waitProc()) len = _len;
+  }
+  endProc();
+  return len;
+}
+
 bool BLEGatt::writeChar(uint16_t conn_hdl, uint16_t value_hdl,
                         const void *data, uint16_t len, bool resp)
 {
@@ -299,6 +315,18 @@ void BLEGatt::_eventHandler(const ble_evt_t *evt)
             break;
           }
         }
+      }
+      xSemaphoreGive((SemaphoreHandle_t) _sem);
+      break;
+
+    case BLE_GATTC_EVT_READ_RSP:
+      if (_proc != PROC_READ) return;
+      if (g->gatt_status == BLE_GATT_STATUS_SUCCESS) {
+        uint16_t n = g->params.read_rsp.len;
+        if (n > _bufsize) n = _bufsize;      /* 넘치면 자른다 */
+        memcpy(_buf, g->params.read_rsp.data, n);
+        _len = n;
+        _ok  = true;
       }
       xSemaphoreGive((SemaphoreHandle_t) _sem);
       break;

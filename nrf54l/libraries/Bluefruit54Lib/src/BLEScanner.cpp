@@ -78,6 +78,11 @@ void BLEScanner::filterService(BLEService &svc)
   filterUuid(svc.uuid);
 }
 
+void BLEScanner::filterService(BLEClientService &svc)
+{
+  filterUuid(svc.uuid);
+}
+
 void BLEScanner::clearFilters(void)
 {
   _filter_rssi       = -128;
@@ -196,6 +201,11 @@ bool BLEScanner::checkReportForUuid(const ble_gap_evt_adv_report_t *report, BLEU
 }
 
 bool BLEScanner::checkReportForService(const ble_gap_evt_adv_report_t *report, BLEService &svc)
+{
+  return checkReportForUuid(report, svc.uuid);
+}
+
+bool BLEScanner::checkReportForService(const ble_gap_evt_adv_report_t *report, BLEClientService &svc)
 {
   return checkReportForUuid(report, svc.uuid);
 }

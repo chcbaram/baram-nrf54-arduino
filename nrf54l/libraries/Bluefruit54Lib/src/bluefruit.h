@@ -25,6 +25,11 @@
 #include "BLEScanner.h"
 
 #define BLE_MAX_CHARS       32
+
+/** 클라이언트로 등록할 수 있는 상대 서비스 수. 고정 배열이다. */
+#ifndef BLE_MAX_CLIENT_SERVICE
+#define BLE_MAX_CLIENT_SERVICE  (8)
+#endif
 #define BLE_ADV_BUF_MAX     BLE_GAP_ADV_SET_DATA_SIZE_MAX
 
 /*
@@ -84,7 +89,7 @@ typedef void (*ble_rssi_callback_t)      (uint16_t conn_hdl, int8_t rssi);
 
 #include "BLECentral.h"
 
-class BLEClientUart;   /* 아래 include 에서 정의된다 (순환 의존) */
+class BLEClientService;   /* 아래 include 에서 정의된다 (순환 의존) */
 
 /* ── advertising 페이로드 빌더 ─────────────────────────────────────── */
 class BLEAdvertisingData
@@ -246,6 +251,12 @@ class BLEGatt
     /** value 핸들 뒤에서 CCCD(0x2902) 를 찾는다. 없으면 0. */
     uint16_t discoverCccd(uint16_t conn_hdl, uint16_t value_hdl, uint16_t end_hdl);
 
+    /**
+     * 핸들을 알고 있는 상대 characteristic 을 읽는다.
+     * @return 읽은 바이트 수. 실패하면 0.
+     */
+    uint16_t readChar(uint16_t conn_hdl, uint16_t value_hdl, void *buffer, uint16_t bufsize);
+
     /** 상대 characteristic 에 쓴다. resp=true 면 응답을 기다린다. */
     bool writeChar(uint16_t conn_hdl, uint16_t value_hdl,
                    const void *data, uint16_t len, bool resp);
@@ -275,6 +286,7 @@ class BLEGatt
       PROC_DESC,
       PROC_WRITE,
       PROC_MTU,
+      PROC_READ,
     };
 
     void    *_sem;          /* SemaphoreHandle_t */
@@ -429,7 +441,7 @@ class AdafruitBluefruit
     void _eventHandler(const ble_evt_t *evt);
 
     /** 클라이언트 서비스가 GATTC 이벤트를 받으려면 등록해야 한다. */
-    bool _registerClientUart(BLEClientUart *uart);
+    bool _registerClientService(BLEClientService *svc);
 
     /**
      * 스케치 콜백을 실행할 태스크에 넘긴다.
@@ -466,8 +478,8 @@ class AdafruitBluefruit
     BLEService *_cur_service;
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;
-    BLEClientUart *_client_uarts[BLE_MAX_CONNECTION];
-    uint8_t     _client_uart_count;
+    BLEClientService *_client_svcs[BLE_MAX_CLIENT_SERVICE];
+    uint8_t     _client_svc_count;
     bool        _begun;
     /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않으려고 void* 로 둔다. */
     void       *_tx_sem[BLE_MAX_CONNECTION];
@@ -492,7 +504,11 @@ extern AdafruitBluefruit Bluefruit;
  * 순서 주의: 이 헤더들은 위의 클래스 선언에 의존하므로 파일 끝에 와야 한다.
  */
 #include "BLEUart.h"
+#include "BLEClientService.h"
+#include "BLEClientCharacteristic.h"
 #include "BLEClientUart.h"
+#include "BLEClientBas.h"
+#include "BLEClientDis.h"
 #include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"
