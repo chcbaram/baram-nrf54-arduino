@@ -26,9 +26,19 @@
  *   (L15 용은 0x0015A800). 크기는 137 KB 로 동일하지만 서로 호환되지 않는다.
  *
  *   RAM 전체 배치 (96 KB):
- *     0x20000000  SoftDevice    0x04780
- *     0x20004780  application   0x13880             <- 이 스크립트
+ *     0x20000000  SoftDevice    0x04B80
+ *     0x20004B80  application   0x13480             <- 이 스크립트
  *     0x20018000  (RAM 끝)
+ *
+ *   SoftDevice 예약은 **링크 2개 + notify 큐 3** 에 맞춘 값이다.
+ *   실측 (nRF54L05 실기, MTU 247):
+ *     링크 1 · 큐 1   0x20003750
+ *     링크 2 · 큐 1   0x200046D8
+ *     링크 2 · 큐 2   0x200048D0
+ *     링크 2 · 큐 3   0x20004AC8   <- 이 값이 기준, 0x4B80 안에 184 B 남는다
+ *     링크 3 · 큐 1   0x20005668   (안 들어간다)
+ *   L15 와 숫자가 같다 — SoftDevice RAM 요구량은 SoC 와 무관하다.
+ *   링크 수와 큐 깊이의 교환 관계는 docs/MEMORY-MAP.md 참조.
  *
  *   위 DTS 의 app_ram 은 DT_SIZE_K(78) = 0x13800 으로 적혀 있어 상단 128 바이트가
  *   남는다. 이는 디바이스 트리가 크기를 K 단위로만 표기하기 때문에 생긴 표기상의
@@ -38,7 +48,7 @@
 MEMORY
 {
   FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x58800
-  RAM   (rwx) : ORIGIN = 0x20004780, LENGTH = 0x13880
+  RAM   (rwx) : ORIGIN = 0x20004B80, LENGTH = 0x13480
 }
 
 /*

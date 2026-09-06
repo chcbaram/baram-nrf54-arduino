@@ -182,29 +182,48 @@ build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_HVN_TX_QUEUE_SI
 
 | 시작 | 크기 | 영역 |
 |---|---|---|
-| `0x20000000` | `0x4780` | **SoftDevice** |
-| `0x20004780` | `0x13880` | **application** |
+| `0x20000000` | `0x4B80` | **SoftDevice** |
+| `0x20004B80` | `0x13480` (78,976 B) | **application** |
 | `0x20018000` | — | RAM 끝 |
+
+**실측 (NU54-DK 실기, nRF54L05, MTU 247):**
+
+| 링크 · 큐 | 필요한 앱 RAM 시작 | `0x20004B80` 안에 |
+|---|---|---|
+| 1 · 1 | `0x20003750` | ✅ |
+| 2 · 1 | `0x200046D8` | ✅ |
+| 2 · 2 | `0x200048D0` | ✅ |
+| **2 · 3** | **`0x20004AC8`** | ✅ 여유 184 B |
+| 3 · 1 | `0x20005668` | ❌ |
+
+**L15 와 숫자가 완전히 같다 — SoftDevice RAM 요구량은 SoC 와 무관하다.**
+L05 용 S145 는 재배치된 별도 빌드지만 RAM 요구량은 설정만 따른다.
+그래서 한쪽에서 잰 값을 다른 쪽에 그대로 쓸 수 있다.
+
+96 KB 로는 **링크 2개가 한계다.** 3개는 `0x5668` 이 필요하고, 그러면 앱 RAM 이
+75 KB 밑으로 떨어져 得보다 失이 크다. 링크 2 · 큐 3 은 L15(링크 4 · 큐 3)와
+같은 성격의 선택이고, 앱 RAM 은 80,000 → 78,976 B 로 1,024 B 만 준다.
 
 > DTS 의 `app_ram` 은 `DT_SIZE_K(78)` = `0x13800` 이라 상단 128 바이트가 남는다.
 > 디바이스 트리가 크기를 K 단위로만 적기 때문에 생긴 내림이지 예약 영역이 아니다.
-> 링커 스크립트는 `0x13880` 으로 RAM 끝까지 쓴다.
+> 링커 스크립트는 RAM 끝(`0x20018000`)까지 전부 쓴다.
 
-> **✅ 2026-09-06 실기 확인.** `__StackTop = 0x20018000`.
-> Flash 36420 B (10% of 362496) / RAM 3856 B (4% of 80000).
+> **✅ 2026-09-06 실기 확인** (SD 예약이 `0x4780` / 앱 80,000 B 이던 시절).
+> `__StackTop = 0x20018000`. Flash 36420 B (10% of 362496) / RAM 3856 B (4%).
 > millis/micros 델타 정확. 검증 기록: [HIL/M1-tickless.md](HIL/M1-tickless.md)
 
 ### 링커 스크립트 값
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x58800
-RAM   (rwx) : ORIGIN = 0x20004780, LENGTH = 0x13880
+RAM   (rwx) : ORIGIN = 0x20004B80, LENGTH = 0x13480
 ```
 
 `boards.txt`:
 ```
 upload.maximum_size      = 362496   # 0x58800
-upload.maximum_data_size =  80000   # 0x13880
+upload.maximum_data_size =  78976   # 0x13480
+build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=2 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 ```
 
 ### SoftDevice hex 는 SoC 별 재배치 빌드다
