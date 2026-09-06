@@ -25,6 +25,10 @@ typedef enum {
   SECMODE_ENC_NO_MITM= 0x21,
 } BleSecurityMode;
 
+/* notify 재시도 횟수와 한 번의 대기 한도. */
+#define BLE_HVX_MAX_RETRY       (8)
+#define BLE_HVX_TX_TIMEOUT_MS   (200)
+
 class BLECharacteristic;
 typedef void (*write_cb_t) (uint16_t conn_hdl, BLECharacteristic *chr, uint8_t *data, uint16_t len);
 

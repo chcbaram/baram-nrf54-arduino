@@ -6,6 +6,9 @@
 #include "sd_event_pump.h"
 #include <string.h>
 
+#include "FreeRTOS.h"
+#include "semphr.h"
+
 AdafruitBluefruit Bluefruit;
 
 /* ── advertising 페이로드 ──────────────────────────────────────────── */
@@ -137,6 +140,7 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   _cur_service = NULL;
   _char_count  = 0;
   _begun       = false;
+  _tx_sem      = NULL;
   memset(_chars, 0, sizeof(_chars));
 }
 
@@ -170,6 +174,11 @@ bool AdafruitBluefruit::begin(uint8_t prph_count, uint8_t central_count)
 
   if (!sdBleObserverAdd(bluefruit_evt_observer, NULL)) return false;
 
+  if (_tx_sem == NULL) {
+    _tx_sem = (void *) xSemaphoreCreateBinary();
+    if (_tx_sem == NULL) return false;
+  }
+
   ble_gap_conn_sec_mode_t sec;
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec);
   if (sd_ble_gap_device_name_set(&sec, (const uint8_t *) _name, strlen(_name)) != NRF_SUCCESS) {
@@ -196,6 +205,12 @@ bool AdafruitBluefruit::setTxPower(int8_t power)
 bool AdafruitBluefruit::disconnect(uint16_t conn_hdl)
 {
   return sd_ble_gap_disconnect(conn_hdl, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION) == NRF_SUCCESS;
+}
+
+bool AdafruitBluefruit::_waitTxComplete(uint32_t ms)
+{
+  if (_tx_sem == NULL) return false;
+  return xSemaphoreTake((SemaphoreHandle_t) _tx_sem, pdMS_TO_TICKS(ms)) == pdTRUE;
 }
 
 bool AdafruitBluefruit::_registerChar(BLECharacteristic *chr)
@@ -255,6 +270,11 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
     case BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST:
       sd_ble_gatts_exchange_mtu_reply(evt->evt.gatts_evt.conn_handle,
                                       BLE_GATT_ATT_MTU_DEFAULT);
+      break;
+
+    /* notify 한 건이 무선으로 나갔다. 기다리던 쪽을 깨운다. */
+    case BLE_GATTS_EVT_HVN_TX_COMPLETE:
+      if (_tx_sem) xSemaphoreGive((SemaphoreHandle_t) _tx_sem);
       break;
 
     case BLE_GATTS_EVT_SYS_ATTR_MISSING:

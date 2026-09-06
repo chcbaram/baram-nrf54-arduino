@@ -121,14 +121,17 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | 단계 | 내용 | 검증 |
 |---|---|---|
 | ~~**B1**~~ ✅ | `BLEUuid` / `BLEService` / `BLECharacteristic` + 최소 `Bluefruit` 싱글턴 | **완료.** 탐색·읽기·알림·쓰기 전부 실증 |
-| **B2** | `BLEUart` (NUS) | 양방향 송수신 |
-| **B3** | `BLEConnection`, `BLEPeriph` 콜백, `BLEAdvertising` 전체, `BLEDis` / `BLEBas` | 예제 다수가 컴파일되기 시작 |
+| ~~**B2**~~ ✅ | `BLEUart` (NUS) | **완료.** 18바이트 에코 왕복 일치 |
+| **B3** | **MTU 협상**(`sd_ble_cfg_set`), `BLEConnection`, `BLEAdvertising` 전체, `BLEDis` / `BLEBas` | 예제 다수가 컴파일되기 시작 |
 | **B4** | `BLESecurity` / 본딩, `BLEDfu` 스텁, 파일시스템 호환 헤더 | **`bleuart.ino` 무수정 = DoD** |
 
-지금 위치: **B1 완료, B2 착수 전.** `nrf54l/libraries/Bluefruit52Lib/` 에
+지금 위치: **B2 완료, B3 착수 전.** `nrf54l/libraries/Bluefruit52Lib/` 에
 `BLEUuid`/`BLEService`/`BLECharacteristic`/`bluefruit` 가 올라가 있고,
 커스텀 GATT 서비스로 읽기·알림·쓰기가 실기에서 확인됐다.
-시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/`.
+시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT), `~/Documents/Arduino/nrf54_bleuart/` (NUS).
+
+⚠ **B3 의 첫 항목은 MTU 협상이다.** 지금은 기본 MTU(23)라 호스트가 20바이트를
+넘겨 쓰면 long write 가 필요해지고, 그 경로가 없어서 **연결이 끊긴다.**
 
 ⚠ B1 에서 잡은 것: **`DATA_LENGTH_UPDATE_REQUEST` 에 답하지 않으면 연결은
 유지되는데 ATT 가 전혀 흐르지 않는다.** 자세한 건 `docs/HIL/M3-softdevice.md` §3.5.

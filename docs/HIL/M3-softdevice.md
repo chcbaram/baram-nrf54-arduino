@@ -173,6 +173,46 @@ g_sd_stage = 10 ->  sd_ble_enable() 까지 갔다. 0x08 은 여기서 나온 것
 
 ---
 
+## 3.6 B2 — BLEUart (NUS) (2026-09-06)
+
+`BLEUart` 를 `BLEService` + `Stream` 상속으로 올렸다. `Serial` 처럼 쓴다.
+
+| 항목 | 결과 |
+|---|---|
+| 서비스 탐색 (NUS UUID) | ✅ |
+| 장치 → 호스트 (notify) | ✅ `uptime N` 주기 송신 |
+| 호스트 → 장치 (write) | ✅ 바이트 전부 도달 |
+| 에코 왕복 (18바이트) | ✅ 완전 일치 |
+| **MTU(20바이트) 초과 쓰기** | ❌ 연결이 끊긴다 — 아래 참조 |
+
+### 잡은 것 — notify 를 연속으로 보내면 조용히 사라진다 ⭐
+
+10바이트를 에코했는데 **3바이트만** 호스트에 도착했다. 장치 쪽 로그에는
+10바이트가 전부 찍혀 있었으므로 수신은 정상이었고, 송신에서 사라진 것이다.
+
+원인: `sd_ble_gatts_hvx()` 의 **notify 큐가 얕다 (기본 1건).** 연속 호출하면
+곧 `NRF_ERROR_RESOURCES` 가 나는데, 그때 그냥 실패로 처리하고 버리고 있었다.
+
+→ `BLE_GATTS_EVT_HVN_TX_COMPLETE` 를 세마포어로 기다렸다가 재시도한다
+(`BLE_HVX_MAX_RETRY` 8회 / 회당 200 ms). 수정 후 18바이트 왕복이 완전히 일치했다.
+
+> **`sd_ble_gatts_hvx()` 의 반환값을 "성공/실패" 로만 보면 안 된다.**
+> `NRF_ERROR_RESOURCES` 는 "지금은 자리가 없다" 이지 오류가 아니다.
+> 이걸 오류로 다루면 데이터가 소리 없이 없어진다.
+
+### 아직 안 되는 것 — MTU 초과 쓰기
+
+호스트가 20바이트(= 기본 ATT MTU 23 − 헤더 3)를 넘겨 쓰면 **연결이 끊긴다.**
+ATT long write(prepare/execute) 경로를 다루지 않기 때문이다.
+
+정공법은 **MTU 협상**이다. 지금은 `BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST` 에
+기본값 23 으로 답하고 있다. `sd_ble_enable()` **전에**
+`sd_ble_cfg_set(BLE_CONN_CFG_GATT, ...)` 로 `att_mtu` 를 키우면 한 패킷에
+훨씬 많이 실을 수 있어 long write 자체가 필요 없어진다.
+Adafruit 의 `Bluefruit.configPrphBandwidth()` 가 하는 일이 이것이다. → B3.
+
+---
+
 ## 4. 남은 것
 
 - **GATT 서비스가 없다.** 연결은 되지만 서비스 탐색이 빈 손이라 호스트가 곧 끊는다.

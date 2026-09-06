@@ -117,6 +117,17 @@ class AdafruitBluefruit
     /* 이벤트 진입점 (sd_event_pump 가 부른다) */
     void _eventHandler(const ble_evt_t *evt);
 
+    /**
+     * notify 송신 버퍼가 빌 때까지 기다린다.
+     *
+     * SoftDevice 의 notify 큐는 얕다 (기본 1). 연속으로 보내면 금방
+     * NRF_ERROR_RESOURCES 가 나고, 그때 그냥 포기하면 **데이터가 조용히
+     * 사라진다.** BLE_GATTS_EVT_HVN_TX_COMPLETE 를 기다렸다 재시도해야 한다.
+     *
+     * @return 자리가 생겼으면 true, 시간이 다 됐으면 false.
+     */
+    bool _waitTxComplete(uint32_t ms);
+
   protected:
     char        _name[32];
     uint16_t    _conn_hdl;
@@ -124,6 +135,7 @@ class AdafruitBluefruit
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;
     bool        _begun;
+    void       *_tx_sem;      /* SemaphoreHandle_t. 헤더에 FreeRTOS 를 끌어들이지 않는다 */
 };
 
 extern AdafruitBluefruit Bluefruit;

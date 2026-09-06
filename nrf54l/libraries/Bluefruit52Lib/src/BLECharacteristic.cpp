@@ -139,16 +139,29 @@ bool BLECharacteristic::notify(const void *data, uint16_t len)
     return false;
   }
 
-  uint16_t n = len;
-  ble_gatts_hvx_params_t hvx;
-  memset(&hvx, 0, sizeof(hvx));
-  hvx.handle = _handles.value_handle;
-  hvx.type   = BLE_GATT_HVX_NOTIFICATION;
-  hvx.offset = 0;
-  hvx.p_len  = &n;
-  hvx.p_data = (uint8_t *) data;
+  /*
+   * ⚠ SoftDevice 의 notify 큐는 얕다 (기본 1건). 연속으로 보내면 금방
+   *   NRF_ERROR_RESOURCES 가 난다. 그때 포기하면 **데이터가 조용히 사라진다** —
+   *   실제로 10바이트를 에코했는데 3바이트만 나가는 증상을 겪었다.
+   *   HVN_TX_COMPLETE 를 기다렸다가 재시도한다.
+   */
+  for (uint8_t retry = 0; retry < BLE_HVX_MAX_RETRY; retry++) {
+    uint16_t n = len;
+    ble_gatts_hvx_params_t hvx;
+    memset(&hvx, 0, sizeof(hvx));
+    hvx.handle = _handles.value_handle;
+    hvx.type   = BLE_GATT_HVX_NOTIFICATION;
+    hvx.offset = 0;
+    hvx.p_len  = &n;
+    hvx.p_data = (uint8_t *) data;
 
-  return sd_ble_gatts_hvx(conn, &hvx) == NRF_SUCCESS;
+    uint32_t err = sd_ble_gatts_hvx(conn, &hvx);
+    if (err == NRF_SUCCESS) return true;
+    if (err != NRF_ERROR_RESOURCES) return false;
+
+    if (!Bluefruit._waitTxComplete(BLE_HVX_TX_TIMEOUT_MS)) return false;
+  }
+  return false;
 }
 
 bool BLECharacteristic::notify(const char *str)
