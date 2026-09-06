@@ -802,7 +802,8 @@ Bluefruit 내부 구현을 교체하면 되고 사용자 스케치는 그대로�
 ```
 baram-nrf54-arduino/                 # 저장소 루트
 ├── LICENSE                          # MIT (자체 코드)
-├── README.md                        # 라이선스 혼재 명시 필수
+├── README.md                        # 영문(기본). 라이선스 혼재 명시 필수
+├── README.ko.md                     # 한국어. README.md 와 내용을 맞춘다
 ├── CLAUDE.md                        # 이 문서
 ├── package_baram_nrf54_index.json   # platforms[0] = nrf54l
 ├── extras/make_release.sh           # 배포 스크립트 (아카이브에 미포함)
