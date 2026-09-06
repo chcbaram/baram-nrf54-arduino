@@ -6,7 +6,7 @@
 | | NU54-DK | NU54V-DK |
 |---|---|---|
 | 칩 | **nRF54L05** | nRF54L15 |
-| FQBN | `baram-nrf54-arduino:nrf54l:nu54dk` | `...:nu54vdk` |
+| FQBN | `baram-nrf54:nrf54l:nu54dk` | `...:nu54vdk` |
 | RRAM | 500 KB | 1.5 MB |
 | RAM | 96 KB | 256 KB |
 | 링커 | `nrf54l05_s145_v10.ld` | `nrf54l15_s145_v10.ld` |

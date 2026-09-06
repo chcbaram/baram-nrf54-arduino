@@ -902,7 +902,7 @@ baram-nrf54-arduino/                 # 저장소 루트
       틱 vs SYSCOUNTER 편차 **0 ppm**. 함정 2건(§7 F9 / F9b)은 `docs/HIL/M1-tickless.md` 에 기록
 - [x] **nRF54L05 보드 추가** — 실장 칩이 L05 였다. `nu54dk`(L05) / `nu54vdk`(L15) 두 보드,
       링커 스크립트·SoftDevice hex 분리, variant 공유. `docs/MEMORY-MAP.md`
-- [x] **arduino-cli 로 컴파일·업로드** — FQBN `baram-nrf54-arduino:nrf54l:nu54dk`.
+- [x] **arduino-cli 로 컴파일·업로드** — FQBN `baram-nrf54:nrf54l:nu54dk`.
       실기 확인 완료. 이 과정에서 §7 F13 의 함정 네 개를 잡았다
 - [x] 장시간 연속 실행 무크래시 — tickless on 으로 5분 소크, 151샘플 이상 0건,
       틱 vs SYSCOUNTER 0 ppm, 호스트 대비 +38 ppm (tickless off 10분 소크는 이미 통과)

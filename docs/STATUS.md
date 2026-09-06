@@ -24,8 +24,8 @@
 | 보드 2종 (L05 / L15) | ✅ 둘 다 빌드 확인 |
 
 ```
-FQBN  baram-nrf54-arduino:nrf54l:nu54dk    NU54-DK   (nRF54L05, 500KB/96KB)
-      baram-nrf54-arduino:nrf54l:nu54vdk   NU54V-DK  (nRF54L15, 1.5MB/256KB)
+FQBN  baram-nrf54:nrf54l:nu54dk    NU54-DK   (nRF54L05, 500KB/96KB)
+      baram-nrf54:nrf54l:nu54vdk   NU54V-DK  (nRF54L15, 1.5MB/256KB)
 ```
 
 빌드 크기(blink + Serial + 2태스크): Flash 38004 B, RAM 3856 B.
@@ -57,12 +57,35 @@ tickless 를 켠 목적이 전력인데 아직 재지 못했다. **SWD 프로브
 `waitForEvent()`, `systemOff(pin, wake_logic)`, `readResetReason()`.
 `readResetReason()` 은 `NRF_RESET` 이다 (`NRF_POWER->RESETREAS` 아님, `NRF_RESETINFO` 도 아님).
 
-### (c) 릴리스 파이프라인 — 아직 손도 안 댐
+### (c) 릴리스 파이프라인 — 스크립트는 준비됐다. 남은 건 업로드뿐
 
-- `package_baram_nrf54_index.json`
-- `extras/make_release.sh` (baram-stm32 의 것을 이식. `PLATFORM_DIR=nrf54l`,
-  `architecture=nrf54l`, `toolsDependencies` 에 자체 xpack GCC)
-- 보드가 2종이 됐으므로 index 의 `boards` 목록에 둘 다 넣어야 한다
+`package_baram_nrf54_index.json` + `extras/` 두 스크립트가 있고 `--dry-run` 으로
+검증했다. **저장소의 인덱스에는 아직 업로드 안 한 것을 넣지 않는다** —
+`platforms[]` 와 probe-rs `systems[]` 가 비어 있는 게 정상이고, 업로드하는 그
+실행이 채운다 (아카이브 바이트가 매번 달라 체크섬과 파일이 같은 실행에서 나와야 한다).
+
+```sh
+extras/make_tools.sh              # probe-rs 재포장 + 업로드 (버전 바뀔 때만)
+extras/make_release.sh 0.1.0      # 플랫폼 아카이브 + 업로드
+git add package_baram_nrf54_index.json nrf54l/platform.txt && git commit && git push
+```
+
+| 항목 | 값 |
+|---|---|
+| packager (FQBN 앞부분) | **`baram-nrf54`** |
+| Board Manager URL | `https://raw.githubusercontent.com/chcbaram/baram-nrf54-arduino/main/package_baram_nrf54_index.json` |
+| 플랫폼 아카이브 | 1.7 MB (`tools/` 제외) |
+| 툴 — GCC | xPack `14.2.1-1.1`. **업스트림 URL 을 그대로 가리킨다** (재호스팅 안 함) |
+| 툴 — probe-rs | `0.32.0`. 업스트림 레이아웃이 `platform.txt` 의 `{...}/bin` 과 안 맞아 **재포장**해서 이 저장소 릴리스에 올린다 |
+
+주의할 것 두 가지:
+
+- **`boards` 목록은 `boards.txt` 에서 자동으로 읽는다.** 보드를 추가해도 스크립트를
+  고칠 필요가 없다
+- **Linux probe-rs 는 스트립이 필요하다.** 업스트림이 비스트립본(136 MB, 그중 94 MB 가
+  DWARF)을 배포한다. `make_tools.sh` 는 ELF 를 다룰 수 있는 strip 이 있을 때만
+  스트립하고 없으면 경고한다 → **macOS 에서 돌리지 말고 Linux 나 `brew install llvm`
+  환경에서 돌려라.** 스트립하면 136 MB → 42 MB 다
 
 ### (d) M2 — Arduino API
 
@@ -111,15 +134,27 @@ M1 에서 UARTE/GRTC 로 태운 함정이 그대로 반복된다.
 
 **클론만으로는 안 된다. 두 가지가 더 필요하다.**
 
-### 1) 위치 — sketchbook 의 `hardware/` 밑
+### 1) 위치 — sketchbook 의 `hardware/` 밑에 **심링크**
 
-```
-~/Documents/Arduino/hardware/baram-nrf54-arduino/     ← 여기여야 한다
+저장소를 옮기지 마라. 심링크만 걸면 git 작업은 원래 위치에서 그대로 한다.
+
+```sh
+mkdir -p ~/Documents/Arduino/hardware
+ln -sfn <저장소 경로> ~/Documents/Arduino/hardware/baram-nrf54
 ```
 (sketchbook 경로는 `arduino-cli config get directories.user` 로 확인)
 
-이래야 FQBN 이 `baram-nrf54-arduino:nrf54l:nu54dk` 로 잡힌다.
+⚠ **링크 이름은 반드시 `baram-nrf54` 여야 한다.** 이 방식에서는 FQBN 의 packager 가
+디렉토리 이름으로 정해지는데, Board Manager 로 설치하면 인덱스의
+`packages[0].name` 으로 정해진다. 둘을 맞춰 놓지 않으면 개발 중 쓰던 FQBN 이
+릴리스 설치본에서 안 먹는다.
+
 `arduino-cli board listall | grep NU54` 로 확인.
+
+**개발은 이 방식으로만 한다.** Board Manager 설치 경로는 고칠 때마다 아카이브 →
+업로드 → 인덱스 갱신 → 재설치를 돌아야 해서 개발 루프로 못 쓴다.
+그쪽은 M5 DoD("깨끗한 환경에서 Board Manager URL 로 설치 → blink 업로드")를
+검증할 때만 쓴다.
 
 ### 2) `nrf54l/platform.local.txt` — **gitignore 되므로 직접 만들어야 한다**
 
@@ -140,10 +175,18 @@ cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
 
 | | |
 |---|---|
-| Arm GNU Toolchain | **14.2.rel1** (arm-none-eabi) |
-| arduino-cli | 1.2.2 에서 검증 |
-| probe-rs | **저장소에 동봉** (`nrf54l/tools/probe-rs/macosx/bin`). 현재 **macOS 바이너리만** 있다 — Linux/Windows 는 [releases 0.32.0](https://github.com/probe-rs/probe-rs/releases) 에서 받아 `nrf54l/tools/probe-rs/<os>/bin/` 에 넣어라 |
-| 하드웨어 | NU54-DK + CMSIS-DAP 프로브(NU-DAP) + USB(CP2102N) |
+| Arm GNU Toolchain | **xPack 14.2.1-1.1**. 릴리스가 이 버전에 고정돼 있다 (`platform.txt` 의 `runtime.tools.xpack-arm-none-eabi-gcc-14.2.1-1.1`). 다른 버전으로도 빌드는 되지만 **크기·측정값이 달라져 기존 HIL 기록과 비교할 수 없다** |
+| arduino-cli | 1.0.3 / 1.2.2 에서 확인 |
+| probe-rs | `0.32.0`. 개발용으로는 저장소 동봉본(`nrf54l/tools/probe-rs/macosx/bin`, **macOS 만**)을 쓰고, 릴리스 설치본은 Board Manager 가 툴로 내려받는다 |
+| 하드웨어 | 보드 + CMSIS-DAP 프로브 (XIAO 는 온보드라 불필요) |
+
+xPack GCC 는 이렇게 받는다 (Board Manager 가 쓰는 것과 같은 아카이브다):
+
+```sh
+curl -L -o /tmp/gcc.tar.gz \
+  https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-darwin-arm64.tar.gz
+mkdir -p ~/opt && tar xzf /tmp/gcc.tar.gz -C ~/opt
+```
 
 ### 4) 저장소에 없는 것
 
@@ -156,8 +199,8 @@ cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
 
 ```sh
 arduino-cli board listall | grep NU54          # 보드 2종이 보이는지
-arduino-cli compile --fqbn baram-nrf54-arduino:nrf54l:nu54dk  <스케치>
-arduino-cli upload  --fqbn baram-nrf54-arduino:nrf54l:nu54dk  <스케치>
+arduino-cli compile --fqbn baram-nrf54:nrf54l:nu54dk  <스케치>
+arduino-cli upload  --fqbn baram-nrf54:nrf54l:nu54dk  <스케치>
 ```
 시리얼 `/dev/cu.usbserial-*` (CP2102N) 115200 에서
 `millis=... micros=... btn1=1` 이 2초 간격으로 나오고,

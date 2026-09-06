@@ -27,3 +27,4 @@ baram-nrf54l-*.tar.bz2
 # 로컬 개발용 오버라이드 (툴체인 경로 등)
 nrf54l/platform.local.txt
 nrf54l/boards.local.txt
+dist/

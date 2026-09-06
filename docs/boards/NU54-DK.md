@@ -10,7 +10,7 @@ MCU 모듈: **NCRB54N01VC** (62핀).
 | | NU54-DK | NU54V-DK |
 |---|---|---|
 | 칩 | nRF54L05 (500KB RRAM / 96KB RAM) | nRF54L15 (1.5MB RRAM / 256KB RAM) |
-| FQBN | `baram-nrf54-arduino:nrf54l:nu54dk` | `baram-nrf54-arduino:nrf54l:nu54vdk` |
+| FQBN | `baram-nrf54:nrf54l:nu54dk` | `baram-nrf54:nrf54l:nu54vdk` |
 
 > **핵심**: LED / 버튼 / UART 핀이 **Nordic nRF54L15 DK와 완전히 동일**하다.
 > sdk-nrf-bm `boards/nordic/bm_nrf54l15dk/include/board-config.h`와 1:1로 일치하므로
