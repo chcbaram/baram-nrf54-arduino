@@ -25,6 +25,10 @@ rtos.path={build.core.path}/freertos
 sd.path={nordic.path}/softdevice/{build.sd_name}_{build.sd_version}_API/include
 sd.hex={runtime.platform.path}/softdevice/{build.sd_name}_{build.sd_soc}_{build.sd_version}_softdevice.hex
 
+# BOARD_NAME 은 boards.txt 의 <board>.name 이 그대로 넘어간다.
+# 스케치가 보드를 구분하려고 #if defined(ARDUINO_XXX) 를 늘어놓지 않아도 된다.
+# 보드를 추가해도 아무것도 고칠 필요가 없다.
+#
 # ─────────────────────────────────────────────────────────────────────
 # 컴파일러
 # ─────────────────────────────────────────────────────────────────────
@@ -109,8 +113,8 @@ compiler.ldflags.extra_flags=
 # ─────────────────────────────────────────────────────────────────────
 # 레시피
 # ─────────────────────────────────────────────────────────────────────
-recipe.c.o.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} '-DARDUINO_BSP_VERSION="{version}"' {compiler.c.extra_flags} {includes} "{source_file}" -o "{object_file}"
-recipe.cpp.o.pattern="{compiler.path}{compiler.cpp.cmd}" {compiler.cpp.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} '-DARDUINO_BSP_VERSION="{version}"' {compiler.cpp.extra_flags} {includes} "{source_file}" -o "{object_file}"
+recipe.c.o.pattern="{compiler.path}{compiler.c.cmd}" {compiler.c.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} '-DARDUINO_BSP_VERSION="{version}"' '-DBOARD_NAME="{name}"' {compiler.c.extra_flags} {includes} "{source_file}" -o "{object_file}"
+recipe.cpp.o.pattern="{compiler.path}{compiler.cpp.cmd}" {compiler.cpp.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} '-DARDUINO_BSP_VERSION="{version}"' '-DBOARD_NAME="{name}"' {compiler.cpp.extra_flags} {includes} "{source_file}" -o "{object_file}"
 recipe.S.o.pattern="{compiler.path}{compiler.S.cmd}" {compiler.S.flags} {build.flags.nrf} -DF_CPU={build.f_cpu} -DARDUINO={runtime.ide.version} -DARDUINO_{build.board} -DARDUINO_ARCH_{build.arch} {compiler.S.extra_flags} {includes} "{source_file}" -o "{object_file}"
 
 recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} {compiler.ar.extra_flags} "{archive_file_path}" "{object_file}"

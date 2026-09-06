@@ -273,14 +273,28 @@ curl -L -o /tmp/gcc.tar.gz \
 mkdir -p ~/opt && tar xzf /tmp/gcc.tar.gz -C ~/opt
 ```
 
-### 4) 저장소에 없는 것
+### 4) 예제 — 이제 저장소 안에 있다
+
+`nrf54l/libraries/Bluefruit54Lib/examples/` 에 넣었다. IDE 의
+**파일 → 예제 → Bluefruit54Lib** 에서 열린다. 전부 3보드 컴파일 확인됐다.
+
+| 예제 | 내용 |
+|---|---|
+| `Peripheral/bleuart` | **Adafruit 원본 이식.** include 2줄만 지웠다 (원본 고지 유지) |
+| `Peripheral/custom_service` | 128비트 커스텀 GATT 서비스 (읽기/알림/쓰기) |
+| `Hardware/rtos_scheduler` | `Scheduler.startLoop()` 두 번째 태스크 + millis/micros |
+| `Hardware/board_test` | 새 보드 붙였을 때 첫 확인 (LED 극성 / 버튼 / Serial) |
+
+**예제 주석은 영어로 쓴다.** 사용자 대상이라 README 와 같은 기준이다.
+
+### 5) 저장소에 없는 것
 
 시험 스케치는 저장소 밖에 있다. 새 PC에서는 직접 만들어야 한다:
 `~/Documents/Arduino/nu54dk_blink/nu54dk_blink.ino`
 (LED1 1초 점멸 + `Scheduler.startLoop` 로 LED2 500ms 점멸
  + `millis` / `micros` / 버튼 상태를 1초마다 `Serial` 출력)
 
-### 5) 동작 확인 순서
+### 6) 동작 확인 순서
 
 ```sh
 arduino-cli board listall | grep NU54          # 보드 2종이 보이는지

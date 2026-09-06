@@ -242,6 +242,16 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 회로도가 같고 실장 모듈만 다른 보드는 **문서 하나를 공유한다** (NU54-DK / NU54V-DK).
 variant 를 만들거나 고칠 때 반드시 해당 보드 문서를 먼저 읽어라.
 
+**스케치에서 보드를 구분할 때 `#if defined(ARDUINO_XXX)` 를 늘어놓지 마라.**
+`platform.txt` 가 `boards.txt` 의 표시명을 `BOARD_NAME` 으로 넘긴다.
+
+```c
+Serial.println(BOARD_NAME);   // "XIAO nRF54L15 / Sense (Seeed)"
+```
+
+보드를 추가해도 고칠 곳이 없다. `variant` 를 공유하는 보드(NU54-DK / NU54V-DK)도
+서로 다른 이름이 나온다 — variant.h 에 넣으면 안 되는 이유다.
+
 ### 4.2 nRF54LM20A 조사 결과 (M6 대비)
 
 **베어메탈 지원됨.** sdk-nrf-bm v2.0.1 에 S115/S145 v10.0.1 hex 가 있다 (같은 5-Clause).
