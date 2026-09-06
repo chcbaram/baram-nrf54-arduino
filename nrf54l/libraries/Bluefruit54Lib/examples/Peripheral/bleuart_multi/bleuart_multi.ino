@@ -8,10 +8,10 @@
 *********************************************************************/
 #include <bluefruit.h>
 
-/* How many links the board can hold. Set per board in boards.txt
- * (-DSD_BLE_PERIPH_LINK_COUNT) because the SoftDevice RAM reserved by
- * the linker script has to match. nRF54L15: 5, nRF54L05: 2. */
-#define MAX_PRPH_CONNECTION   BLE_MAX_CONNECTION
+/* How many peripheral links the board can hold. Set per board in boards.txt
+ * (-DSD_BLE_PERIPH_LINK_COUNT) because the SoftDevice RAM reserved by the
+ * linker script has to match. nRF54L15: 3, nRF54L05: 2. */
+#define MAX_PRPH_CONNECTION   BLE_MAX_PERIPH_CONNECTION
 
 BLEDis  bledis;
 BLEUart bleuart;
@@ -70,7 +70,7 @@ void startAdv(void)
  * MAX_PRPH_CONNECTION silently misses those links. */
 void sendToAll(uint16_t skip, const uint8_t *buf, int count)
 {
-  for (uint8_t i = 0; i < MAX_PRPH_CONNECTION; i++)
+  for (uint8_t i = 0; i < BLE_MAX_CONNECTION; i++)
   {
     uint16_t conn_hdl = Bluefruit.connHandleAt(i);
 

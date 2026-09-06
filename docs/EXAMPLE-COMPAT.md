@@ -34,18 +34,18 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 
 | | 개수 |
 |---|---|
-| **컴파일 통과** | **14** |
-| 우리 BLE API 부족 | 약 18 |
+| **컴파일 통과** | **15** |
+| 우리 BLE API 부족 | 약 17 |
 | 우리 M2(Arduino API) 부족 | 약 16 |
 | 외부 라이브러리 미설치 | 11 |
 | 계 | 71 |
 
 **⚠ 컴파일 통과가 동작을 뜻하지 않는다.** 별표(*)가 실기까지 확인한 것이다.
 
-### 통과 (14)
+### 통과 (15)
 
 ```
-bleuart*  bleuart_multi*  beacon*  eddystone_url*
+bleuart*  bleuart_multi*  beacon*  eddystone_url*  central_scan*
 blinky  blinky_ota  rtos_scheduler  SerialEcho
 temp_measure_blocking  temp_measure_non_blocking
 adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
@@ -54,6 +54,7 @@ adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
 실기 확인 내용:
 - `bleuart` — `docs/HIL/M3-softdevice.md` §3.9
 - `bleuart_multi` — 폰 + Mac 동시 2링크, 양방향 전달 (`docs/STATUS.md` B5)
+- `central_scan` — 주변 광고 수신, 주소·RSSI·AD 파싱, 16비트 UUID 필터 실기 확인
 - `beacon` / `eddystone_url` — 광고 페이로드를 bleak 로 스캔해 바이트 단위로 검증.
   iBeacon 은 major/minor 가 **빅엔디안**으로, EddyStone 은 URL 압축 코드가
   규격대로 나가는 것까지 확인했다
@@ -62,7 +63,7 @@ adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
 
 | 기능 | 막고 있는 예제 수 | 비고 |
 |---|---|---|
-| Client / Central 스택 | ~10 | `BLEClientUart`, `BLEClientService`, `BLEClientCharacteristic` 등. 가장 큰 덩어리 |
+| Client / Central 스택 | ~9 | `BLEClientUart`, `BLEClientService`, `BLEClientCharacteristic` 등. 스캔은 됐고 연결·탐색이 남았다 |
 | M2 — SPI / Wire / PDM / PWM | ~16 | Arduino API. BLE 와 무관 |
 | HID 서비스 | 5 | `BLEHidAdafruit`, `BLEHidGamepad` |
 | 본딩 / 페어링 | 3 | `Bluefruit.Security`, `utility/bonding.h` |

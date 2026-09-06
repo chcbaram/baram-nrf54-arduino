@@ -7,14 +7,14 @@
 #include "sd_event_pump.h"
 #include <string.h>
 
-/* little-endian 배열. 위 헤더의 UUID 를 바이트 역순으로 적은 것이다. */
-static const uint8_t NUS_SVC[16] = {
+/* little-endian 배열. 헤더 주석의 UUID 를 바이트 역순으로 적은 것이다. */
+const uint8_t BLEUART_UUID_SERVICE[16] = {
   0x9E,0xCA,0xDC,0x24,0x0E,0xE5,0xA9,0xE0, 0x93,0xF3,0xA3,0xB5,0x01,0x00,0x40,0x6E
 };
-static const uint8_t NUS_RX[16] = {
+const uint8_t BLEUART_UUID_CHR_RXD[16] = {
   0x9E,0xCA,0xDC,0x24,0x0E,0xE5,0xA9,0xE0, 0x93,0xF3,0xA3,0xB5,0x02,0x00,0x40,0x6E
 };
-static const uint8_t NUS_TX[16] = {
+const uint8_t BLEUART_UUID_CHR_TXD[16] = {
   0x9E,0xCA,0xDC,0x24,0x0E,0xE5,0xA9,0xE0, 0x93,0xF3,0xA3,0xB5,0x03,0x00,0x40,0x6E
 };
 
@@ -27,7 +27,7 @@ static void bleuart_write_cb(uint16_t conn_hdl, BLECharacteristic *chr, uint8_t 
 }
 
 BLEUart::BLEUart(void)
-  : BLEService(NUS_SVC), _txchr(NUS_TX), _rxchr(NUS_RX)
+  : BLEService(BLEUART_UUID_SERVICE), _txchr(BLEUART_UUID_CHR_TXD), _rxchr(BLEUART_UUID_CHR_RXD)
 {
   _rx_cb  = NULL;
   _rxhead = 0;

@@ -22,6 +22,7 @@
 #include "BLEService.h"
 #include "BLECharacteristic.h"
 #include "BLEConnection.h"
+#include "BLEScanner.h"
 
 #define BLE_MAX_CHARS       32
 #define BLE_ADV_BUF_MAX     BLE_GAP_ADV_SET_DATA_SIZE_MAX
@@ -42,8 +43,14 @@
  *
  * ⚠ 그래서 `for (h = 0; h < BLE_MAX_CONNECTION; h++)` 로 연결을 훑으면 안 된다.
  *   connHandleAt() 을 쓴다.
+ *
+ * BLE_MAX_CONNECTION 은 **두 역할을 합친 슬롯 수**다 (Adafruit 도 이 상수를
+ * 배열 크기로 쓴다). 역할별 상한은 아래 두 개다 — peripheral 과 central 은
+ * 버퍼를 공유하지만(S145 는 연결 구성이 하나뿐이다) 역할 수는 따로 정해진다.
  */
-#define BLE_MAX_CONNECTION  SD_BLE_PERIPH_LINK_COUNT
+#define BLE_MAX_PERIPH_CONNECTION   SD_BLE_PERIPH_LINK_COUNT
+#define BLE_MAX_CENTRAL_CONNECTION  SD_BLE_CENTRAL_LINK_COUNT
+#define BLE_MAX_CONNECTION          (BLE_MAX_PERIPH_CONNECTION + BLE_MAX_CENTRAL_CONNECTION)
 
 /*
  * 대역폭 프리셋. Adafruit 시그니처 호환을 위해 둔다.
@@ -222,18 +229,19 @@ class AdafruitBluefruit
     BLEAdvertisingData ScanResponse;
     BLEPeriph      Periph;
     BLEGatt        Gatt;
+    BLEScanner     Scanner;
 
     AdafruitBluefruit(void);
 
     /**
      * SoftDevice 와 BLE 스택을 켠다.
      *
-     * @param prph_count    동시 peripheral 연결 수. 1 ~ BLE_MAX_CONNECTION.
-     * @param central_count central 역할 연결 수. **0 만 지원한다.**
+     * @param prph_count    동시 peripheral 연결 수. 0 ~ BLE_MAX_PERIPH_CONNECTION.
+     * @param central_count 동시 central 연결 수. 0 ~ BLE_MAX_CENTRAL_CONNECTION.
      *
      * ⚠ 지원하지 않는 값을 주면 **false 를 돌려준다** — 조용히 깎지 않는다.
      *   그래야 스케치가 왜 두 번째 연결이 안 되는지 헤매지 않는다.
-     *   BLE_MAX_CONNECTION 은 보드가 정한다 (boards.txt).
+     *   상한은 보드가 정한다 (boards.txt 의 -DSD_BLE_*_LINK_COUNT).
      */
     bool begin(uint8_t prph_count = 1, uint8_t central_count = 0);
 
@@ -348,6 +356,7 @@ class AdafruitBluefruit
     char        _name[32];
     uint16_t    _conn_hdl;    /* 가장 최근 연결 */
     uint8_t     _prph_count;
+    uint8_t     _central_count;
     BLEService *_cur_service;
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;

@@ -40,6 +40,15 @@
 #include "BLEService.h"
 #include "BLECharacteristic.h"
 
+/*
+ * NUS UUID 를 밖으로 낸다. 상류 예제가 스캔 필터에 쓴다
+ *   Bluefruit.Scanner.filterUuid(BLEUART_UUID_SERVICE);
+ * 바이트 역순(little-endian) 배열이다.
+ */
+extern const uint8_t BLEUART_UUID_SERVICE[16];
+extern const uint8_t BLEUART_UUID_CHR_RXD[16];
+extern const uint8_t BLEUART_UUID_CHR_TXD[16];
+
 class BLEUart;
 typedef void (*ble_uart_rx_callback_t)(uint16_t conn_hdl);
 

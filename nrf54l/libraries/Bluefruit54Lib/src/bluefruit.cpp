@@ -232,7 +232,8 @@ AdafruitBluefruit::AdafruitBluefruit(void)
 {
   strcpy(_name, "BARAM nRF54L");
   _conn_hdl    = BLE_CONN_HANDLE_INVALID;
-  _prph_count  = 1;
+  _prph_count    = 1;
+  _central_count = 0;
   _cur_service = NULL;
   _char_count  = 0;
   _begun       = false;
@@ -275,12 +276,15 @@ bool AdafruitBluefruit::begin(uint8_t prph_count, uint8_t central_count)
    *   요청이 그보다 크면 **조용히 깎지 않고 실패시킨다** — 그래야 스케치가
    *   왜 N번째 연결이 안 되는지 헤매지 않는다.
    *
-   * central 은 아직 없다 (GATT 클라이언트 경로 자체가 없다).
+   * 역할별 상한도 따로다. peripheral 과 central 은 버퍼를 공유하지만
+   * (S145 는 연결 구성이 하나뿐이다) 역할 수는 role_count 로 따로 정해진다.
    */
-  if (prph_count == 0 || prph_count > BLE_MAX_CONNECTION) return false;
-  if (central_count != 0) return false;
+  if (prph_count > BLE_MAX_PERIPH_CONNECTION)     return false;
+  if (central_count > BLE_MAX_CENTRAL_CONNECTION) return false;
+  if (prph_count == 0 && central_count == 0)      return false;
 
-  _prph_count = prph_count;
+  _prph_count    = prph_count;
+  _central_count = central_count;
 
   if (!sdEnable()) return false;
 
@@ -630,6 +634,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
   }
 
   Gatt._eventHandler(evt);
+  Scanner._eventHandler(evt);
 
   /* characteristic 쓰기 이벤트 전달 */
   for (uint8_t i = 0; i < _char_count; i++) {

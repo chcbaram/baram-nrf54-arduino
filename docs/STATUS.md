@@ -363,11 +363,31 @@ GAP Device Name 을 주지 않는 경우가 많아 0 이 정상일 수 있다.
 
 착수 전 추측은 "태그를 나누는 게 유리할 것" 이었는데 **애초에 선택지가 아니었다.**
 
+#### 스캐너 ✅ (2026-09-06)
+
+`BLEScanner` 가 동작한다. 실기에서 주변 광고 수신, 주소 역순 출력, RSSI,
+AD 타입 파싱(이름), active scan(스캔 응답), 16비트 UUID 필터까지 확인했다.
+예제는 `examples/Central/central_scan`, 상류 `central_scan.ino` 도 그대로 컴파일된다.
+
+⚠ **보고 하나마다 스캔이 멈춘다** (SoftDevice v6 이후). 콜백 안에서 `resume()` 을
+불러야 이어진다. 안 부르면 "처음 하나만 잡히고 조용하다" 가 된다.
+필터에 걸러진 보고도 라이브러리가 대신 `resume()` 해 준다 — 안 그러면 필터에
+처음 걸린 순간 스캔이 멈춘다.
+
+⚠ 스캔 콜백은 **연결 콜백과 달리 BLE 이벤트 태스크에서 직접** 불린다.
+`report` 가 이벤트 버퍼를 가리켜서 미루면 덮이기 때문이다.
+그래서 **스캔 콜백 안에서 블로킹 호출을 하면 안 된다** (`getPeerName()` 등).
+출력·필터·연결 시작은 괜찮다.
+
 #### 다음
 
-스캔(`sd_ble_gap_scan_start`) -> 연결(`sd_ble_gap_connect`) ->
-서비스/특성 탐색 -> `BLEClientService` / `BLEClientCharacteristic` / `BLEClientUart`.
+연결(`sd_ble_gap_connect`) -> 서비스/특성 탐색 ->
+`BLEClientService` / `BLEClientCharacteristic` / `BLEClientUart`.
 GATT 클라이언트 읽기 경로는 B7 에서 이미 만들었다.
+
+⚠ nRF54L05 는 아직 `SD_BLE_CENTRAL_LINK_COUNT` 가 0 이라 central 예제가
+`begin(0,1)` 에서 **false 를 돌려주고 멈춘다** (조용히 실패하지는 않는다).
+`periph 1 + central 1` 이 들어갈 것으로 보이지만 그 보드로 재지 않았다.
 
 ### 이어서 작업할 때 알아 둘 것
 
