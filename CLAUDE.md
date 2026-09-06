@@ -779,6 +779,42 @@ arduino-cli 는 recipe 를 셸 없이 토큰 단위로 실행한다.
 | `Adafruit_nRF52_Bootloader` | 자체 UART DFU 부트로더 (M4) | 구조 참고 |
 | `adafruit-nrfutil` | 호스트 업로드 툴 (M4) | 패키지에 바이너리 동봉하는 방식 참고 |
 | `Adafruit_TinyUSB` (Serial) | **이식 대상 아님** | R10 |
+| `Adafruit_LittleFS` + `InternalFileSystem` | **부분 이식.** §8.1 참조 | 본딩 저장에만 필요하다. RRAM 에는 erase 가 없어 그대로 못 올린다 (R9) |
+
+### 8.1 파일시스템 — 무엇 때문에 필요한가
+
+Adafruit 예제들이 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` 를
+달고 있는데 **정작 스케치에서 쓰지는 않는다.** 이유는 두 가지다.
+
+1. `Bluefruit.begin()` 이 `bond_init()` 을 부르고, 그게 `InternalFS.begin()` 으로
+   `/adafruit/bond_prph` · `/adafruit/bond_cntr` 디렉토리를 만든다.
+   **본딩 키와 피어 이름이 LittleFS 파일로 저장된다** (`utility/bonding.cpp`).
+2. Arduino 는 **스케치가 `#include` 한 라이브러리만 링크한다.** 그래서 직접 쓰지
+   않아도 include 가 있어야 링크가 된다. 예제의 저 두 줄은 그 때문이다.
+
+즉 **BLE 본딩을 하기 전까지는 필요 없다.** advertising 과 무본딩 연결에는 안 쓴다.
+
+**RRAM 위에 LittleFS 를 그대로 올릴 수 없다** (R9 / §7 F5):
+
+| | flash (nRF52) | **RRAM (nRF54L)** |
+|---|---|---|
+| erase | 페이지 단위 필수 | **개념이 없다.** 0xFF 쓰기로 에뮬레이션 |
+| write 단위 | 4 B | **16 B** |
+
+올리려면 블록 디바이스 계층에서 `erase()` 를 "0xFF 채우기" 로 구현하고
+`prog_size` 를 16 으로 잡아야 한다.
+
+**권장 경로 — 본딩 저장만 먼저, 범용 FS 는 나중에:**
+
+- 본딩 키는 `docs/MEMORY-MAP.md` 가 이미 잡아 둔 **`peer_manager` 4 KB 파티션**
+  (`0x00158800`)에 고정 레코드로 넣는다. 앱 파티션 밖이라 앱을 갱신해도 남는다.
+  키 하나가 100 바이트 남짓이라 4 KB 면 충분하고, LittleFS 를 no-erase 매체로
+  이식하는 것보다 훨씬 간단하다
+- `Adafruit_LittleFS.h` / `InternalFileSystem.h` 는 **링크만 되게 하는 호환 헤더**로
+  둔다. 예제가 직접 쓰지 않으므로 M3 DoD 에는 이것으로 충분하다
+- ⚠ 사용자 스케치가 `InternalFS` 로 **자기 파일을 저장**하려 하면 이 방식으로는
+  안 된다. 그때 범용 FS 가 필요해지고, 그건 별도 판단이다 (M5 이후).
+  **호환 헤더가 조용히 실패하게 만들지 마라** — 미지원이면 명확히 실패시켜라
 
 ### R11 / R12 배경 — Bluefruit은 이미 seam이지만 깨끗하지 않다
 

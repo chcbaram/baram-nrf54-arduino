@@ -109,8 +109,41 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | `NRFX_GRTC_CONFIG_AUTOEN` 0 → **1** | SoftDevice 요구사항. 안 켜면 `0x1003` 으로 거부당한다 |
 | GRTC `CLKSEL` LFXO → **SystemLFCLK** | SoftDevice 가 LFCLK 를 관리한다는 전제와 맞춘다 |
 
-다음은 B 단계(Bluefruit API 계층)다. 지금은 GATT 서비스가 없어서 연결 후
-호스트가 서비스 탐색에 실패하고 곧 끊는다.
+### B 단계 — Bluefruit API 계층 (진행 중)
+
+**목표는 M3 DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본이
+**무수정으로** 컴파일·동작하는 것.
+
+규모를 먼저 알아 둘 것: Bluefruit52Lib 본체만 **약 250 KB / 30여 파일**이고
+`services/`(BLEUart·BLEDis·BLEBas·BLEDfu)와 파일시스템 2종이 더 붙는다.
+한 번에 끝나지 않으므로 아래처럼 쪼갠다. **각 단계마다 bleak 으로 실증한다.**
+
+| 단계 | 내용 | 검증 |
+|---|---|---|
+| **B1** | `BLEUuid` / `BLEService` / `BLECharacteristic` / `BLEGatt` + 최소 `Bluefruit` 싱글턴 | 커스텀 GATT 서비스를 호스트에서 탐색·읽기 |
+| **B2** | `BLEUart` (NUS) | 양방향 송수신 |
+| **B3** | `BLEConnection`, `BLEPeriph` 콜백, `BLEAdvertising` 전체, `BLEDis` / `BLEBas` | 예제 다수가 컴파일되기 시작 |
+| **B4** | `BLESecurity` / 본딩, `BLEDfu` 스텁, 파일시스템 호환 헤더 | **`bleuart.ino` 무수정 = DoD** |
+
+지금 위치: **B1 착수 전.** A 단계까지 끝났고, GATT 서비스가 하나도 없어서
+연결은 되지만 호스트가 서비스 탐색에 실패하고 곧 끊는다.
+
+**파일시스템은 B4 전까지 필요 없다.** 예제의 `#include <Adafruit_LittleFS.h>` 는
+본딩 저장 때문이고, RRAM 에는 erase 가 없어 그대로 못 올린다.
+배경과 권장 경로는 CLAUDE.md §8.1.
+
+### 이어서 작업할 때 알아 둘 것
+
+- **SoftDevice hex 를 먼저 구워야 한다.** 앱만 구우면 `sdEnable()` 이 SVC 를
+  널 포인터로 포워딩한다. `docs/HIL/M3-softdevice.md` §5 에 명령이 있다
+- **`g_sd_stage` 로 어디까지 갔는지 읽는다.** SoftDevice API 는 실패해도 원인이
+  안 보이므로 단계 마커 + `m_last_error` 를 SWD 로 읽는 게 가장 빠르다
+- **오류 코드는 헤더 retval 주석을 끝까지 읽어라.** A 단계에서 막힌 네 건이
+  전부 거기 답이 있었다. 특히 `sd_ble_enable()` 의 `INVALID_STATE` 는
+  "이미 초기화됨" 이 아니라 **RNG 미시딩**이었다
+- **진단 출력을 부팅 때 한 번만 찍지 마라.** USB CDC 는 포트를 여는 사이에
+  놓친다. 실패해도 주기적으로 찍게 해라
+- 시험 스케치: `~/Documents/Arduino/nrf54_ble_adv/` (advertising 스파이크)
 
 ### (e) M2 — Arduino API
 
