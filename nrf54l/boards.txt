@@ -25,9 +25,9 @@ nu54vdk.build.chip_probers=nRF54L15
 
 # 메모리 (docs/MEMORY-MAP.md)
 #   application 0x00000000 ~ 0x00158800 (1378 KB)
-#   app RAM     0x20006800 ~ 0x20040000 (0x39800)  — SD 예약 26 KB (동시 연결 4개분)
+#   app RAM     0x20007800 ~ 0x20040000 (0x38800)  — SD 예약 30 KB (동시 연결 5개분)
 nu54vdk.upload.maximum_size=1411072
-nu54vdk.upload.maximum_data_size=235520
+nu54vdk.upload.maximum_data_size=231424
 
 # ── SoftDevice ────────────────────────────────────────────────────────
 # S145 고정. 메뉴 형태로 둔 이유는 S115 를 추가할 때 여기 한 항목과
@@ -169,10 +169,10 @@ xiao_nrf54l15.build.chip_probers=nRF54L15
 
 # 메모리 (docs/MEMORY-MAP.md — NU54V-DK 와 같은 nRF54L15 배치)
 #   application 0x00000000 ~ 0x00158800 (1378 KB)
-#   app RAM     0x20006800 ~ 0x20040000 (0x39800)  — SD 예약 26 KB (동시 연결 4개분)
+#   app RAM     0x20007800 ~ 0x20040000 (0x38800)  — SD 예약 30 KB (동시 연결 5개분)
 # 실장 칩 확인 (FICR): PART=0x00054B15, RAM=0x100(256KB), RRAM=0x5F4(1524KB)
 xiao_nrf54l15.upload.maximum_size=1411072
-xiao_nrf54l15.upload.maximum_data_size=235520
+xiao_nrf54l15.upload.maximum_data_size=231424
 
 # ── SoftDevice ────────────────────────────────────────────────────────
 xiao_nrf54l15.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)
