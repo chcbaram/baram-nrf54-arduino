@@ -141,7 +141,7 @@ to have provided them:
 | Tool | Version | Notes |
 |---|---|---|
 | [xPack arm-none-eabi-gcc](https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/tag/v14.2.1-1.1) | **14.2.1-1.1** | The release pins this version. Another one builds fine but produces different sizes |
-| [probe-rs](https://github.com/probe-rs/probe-rs/releases/tag/v0.32.0) | **0.32.0** | A macOS build is bundled in `nrf54l/tools/` |
+| [probe-rs](https://github.com/probe-rs/probe-rs/releases/tag/v0.32.0) | **0.32.0** | Not bundled — Board Manager installs it for released installs. For source installs, take it from upstream or from this repository's [`probe-rs-0.32.0`](https://github.com/chcbaram/baram-nrf54-arduino/releases/tag/probe-rs-0.32.0) release, which carries the same repackaged builds Board Manager uses |
 
 Point the core at them by copying the example and editing the paths:
 

@@ -136,7 +136,7 @@ sketchbook 경로는 `arduino-cli config get directories.user` 로 확인한다
 | 툴 | 버전 | 비고 |
 |---|---|---|
 | [xPack arm-none-eabi-gcc](https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/tag/v14.2.1-1.1) | **14.2.1-1.1** | 릴리스가 이 버전에 고정돼 있다. 다른 버전도 빌드는 되지만 크기가 달라진다 |
-| [probe-rs](https://github.com/probe-rs/probe-rs/releases/tag/v0.32.0) | **0.32.0** | macOS 바이너리는 `nrf54l/tools/` 에 동봉돼 있다 |
+| [probe-rs](https://github.com/probe-rs/probe-rs/releases/tag/v0.32.0) | **0.32.0** | 저장소에 동봉하지 않는다. 릴리스 설치본은 Board Manager 가 받아 오고, 소스 설치는 업스트림이나 이 저장소의 [`probe-rs-0.32.0`](https://github.com/chcbaram/baram-nrf54-arduino/releases/tag/probe-rs-0.32.0) 릴리스에서 받는다 (Board Manager 가 쓰는 것과 같은 재포장본이다) |
 
 경로는 예시 파일을 복사해서 적는다:
 

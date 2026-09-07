@@ -27,9 +27,20 @@ toolchain.path=/Users/<사용자>/opt/xpack-arm-none-eabi-gcc-14.2.1-1.1
 # Windows 예: toolchain.path=C:/xpack-arm-none-eabi-gcc-14.2.1-1.1
 
 # ── probe-rs 0.32.0 ──────────────────────────────────────────────────
-# 저장소에 동봉된 것을 쓴다. 현재 macosx 바이너리만 들어 있다.
-# 다른 OS 는 https://github.com/probe-rs/probe-rs/releases 0.32.0 에서 받아
-# nrf54l/tools/probe-rs/<os>/bin/ 에 넣거나, 시스템에 설치한 경로를 적는다.
-probers.path={runtime.platform.path}/tools/probe-rs/macosx/bin
-# probers.path={runtime.platform.path}/tools/probe-rs/linux/bin
-# probers.path={runtime.platform.path}/tools/probe-rs/win/bin
+# ⚠ 저장소에 동봉하지 않는다. 예전에는 macOS 바이너리가 nrf54l/tools/ 에 들어
+#   있었으나 38 MB 짜리 단일 파일이라 뺐다 (릴리스 아카이브에서는 원래
+#   제외돼 있었으므로 사용자 쪽 동작에는 영향이 없다).
+#
+# 직접 받아서 bin/ 의 부모가 아니라 **bin 디렉토리 자체**를 적는다.
+# 이 저장소의 릴리스에 Board Manager 가 쓰는 것과 같은 재포장본이 전 OS 로 있다:
+#   https://github.com/chcbaram/baram-nrf54-arduino/releases/tag/probe-rs-0.32.0
+# 업스트림에서 받아도 된다 (레이아웃이 다르니 bin 경로만 맞추면 된다):
+#   https://github.com/probe-rs/probe-rs/releases/tag/v0.32.0
+#
+#   mkdir -p ~/opt/probe-rs-0.32.0 && cd ~/opt/probe-rs-0.32.0
+#   curl -L https://github.com/chcbaram/baram-nrf54-arduino/releases/download/probe-rs-0.32.0/probe-rs-0.32.0-aarch64-apple-darwin.tar.bz2 | tar xj
+#
+# 버전은 릴리스(0.32.0)와 맞춰라 — 인덱스가 그 버전을 설치한다.
+probers.path=/Users/<사용자>/opt/probe-rs-0.32.0/bin
+# Linux 예:   probers.path=/opt/probe-rs-0.32.0/bin
+# Windows 예: probers.path=C:/probe-rs-0.32.0/bin

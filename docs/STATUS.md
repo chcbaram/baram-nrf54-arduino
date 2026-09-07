@@ -1,13 +1,13 @@
 # 진행 상황 / 다음 세션 인수인계
 
-최종 갱신: 2026-09-06 · 커밋 `b8cc273`
+최종 갱신: 2026-09-07 · 커밋 `5f9c128` (릴리스 `0.2.0`)
 
 프로젝트 지침과 설계 결정은 [CLAUDE.md](../CLAUDE.md) 가 정본이다.
 이 문서는 **"지금 어디까지 됐고 다음에 뭘 하면 되는지"** 만 짧게 적는다.
 
 ---
 
-## 1. 지금 동작하는 것 (M1 거의 완료 · M3 BLE peripheral 동작)
+## 1. 지금 동작하는 것 (M1 거의 완료 · M3 DoD 달성 — peripheral + central)
 
 실기 보드 **NU54-DK / nRF54L05** 에서 확인:
 
@@ -59,36 +59,43 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
-**없는 것:** HID, `BLEMidi`, `BLEAncs` / `BLEClientCts`, 실제 DFU.
+**없는 것:** `BLEHidGamepad` / `BLEClientHidAdafruit`, `BLEMidi`,
+`BLEAncs` / `BLEClientCts`, 실제 DFU(M4). 그리고 **M2(Arduino API)가 통째로 비어 있다** —
+`Wire` / `SPI` / `analogRead` / `analogWrite` / `attachInterrupt` 는 아직 없다.
 예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 25개 통과).
 
 ---
 
 ## 2. 바로 다음에 할 일
 
-### ⭐ 다음 세션은 여기서 시작한다 (2026-09-07 마감 시점)
+### ⭐ 다음 세션은 여기서 시작한다 (2026-09-07 갱신)
+
+B1~B12 가 모두 끝나 **M3 DoD 를 넘겼고 `0.2.0` 까지 배포됐다.**
+그래서 **최대 병목이 BLE 에서 M2(Arduino API)로 옮겨 갔다** —
+`docs/EXAMPLE-COMPAT.md` 의 미통과 46개 중 **약 20개가 M2 때문에** 막혀 있고,
+BLE API 부족은 약 12개다.
 
 **우선순위**
 
-1. **`BLEClientService` / `BLEClientCharacteristic` 일반화** — 지금은 NUS 전용
-   `BLEClientUart` 만 있다. 일반화하면 `BLEClientBas` / `BLEClientDis` 가 따라오고
-   상류 `central_bleuart` 가 컴파일된다 (지금은 그 둘 때문에 막혀 있다).
-   예제 ~8개가 여기 걸려 있다. 탐색 절차(`BLEGatt::discoverService/Chars/Cccd`)는
-   이미 있으니 그 위에 얹으면 된다
-2. **본딩 / `BLESecurity`** — 키를 RRAM 에 어떻게 넣을지가 먼저다 (CLAUDE.md §8.1)
-3. **HID** — 본딩에 의존한다. 암호화된 링크를 요구해서 본딩 없이는 폰이 붙어도 안 된다
-4. **온보드 주변장치** — `Wire`(XIAO 의 LSM6DS3TR-C 로 `WHO_AM_I`),
-   `attachInterrupt`, `analogWrite`
-5. 마지막이 외부 측정이 필요한 것들 — SPI 루프백, `analogRead` 정확도, **전류 측정**
+1. **M2 — `Wire`(TWIM) 부터.** XIAO 의 LSM6DS3TR-C `WHO_AM_I` 로 외부 장비 없이
+   검증된다. **착수 전에 CLAUDE.md §7 F10 ④ 체크리스트를 반드시 읽어라** —
+   특히 같은 번호대 SERIAL 블록 충돌(`docs/PERIPHERAL-PINMAP.md` §0)과
+   다중 인스턴스 IRQ 직접 연결이 여기서 그대로 재발한다
+2. **`attachInterrupt`(GPIOTE) / `analogWrite`(PWM)** — 온보드만으로 검증된다
+3. **`SPI`(SPIM00) / `analogRead`(SAADC)** — 루프백과 외부 계측이 필요하다.
+   SPI 에는 CLAUDE.md §4 의 P2 고속 라우팅 · anomaly 8 주의사항이 붙는다
+4. **전류 측정** — M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8).
+   `systemOff()` 는 이제 있다 (아래 (a)(b))
+5. **B13** — `BLEHidGamepad`, `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts`
 
 ⚠ **구현 전에 레퍼런스부터 확인한다.** 상류(Adafruit), Nordic DevZone, Zephyr
-드라이버를 먼저 본다. 오늘 두 번 이게 방향을 바꿨다 — UARTE FRAMETIMEOUT 은
+드라이버를 먼저 본다. 두 번 이게 방향을 바꿨다 — UARTE FRAMETIMEOUT 은
 nRF54L 에서 쓰면 안 되는 것이었고(§2.5), 연결 핸들은 배열 인덱스가 아니었다(B5).
 
 **아직 안 잰 것**: BLE 실효 처리량 (notify 큐를 3 으로 올려 뒀지만 수치가 없다).
 상류 `throughput` / `central_throughput` 예제로 잴 수 있다.
 
-**로컬 커밋만 있고 push 하지 않았다.**
+**저장소는 `origin/main` 과 동기화돼 있다** (`5f9c128`, 태그 `0.2.0`). 미푸시 없음.
 
 ### 실기 환경 메모
 
@@ -119,7 +126,7 @@ tickless 를 켠 목적이 전력인데 아직 재지 못했다. **SWD 프로브
 측정 4종 (§4.6):
 1. `delay(1000)` 루프 + `Serial` 켠 상태
 2. 같은 조건에서 `Serial.end()` 후 (UARTE 가 바닥 전류를 올리는지)
-3. `systemOff()` 후 — **`systemOff()` 는 아직 구현 안 됨**
+3. `systemOff()` 후 — `systemOff()` 는 구현됐다 (`cores/nrf54l/wiring.c`)
 4. (M3) advertising 중
 
 기준선은 Nordic `ble_pwr_profiling` 샘플을 같은 보드에 구워서 잡는다.
@@ -129,12 +136,13 @@ tickless 를 켠 목적이 전력인데 아직 재지 못했다. **SWD 프로브
 되는지. `MODE.AUTOEN` 이 이미 0 이라 중복일 가능성이 높고, 뺐을 때 전력이
 내려가면 빼면 된다. 기능적으로는 없어도 틱이 정확하다 (확인됨).
 
-### (b) 앱 레벨 저전력 API (§4.5)
+### (b) 앱 레벨 저전력 API (§4.5) — ✅ **구현됨 (`cores/nrf54l/wiring.c`)**
 
 `waitForEvent()`, `systemOff(pin, wake_logic)`, `readResetReason()`.
+**전류로는 아직 검증 안 됐다** — 위 (a) 가 그 항목이다.
 `readResetReason()` 은 `NRF_RESET` 이다 (`NRF_POWER->RESETREAS` 아님, `NRF_RESETINFO` 도 아님).
 
-### (c) 릴리스 파이프라인 — ✅ **0.1.0 배포 완료 (2026-09-06)**
+### (c) 릴리스 파이프라인 — ✅ **0.2.0 배포 완료 (2026-09-07)**
 
 깨끗한 환경에서 Board Manager 로 설치 → 컴파일 → **실기 업로드·동작까지 확인했다**
 (M5 DoD 중 macOS/arm64 부분). Linux / Windows 는 자산은 올라갔지만 미검증이다.
@@ -180,7 +188,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | `NRFX_GRTC_CONFIG_AUTOEN` 0 → **1** | SoftDevice 요구사항. 안 켜면 `0x1003` 으로 거부당한다 |
 | GRTC `CLKSEL` LFXO → **SystemLFCLK** | SoftDevice 가 LFCLK 를 관리한다는 전제와 맞춘다 |
 
-### B 단계 — Bluefruit API 계층 (진행 중)
+### B 단계 — Bluefruit API 계층 — ✅ **B12 까지 완료, B13 만 남음**
 
 **목표는 M3 DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본이
 **무수정으로** 컴파일·동작하는 것.
@@ -211,15 +219,15 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 서비스 4종·DIS·배터리·UART·MTU 247 전부 확인.
 DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md §8.1.
 
-**아직 없는 것:**
+**아직 없는 것 (B13):**
 
-- **본딩 / 페어링** (`BLESecurity`). pairing 계열 예제는 아직 안 된다.
-  키는 `peer_manager` 4 KB 파티션에 고정 레코드로 넣을 계획이다 (§8.1)
-- **central 역할** — peripheral 전용 구성이다. 스캔·연결과 `BLEClient*` 계열이
-  없다. GATT **클라이언트**는 B7 에서 생겼으므로(읽기 경로) 그 위에 얹으면 된다
-- **HID 서비스** — 본딩에 의존한다. HID over GATT 는 보통 암호화된 링크를
-  요구해서, 본딩 없이 만들면 폰이 붙어도 동작하지 않는다
+- `BLEHidGamepad` / `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12 에서 됐다
+- `BLEMidi`
+- `BLEAncs` / `BLEClientCts` — iOS 알림·시각. 실기 검증에 iPhone 이 필요하다
 - **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결
+
+> 아래 세 줄은 B10~B12 이전에 적힌 것이라 지웠다. 본딩 · central · HID 는
+> 모두 완료됐다 (§1 표와 B8·B10·B11·B12 절 참조).
 
 시험 스케치는 `~/Documents/Arduino/nrf54_ble_gatt/` (GATT),
 `~/Documents/Arduino/nrf54_bleuart/` (NUS).
@@ -799,9 +807,9 @@ cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
 
 | | |
 |---|---|
-| Arm GNU Toolchain | **xPack 14.2.1-1.1**. 릴리스가 이 버전에 고정돼 있다 (`platform.txt` 의 `runtime.tools.xpack-arm-none-eabi-gcc-14.2.1-1.1`). 다른 버전으로도 빌드는 되지만 **크기·측정값이 달라져 기존 HIL 기록과 비교할 수 없다** |
+| Arm GNU Toolchain | **xPack 14.2.1-1.1**. 릴리스가 이 버전에 고정돼 있다 (`platform.txt` 의 `runtime.tools.xpack-arm-none-eabi-gcc-14.2.1-1.1`). 다른 것으로도 빌드는 되지만 **크기·측정값이 달라져 기존 HIL 기록과 비교할 수 없다.** ⚠ **버전 번호가 같아도 배포판이 다르면 다르다** — 실측: `rtos_scheduler` / `nu54dk` 가 Arm 공식 14.2.Rel1 로는 23,752 B / 3,432 B, xPack 14.2.1-1.1 로는 **24,088 B / 3,576 B** 였다 (2026-09-07) |
 | arduino-cli | 1.0.3 / 1.2.2 에서 확인 |
-| probe-rs | `0.32.0`. 개발용으로는 저장소 동봉본(`nrf54l/tools/probe-rs/macosx/bin`, **macOS 만**)을 쓰고, 릴리스 설치본은 Board Manager 가 툴로 내려받는다 |
+| probe-rs | `0.32.0`. **저장소에 동봉하지 않는다** (2026-09-07 에 뺐다 — 38 MB 짜리 macOS 바이너리 하나가 저장소 최대 객체였고, 릴리스 아카이브에서는 이미 제외돼 있어 사용자에게는 쓰이지 않았다). 릴리스 설치본은 Board Manager 가 받아 오고, 개발용은 릴리스 `probe-rs-0.32.0` 의 자산(전 OS)이나 업스트림에서 받아 `platform.local.txt` 의 `probers.path` 로 가리킨다 |
 | 하드웨어 | NU54-DK 계열은 외부 CMSIS-DAP 프로브 필요. **XIAO 는 온보드라 USB-C 하나면 된다** |
 
 xPack GCC 는 이렇게 받는다 (Board Manager 가 쓰는 것과 같은 아카이브다):

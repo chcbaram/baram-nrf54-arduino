@@ -58,7 +58,7 @@ SoftDevice가 ARM 코드를 포함한다는 뜻이므로 이 파일도 `nrf54l/s
 | Arduino API 계열 (`Print`/`Stream`/`WString` 등) | Arduino / Adafruit nRF52 코어 계보 | **LGPL-2.1** ⚠ | `nrf54l/cores/nrf54l/` |
 | Bluefruit52Lib 이식본 (M3) | adafruit/Adafruit_nRF52_Arduino | BSD-3-Clause / MIT (파일별 상이) | `nrf54l/libraries/Bluefruit54Lib/` |
 | micro-ecc (LESC 용 P-256) | kmackay/micro-ecc | **BSD-2-Clause** | `nrf54l/libraries/Bluefruit54Lib/src/utility/micro-ecc/` |
-| probe-rs 바이너리 | probe-rs/probe-rs | MIT OR Apache-2.0 | `nrf54l/tools/probe-rs/` |
+| probe-rs 바이너리 | probe-rs/probe-rs | MIT OR Apache-2.0 | **저장소에 없다.** 릴리스 `probe-rs-0.32.0` 의 자산으로만 배포한다 (재포장본) |
 
 > ✅ **확인 완료 (이식 시점)**: 이식한 Arduino 코어 API 파일들의 헤더를 직접 확인했다.
 > `Print.cpp` / `Stream.cpp` / `WString.cpp` 등은 **LGPL-2.1** 이 맞다

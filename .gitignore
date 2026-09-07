@@ -31,3 +31,6 @@ dist/
 
 # 벤더 데이터시트 (용량이 크고 재배포 대상이 아니다)
 docs/datasheets/
+
+# 개발용으로 직접 놓아 둔 툴 (동봉하지 않는다 — platform.local.txt.example 참조)
+nrf54l/tools/

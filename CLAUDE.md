@@ -145,8 +145,12 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | nrfjprog / J-Link | ✅ | J-Link 프로브 전용 | CMSIS-DAP 불가 |
 | OpenOCD 0.12.0 | ❌ nRF54 타깃 없음 | — | 배제 |
 
-**추가 설치가 필요 없어야 한다**는 것이 결정 기준이었다. probe-rs 바이너리를
-`nrf54l/tools/probe-rs/{macosx,linux,win}/`에 동봉하면 사용자는 Board Manager 설치만으로 끝난다.
+**추가 설치가 필요 없어야 한다**는 것이 결정 기준이었다. probe-rs 를 인덱스의
+`toolsDependencies` 로 선언해 두면 사용자는 Board Manager 설치만으로 끝난다.
+⚠ **플랫폼 아카이브에 바이너리를 동봉하지는 않는다** — 초안에서는 `nrf54l/tools/` 에
+넣을 생각이었으나, 그러면 OS 별 바이너리가 전부 아카이브에 들어가고 저장소도 그만큼
+무거워진다. `extras/make_tools.sh` 가 재포장해 릴리스에 올리고 인덱스가 그것을 가리킨다
+(`make_release.sh` 는 `tools/` 를 아카이브에서 제외한다).
 `baram-stm32-arduino`가 업로더를 Go로 만들어 동봉한 것과 같은 이유다 — **IDE는 Python을 동봉하지 않는다.**
 probe-rs 하나가 CMSIS-DAP과 J-Link를 모두 커버하므로 툴이 늘지도 않는다.
 
@@ -970,7 +974,6 @@ baram-nrf54-arduino/                 # 저장소 루트
     │   └── linker/
     ├── libraries/
     ├── variants/nu54dk/
-    ├── tools/probe-rs/{macosx,linux,win}/
     ├── bootloader/                  # M4
     └── softdevice/
         ├── LICENSE-Nordic           # Nordic-5-Clause 전문
