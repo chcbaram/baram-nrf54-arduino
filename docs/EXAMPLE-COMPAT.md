@@ -94,38 +94,61 @@ throughput  central_throughput
 
 ### B. 우리 BLE API 가 아직 없다 — 8개
 
-| 예제 | 필요한 것 |
-|---|---|
-| `blemidi` | `BLEMidi` — 단일 서비스라 작다 |
-| `blehid_gamepad` | `BLEHidGamepad` + `hid_gamepad_report_t` |
-| `central_hid` | `BLEClientHidAdafruit` |
-| `ancs` | `BLEAncs` (iPhone 알림) |
-| `client_cts` | `BLEClientCts` (시각 동기) |
-| `dfu_ota` `dfu_serial` `blinky_ota` | 실제 DFU — M4 |
-
-`BLEAncs` / `BLEClientCts` 는 클라이언트 기반(B9)이 이미 있어 얹기 쉽다.
+| 예제 | 상태 | 필요한 것 |
+|---|---|---|
+| `blemidi` | 📅 **지원 예정** | `BLEMidi` — 단일 서비스라 작다. 다음 순번 |
+| `ancs` | 📅 **지원 예정** | `BLEAncs` (iPhone 알림). 클라이언트 기반(B9)이 있어 얹기 쉽다 |
+| `client_cts` | 📅 **지원 예정** | `BLEClientCts` (시각 동기). 〃 |
+| `central_hid` | 📅 **지원 예정** | `BLEClientHidAdafruit` |
+| `blehid_gamepad` | 📅 **지원 예정** | `BLEHidGamepad` + `hid_gamepad_report_t` |
+| `dfu_ota` | 📅 M4 | 실제 DFU. 지금 `BLEDfu` 는 서비스만 올리고 명확히 거절한다 |
+| `dfu_serial` | 📅 M4 | 부트로더가 있어야 한다 |
+| `blinky_ota` | 📅 M4 | 〃 |
 
 ### C. M2(Arduino API) 가 아직 없다 — 12개
 
-```
-adc  adc_vbat  Fading  hwpwm  hw_systick  software_timer
-digital_interrupt_deferred  Serial1_test  hwinfo  fwinfo  meminfo  blink_sleep
-```
+전부 📅 **지원 예정** (M2). BLE 와 무관하고 하드웨어는 다 있다.
 
-`analogRead` / `analogWrite` / `attachInterrupt` / `Wire` / `SPI` 가 걸려 있다.
+| 예제 | 필요한 것 |
+|---|---|
+| `adc` `adc_vbat` | `analogRead` (SAADC) |
+| `Fading` `hwpwm` | `analogWrite` / PWM |
+| `digital_interrupt_deferred` | `attachInterrupt` (GPIOTE) |
+| `Serial1_test` | 두 번째 UART. ⚠ 핀이 P2 도메인이라 외부 배선이 필요하다 |
+| `hw_systick` `software_timer` | 타이머 API |
+| `hwinfo` `fwinfo` `meminfo` | 정보 출력 — 우리 `board_test` 가 비슷한 일을 한다 |
+| `blink_sleep` | 저전력 API (§4.5) |
 
 ### D. 외부 기기·보드 고유 하드웨어 — 16개
 
-```
-ancs_arcada  ancs_oled  client_cts_oled  neopixel  neomatrix
-image_eink_transfer  gpstest_swuart  tone_happy_birthday
-bluefruit_playground  arduino_science_journal  tf4micro-motion-kit
-pairing_passkey_arcada  central_ti_sensortag_optical  homekit_lightbulb
-StandardFirmataBLE  nfc_to_gpio
-```
+**여기가 "안 되는 것" 과 "아직 안 한 것" 이 섞이는 자리다.** 섞어 두면 나중에
+"이건 원래 안 되는 거였나?" 를 다시 조사하게 되므로 하나씩 나눈다.
 
-⚠ 이 중 `neopixel` · `neomatrix` · `gpstest_swuart` 는 bit-banging 이라
-**영구 불가**다 (컴파일은 된다). `nfc_to_gpio` 는 하드웨어는 있고 드라이버가 없다.
+| 예제 | 상태 | 이유 |
+|---|---|---|
+| `neopixel` | 🚫 **영구 불가** | bit-banging. SoftDevice 가 최상위 인터럽트를 점유해 타이밍이 깨진다 (§7 F6). **컴파일은 된다** — 그래서 더 위험하다 |
+| `neomatrix` | 🚫 **영구 불가** | 〃 (NeoPixel 기반) |
+| `gpstest_swuart` | 🚫 **영구 불가** | 〃 (SoftwareSerial) |
+| `tone_happy_birthday` | 🔧 하드웨어 있음 | `tone()` 미구현. PWM(M2) 위에 얹으면 된다. 부저는 외부 부품 |
+| `nfc_to_gpio` | 🔧 하드웨어 있음 | **NFCT 는 칩에 있다** (L15·L05 모두, `NFCT_IRQn=214`, NFC1/2 = P1.02/03). 드라이버만 없다 |
+| `ancs_oled` | 📦 외부 부품 | SSD1306 OLED. `Wire`(M2) 가 먼저 |
+| `client_cts_oled` | 📦 외부 부품 | 〃 |
+| `image_eink_transfer` | 📦 외부 부품 | e-ink 패널. `SPI`(M2) 가 먼저 |
+| `central_ti_sensortag_optical` | 📦 외부 기기 | TI SensorTag 실물이 필요. 코어는 이미 가능 (`BLEClientService`) |
+| `ancs_arcada` | 🧩 Adafruit 보드 | `Adafruit_Arcada.h` — 그 보드 전용. `ancs` (비-Arcada 판)로 대체 가능 |
+| `pairing_passkey_arcada` | 🧩 Adafruit 보드 | 〃. `pairing_passkey` 로 대체 가능 |
+| `bluefruit_playground` | 🧩 Adafruit 보드 | CPB/CLUE 센서 + `BLEAdafruit*` 독자 서비스 |
+| `arduino_science_journal` | 🧩 Adafruit 보드 | CircuitPlayground + APDS9960 |
+| `tf4micro-motion-kit` | 🧩 Adafruit 보드 | Arcada + TFLite |
+| `StandardFirmataBLE` | 📚 외부 SW | Firmata + 호스트 프로그램. 코어 문제 아님 |
+| `homekit_lightbulb` | 📚 외부 라이브러리 | `BLEHomekit` — Adafruit 저장소 밖 |
+
+**범례**
+- 🚫 **영구 불가** — 칩·스택 구조상 안 된다. 계획에 넣지 않는다
+- 🔧 **하드웨어 있음, 드라이버 없음** — 우리가 만들면 된다
+- 📦 **외부 부품 필요** — 코어가 막는 게 아니라 부품이 있어야 시험된다
+- 🧩 **다른 보드 전용** — 그 보드가 없으면 의미가 없다. 대체 예제가 있으면 그걸 쓴다
+- 📚 **외부 소프트웨어** — 코어 문제 아님
 
 ## 제외 규칙 — 하나씩 확인한 뒤에만 뺀다
 
