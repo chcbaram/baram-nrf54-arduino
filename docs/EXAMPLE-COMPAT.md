@@ -1,9 +1,10 @@
 # Adafruit 예제 호환 현황
 
-`adafruit/Adafruit_nRF52_Arduino` 의 `Bluefruit52Lib/examples` **71개**를 이 코어로
-컴파일해 본 결과다. **무엇을 먼저 만들지 감으로 정하지 않으려고** 재는 것이다.
+`adafruit/Adafruit_nRF52_Arduino` 의 `Bluefruit52Lib/examples` **71개** 중,
+외부 기기·보드 고유 하드웨어에 묶인 16개를 뺀 **55개**를 이 코어로 컴파일해 본
+결과다. **무엇을 먼저 만들지 감으로 정하지 않으려고** 재는 것이다.
 
-최종 측정: 2026-09-06 · XIAO nRF54L15 기준
+최종 측정: 2026-09-07 · XIAO nRF54L15 기준
 
 ---
 
@@ -30,15 +31,42 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 > 무관한 기본 예제들이 거기 묶여 있었다. R10(USB 하드웨어 없음)은 사실이지만
 > 그게 이 예제들을 막는 이유는 아니었다.
 
+## 세는 대상에서 뺀 것 (16)
+
+**외부 기기나 보드 고유 하드웨어에 묶여 있어 우리 BLE 지원 여부와 무관한** 예제다.
+이걸 분모에 넣으면 "무엇을 먼저 만들지" 판단이 흐려진다.
+
+| 분류 | 예제 | 무엇에 묶여 있나 |
+|---|---|---|
+| Adafruit 고유 보드·실드 (5) | `ancs_arcada` `pairing_passkey_arcada` `bluefruit_playground` `arduino_science_journal` `tf4micro-motion-kit` | `Adafruit_Arcada.h`, `SdFat`, `PDM`, `Adafruit_CircuitPlayground` |
+| 외부 디스플레이·모듈 (7) | `ancs_oled` `client_cts_oled` `neopixel` `neomatrix` `image_eink_transfer` `gpstest_swuart` `tone_happy_birthday` | SSD1306 OLED, NeoPixel, e-ink, GPS 모듈, 부저 |
+| 특정 제품·환경 (4) | `central_ti_sensortag_optical` `homekit_lightbulb` `StandardFirmataBLE` `nfc_to_gpio` | TI SensorTag 실물, `BLEHomekit.h`, Firmata 호스트, NFC 안테나 |
+
+⚠ 이 중 넷은 **영구 제외**다. 나중에 될 수도 있는 것이 아니다.
+- `neopixel` `neomatrix` `gpstest_swuart` — bit-banging 이다. SoftDevice 가 최상위
+  인터럽트를 점유해 구조적으로 깨진다 (CLAUDE.md §7 F6)
+- `nfc_to_gpio` — **nRF54L 에 NFC 하드웨어 자체가 없다**
+
+⚠ **빼면 안 되는 것과 헷갈리지 마라.** 외부 기기가 필요해도 **BLE 자체를
+검증하는** 예제는 분모에 남는다: `central_*` 전체 · `dual_bleuart` ·
+`rssi_proximity_*` (보드 2대), `pairing_*` · `blehid_*` · `ancs` · `client_cts`
+(폰만 있으면 된다), `throughput` · `central_throughput` (처리량 실측),
+`image_transfer` · `controller` · `blemidi` · `custom_hrm` · `custom_htm`
+(폰 앱이 상대지만 BLE 데이터 경로 검증).
+
+⚠ `Hardware/` 의 `adc` · `hwpwm` · `Fading` · `software_timer` · `Serial1_test` 등은
+BLE 와 무관하지만 **우리 M2(Arduino API) 목표에는 해당**한다. "BLE 와 무관" 으로
+묶어 빼지 않고 아래 표에서 따로 센다.
+
 ## 현황
 
 | | 개수 |
 |---|---|
 | **컴파일 통과** | **16** |
-| 우리 BLE API 부족 | 약 16 |
+| 우리 BLE API 부족 | 약 12 |
 | 우리 M2(Arduino API) 부족 | 약 16 |
 | 외부 라이브러리 미설치 | 11 |
-| 계 | 71 |
+| 계 (제외 16 뺀 뒤) | 55 |
 
 **⚠ 컴파일 통과가 동작을 뜻하지 않는다.** 별표(*)가 실기까지 확인한 것이다.
 
@@ -74,11 +102,9 @@ adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
 
 ### 외부 라이브러리 (우리 책임 아님, 11)
 
-`Adafruit_NeoPixel`(4) · `Adafruit_Arcada`(2) · `Adafruit_GFX` · `MIDI` · `Servo` ·
-`SoftwareSerial` · `BLEHomekit`.
-
-⚠ NeoPixel 과 SoftwareSerial 은 **설치하면 컴파일은 되지만 동작하지 않는다.**
-SoftDevice 가 최상위 인터럽트를 점유해 bit-banging 이 깨진다 (CLAUDE.md §7 F6).
+`MIDI` 등 스케치가 별도 라이브러리를 요구하는 것들이다. 위 "뺀 것" 과 겹치는
+항목(NeoPixel · Arcada · GFX · Servo · SoftwareSerial · BLEHomekit)은 이제
+분모 밖이므로, 남는 것은 설치만 하면 되는 쪽이다.
 
 ---
 
@@ -95,3 +121,6 @@ done
 
 첫 오류만 보면 그 뒤에 숨은 의존을 못 본다. **기능을 하나 추가할 때마다 다시
 재는 것**이 정확하다 — 실제로 작은 API 묶음 하나로 7 → 12 가 됐다.
+
+⚠ 분모를 71 이 아니라 **55** 로 세는 것에 주의하라. 위 "뺀 것" 16개는 우리
+BLE 지원과 무관해서 제외했고, 그 결정을 모르면 숫자가 안 맞는다.

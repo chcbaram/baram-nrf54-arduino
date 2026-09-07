@@ -58,7 +58,7 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 
 **없는 것:** 페어링 절차(`BLESecurity` — 키 저장소는 됐고 절차가 남았다),
 HID, LESC, 실제 DFU.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 16개 통과).
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (외부 기기 의존 16개를 뺀 55개 중 16개 통과).
 
 ---
 
