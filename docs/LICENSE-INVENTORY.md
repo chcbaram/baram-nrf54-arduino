@@ -57,6 +57,7 @@ SoftDevice가 ARM 코드를 포함한다는 뜻이므로 이 파일도 `nrf54l/s
 | FreeRTOS-Kernel | FreeRTOS/FreeRTOS-Kernel | **MIT** | `nrf54l/cores/nrf54l/freertos/` |
 | Arduino API 계열 (`Print`/`Stream`/`WString` 등) | Arduino / Adafruit nRF52 코어 계보 | **LGPL-2.1** ⚠ | `nrf54l/cores/nrf54l/` |
 | Bluefruit52Lib 이식본 (M3) | adafruit/Adafruit_nRF52_Arduino | BSD-3-Clause / MIT (파일별 상이) | `nrf54l/libraries/Bluefruit54Lib/` |
+| micro-ecc (LESC 용 P-256) | kmackay/micro-ecc | **BSD-2-Clause** | `nrf54l/libraries/Bluefruit54Lib/src/utility/micro-ecc/` |
 | probe-rs 바이너리 | probe-rs/probe-rs | MIT OR Apache-2.0 | `nrf54l/tools/probe-rs/` |
 
 > ✅ **확인 완료 (이식 시점)**: 이식한 Arduino 코어 API 파일들의 헤더를 직접 확인했다.
@@ -101,3 +102,13 @@ pipx run scancode-toolkit --license --json-pp docs/scancode.json nrf54l/
 
 `adafruit/Adafruit_nRF52_Arduino`와 Seeed·smartme.io·CAMI 포크들이 SoftDevice를 번들해
 Board Manager로 배포 중이며 문제된 사례가 없다.
+
+## 이식 시 손댄 것 — micro-ecc
+
+`uECC.h` 의 기본 설정 블록 앞에 커브 선택을 추가했다. 원본은 모든 커브를 켜는데
+우리는 **P-256(secp256r1) 하나만** 쓰고, 나머지는 플래시만 먹는다.
+LICENSE.txt 를 함께 두었고 코드 자체는 고치지 않았다.
+
+⚠ `uECC_VLI_NATIVE_LITTLE_ENDIAN` 은 **건드리지 않았다.** Nordic 문서가 바꾸면
+동작이 깨질 수 있다고 경고한다. BLE 는 키를 리틀엔디안으로 주고받으므로
+엔디안 변환은 `BLESecurity.cpp` 에서 명시적으로 한다.

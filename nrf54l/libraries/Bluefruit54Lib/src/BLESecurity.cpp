@@ -10,12 +10,54 @@
 #include "bluefruit.h"
 #include <string.h>
 
+extern "C" {
+#include "nrf_soc.h"
+#include "utility/micro-ecc/uECC.h"
+}
+
+/*
+ * ⚠ 바이트 순서가 이 파일의 유일한 함정이다.
+ *   BLE 는 P-256 공개키를 {X, Y} 각각 **리틀엔디안**으로 주고받고
+ *   (ble_gap.h 의 ble_gap_lesc_p256_pk_t 주석), DHKey 도 리틀엔디안이다.
+ *   micro-ecc 는 **빅엔디안** 바이트 배열로 다룬다.
+ *   그래서 32바이트 덩어리마다 뒤집는다. 안 뒤집으면 페어링이 그냥 실패하고,
+ *   증상은 "LESC 만 안 된다" 로만 보인다.
+ */
+static void swap32(uint8_t *dst, const uint8_t *src)
+{
+  for (uint8_t i = 0; i < 32; i++) dst[i] = src[31 - i];
+}
+
+/*
+ * uECC 가 쓸 난수. SoftDevice 가 켜져 있으면 그쪽 풀에서 받아야 한다.
+ *
+ * ⚠ S145 에는 nRF52 의 `sd_rand_application_bytes_available_get()` 이 **없다.**
+ *   풀이 비면 `sd_rand_application_vector_get()` 이 NRF_ERROR_SOC_RAND_NOT_ENOUGH_VALUES
+ *   를 돌려주므로, 그때 잠깐 쉬었다 다시 청한다.
+ */
+static int lesc_rng(uint8_t *dest, unsigned size)
+{
+  while (size) {
+    uint8_t chunk = (size > 32) ? 32 : (uint8_t) size;
+
+    for (uint8_t retry = 0; ; retry++) {
+      uint32_t err = sd_rand_application_vector_get(dest, chunk);
+      if (err == NRF_SUCCESS) break;
+      if (retry > 200) return 0;       /* 풀이 영영 안 차면 포기한다 */
+      delay(2);
+    }
+    dest += chunk;
+    size -= chunk;
+  }
+  return 1;
+}
+
 BLESecurity::BLESecurity(void)
 {
   memset(&_sec_param, 0, sizeof(_sec_param));
   _sec_param.bond          = 1;
   _sec_param.mitm          = 0;
-  _sec_param.lesc          = 0;   /* 아래 주석 — LESC 미지원 */
+  _sec_param.lesc          = 1;   /* micro-ecc 로 지원한다 */
   _sec_param.keypress      = 0;
   _sec_param.io_caps       = BLE_GAP_IO_CAPS_NONE;
   _sec_param.oob           = 0;
@@ -29,6 +71,11 @@ BLESecurity::BLESecurity(void)
   memset(&_bond_keys, 0, sizeof(_bond_keys));
   _pairing_conn_hdl = BLE_CONN_HANDLE_INVALID;
 
+  _lesc_ready = false;
+  memset(_lesc_priv, 0, sizeof(_lesc_priv));
+  memset(&_lesc_own_pk, 0, sizeof(_lesc_own_pk));
+  memset(&_lesc_peer_pk, 0, sizeof(_lesc_peer_pk));
+
   _passkey_cb     = NULL;
   _passkey_req_cb = NULL;
   _complete_cb    = NULL;
@@ -38,7 +85,35 @@ BLESecurity::BLESecurity(void)
 bool BLESecurity::begin(void)
 {
   bondInit();
+
+  /*
+   * P-256 키쌍을 한 번 만든다. 공개키는 페어링마다 상대에게 넘어가고,
+   * 개인키는 DHKey 계산에만 쓴다.
+   *
+   * ⚠ 이 계산은 수백 ms 걸릴 수 있다. Bluefruit.begin() 안에서 한 번이므로
+   *   부팅이 그만큼 늦어진다 — 광고 시작 전에 끝난다.
+   */
+  uECC_set_rng(lesc_rng);
+
+  uint8_t pub_be[64];
+  uint8_t priv_be[32];
+
+  if (!uECC_make_key(pub_be, priv_be, uECC_secp256r1())) {
+    _lesc_ready = false;
+    _sec_param.lesc = 0;      /* 못 만들었으면 레거시로 내려간다 */
+    return false;
+  }
+
+  memcpy(_lesc_priv, priv_be, 32);
+  swap32(&_lesc_own_pk.pk[0],  &pub_be[0]);    /* X */
+  swap32(&_lesc_own_pk.pk[32], &pub_be[32]);   /* Y */
+  _lesc_ready = true;
   return true;
+}
+
+void BLESecurity::setLESC(bool enabled)
+{
+  _sec_param.lesc = (enabled && _lesc_ready) ? 1 : 0;
 }
 
 bool BLESecurity::setPIN(const char *pin)
@@ -109,6 +184,15 @@ void BLESecurity::_eventHandler(const ble_evt_t *evt)
       keyset.keys_peer.p_id_key   = &_bond_keys.peer_id;
 
       /*
+       * LESC 를 쓰면 공개키 자리를 줘야 한다. SoftDevice 가 우리 것을 상대에게
+       * 보내고, 상대 것을 여기에 받아 적는다.
+       */
+      if (_lesc_ready && _sec_param.lesc) {
+        keyset.keys_own.p_pk  = &_lesc_own_pk;
+        keyset.keys_peer.p_pk = &_lesc_peer_pk;
+      }
+
+      /*
        * ⚠ peripheral 일 때만 우리 파라미터를 보낸다. central 은 이미
        *   authenticate() 에서 냈으므로 NULL 을 줘야 한다 (ble_gap.h 규정).
        */
@@ -150,16 +234,38 @@ void BLESecurity::_eventHandler(const ble_evt_t *evt)
       break;
     }
 
-    /*
-     * ⚠ LESC 는 아직 못 한다 (P-256 ECDH — nRF54L 은 CRACEN 이라 Adafruit 의
-     *   CryptoCell 코드를 못 옮긴다). 여기까지 왔다는 건 상대가 LESC 를 골랐다는
-     *   뜻인데, 답할 키가 없으므로 **명확히 끊는다.** 응답을 안 하면 상대가
-     *   타임아웃까지 기다려 원인이 안 보인다.
-     */
-    case BLE_GAP_EVT_LESC_DHKEY_REQUEST:
-      sd_ble_gap_disconnect(conn_hdl, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-      if (_complete_cb) _complete_cb(conn_hdl, BLE_GAP_SEC_STATUS_AUTH_REQ);
+    case BLE_GAP_EVT_LESC_DHKEY_REQUEST: {
+      /*
+       * 상대 공개키로 ECDH 를 계산해 돌려준다. keyset 으로 받아 둔
+       * _lesc_peer_pk 가 이미 채워져 있다.
+       *
+       * ⚠ **답하지 않으면 페어링이 그대로 멈춘다.** 실패해도 반드시 응답한다 —
+       *   그래야 상대가 실패를 알고 끝낸다.
+       * ⚠ 이 계산은 수백 ms 걸린다. **BLE 이벤트 태스크에서 돌면 그동안 이벤트
+       *   펌프가 멈춘다.** 지금은 이 핸들러가 이벤트 태스크에서 불리므로
+       *   그만큼 지연이 생긴다 — 페어링 때 한 번뿐이라 받아들인다.
+       */
+      ble_gap_lesc_dhkey_t dhkey;
+      memset(&dhkey, 0, sizeof(dhkey));
+
+      bool ok = false;
+      if (_lesc_ready) {
+        uint8_t peer_be[64], secret_be[32];
+        swap32(&peer_be[0],  &_lesc_peer_pk.pk[0]);    /* X */
+        swap32(&peer_be[32], &_lesc_peer_pk.pk[32]);   /* Y */
+
+        if (uECC_shared_secret(peer_be, _lesc_priv, secret_be, uECC_secp256r1())) {
+          swap32(dhkey.key, secret_be);
+          ok = true;
+        }
+      }
+      /* ⚠ S145 는 sec_status 인자를 하나 더 받는다 (nRF52 의 S140 은 둘뿐이다). */
+      sd_ble_gap_lesc_dhkey_reply(conn_hdl,
+                                  ok ? BLE_GAP_SEC_STATUS_SUCCESS
+                                     : BLE_GAP_SEC_STATUS_UNSPECIFIED,
+                                  ok ? &dhkey : NULL);
       break;
+    }
 
     case BLE_GAP_EVT_AUTH_STATUS: {
       const ble_gap_evt_auth_status_t *st = &evt->evt.gap_evt.params.auth_status;
@@ -175,6 +281,9 @@ void BLESecurity::_eventHandler(const ble_evt_t *evt)
         uint8_t role = (conn != NULL) ? conn->getRole() : BLE_GAP_ROLE_PERIPH;
         bondSaveKeys(role, &_bond_keys);
       }
+
+      /* LESC 로 맺었는지 스케치가 알 수 있게 남긴다 (진단용). */
+      _last_lesc = st->lesc ? true : false;
 
       _pairing_conn_hdl = BLE_CONN_HANDLE_INVALID;
       if (_complete_cb) _complete_cb(conn_hdl, st->auth_status);

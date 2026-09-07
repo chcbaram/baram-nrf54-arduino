@@ -5,12 +5,16 @@
  *
  * API 는 Adafruit Bluefruit52Lib 을 따른다 (CLAUDE.md R12 — 호환 우선).
  *
- * ⚠ **LESC(LE Secure Connections)는 아직 없다.** LESC 는 P-256 ECDH 가 필요한데,
- *   Adafruit 은 nRF52840 의 CryptoCell 로 한다. nRF54L 에는 CryptoCell 이 없고
- *   **CRACEN** 이 있어서 그 코드를 그대로 못 옮긴다.
- *   지금은 **레거시 페어링**만 한다 — 폰과의 본딩에는 충분하다.
- *   LESC 를 요구하는 상대와는 페어링이 실패하며, 조용히 넘어가지 않고
- *   pair complete 콜백에 실패 상태가 온다.
+ * LESC(LE Secure Connections)는 **micro-ecc 소프트웨어 P-256** 으로 한다.
+ *
+ * ⚠ nRF54L 의 CRACEN 하드웨어 가속기는 못 쓴다 — `nrfx_cracen.h` 가 난수만
+ *   내주고 ECC 는 NCS 의 nrf_security(PSA Crypto)를 거쳐야 닿는데, Arduino
+ *   코어에 끌어오기엔 너무 크다. Adafruit 이 nRF52840 에서 쓰는 CryptoCell
+ *   경로도 이 칩엔 없다. Nordic 자신이 CryptoCell 없는 nRF52832 에서 쓴 방법이
+ *   micro-ecc 다.
+ *
+ * ⚠ 키쌍은 `begin()` 에서 한 번 만든다. 페어링마다 ECDH 를 한 번 계산하며
+ *   그 동안 그 태스크가 수백 ms 잡힐 수 있다 — 콜백 태스크에서 돈다.
  */
 #ifndef _BLE_SECURITY_H_
 #define _BLE_SECURITY_H_
@@ -48,6 +52,17 @@ class BLESecurity
     void setIOCaps(bool display, bool yes_no, bool keyboard);
     void setMITM(bool enabled);
 
+    /**
+     * LESC 사용 여부. 기본은 켜져 있다.
+     *
+     * ⚠ 끄면 레거시 페어링이 되는데, 레거시는 **페어링 순간을 도청당하면
+     *   LTK 가 유도된다.** 상대가 LESC 를 못 하는 경우에만 꺼라.
+     */
+    void setLESC(bool enabled);
+
+    /** 마지막 페어링이 LESC 였는가. 페어링 완료 콜백 안에서 읽는다. */
+    bool lastPairingWasLesc(void) const { return _last_lesc; }
+
     /** 이 연결에서 페어링을 시작한다 (central 이 거는 쪽). */
     bool authenticate(uint16_t conn_hdl);
 
@@ -74,6 +89,16 @@ class BLESecurity
      */
     bond_keys_t _bond_keys;
     uint16_t    _pairing_conn_hdl;
+
+    /*
+     * P-256 키쌍. 공개키는 SoftDevice 가 keyset 으로 들고 있으므로 살아 있어야 한다.
+     * 바이트 순서: uECC 는 빅엔디안, BLE 는 리틀엔디안이다 (구현 주석 참조).
+     */
+    bool     _lesc_ready;
+    bool     _last_lesc = false;
+    uint8_t  _lesc_priv[32];
+    ble_gap_lesc_p256_pk_t _lesc_own_pk;    /* 리틀엔디안 — SoftDevice 에 넘기는 형식 */
+    ble_gap_lesc_p256_pk_t _lesc_peer_pk;
 
     pair_passkey_cb_t     _passkey_cb;
     pair_passkey_req_cb_t _passkey_req_cb;

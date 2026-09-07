@@ -54,11 +54,11 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | `BLEClientService` / `BLEClientCharacteristic` | ✅ 상류 `central_bleuart` 컴파일 |
 | 본딩 키 RRAM 저장 | ✅ 저장·재부팅 유지·IRK 주소 해석 |
 | **페어링 / 본딩** | ✅ Just Works, 재연결 무페어링 암호화, CCCD 복원 |
+| **LESC** (LE Secure Connections) | ✅ micro-ecc P-256, Mac 과 `LESC=1` |
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
-**없는 것:** LESC(P-256 ECDH — CRACEN 이 nrfx 로 안 열려 micro-ecc 가 필요하다),
-HID, `BLEMidi`, `BLEAncs` / `BLEClientCts`, 실제 DFU.
+**없는 것:** HID, `BLEMidi`, `BLEAncs` / `BLEClientCts`, 실제 DFU.
 예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 21개 통과).
 
 ---
@@ -200,7 +200,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B8**~~ ✅ | **central 역할** — 스캔 / 연결 / GATT 탐색 / `BLEClientUart` | **완료.** 두 보드 간 양방향 실증 |
 | ~~**B9**~~ ✅ | `BLEClientService`/`BLEClientCharacteristic` 일반화 + `BLEClientBas`/`BLEClientDis` | **완료.** 상류 `central_bleuart` 컴파일 |
 | ~~**B10**~~ ✅ | **본딩 / `BLESecurity`** (레거시 페어링) | **완료.** Mac 으로 4가지 실증 |
-| B11 (남음) | LESC (micro-ecc), HID, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
+| ~~**B11**~~ ✅ | **LESC** (micro-ecc P-256) | **완료.** Mac 과 `LESC=1` 로 페어링 |
+| B12 (남음) | HID, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -570,18 +571,36 @@ Mac 을 상대로 4가지를 실증했다. bleak 은 macOS 에서 `pair()` 를 �
 그 이벤트는 상대가 CCCD 가 걸린 속성을 **건드려야** 온다. 재연결한 상대는 이미
 구독했다고 믿고 아무것도 안 건드리므로 영영 안 온다. **연결 즉시** 복원해야 한다.
 
-#### LESC 는 없다
+### B11 — LESC ✅ (2026-09-07)
 
-P-256 ECDH 가 필요한데 **nRF54L 의 CRACEN 은 nrfx 로 ECC 가 안 열린다** —
-`nrfx_cracen.h` 는 난수만 준다. CRACEN 의 공개키 엔진은 NCS 의 `nrf_security`
-(PSA Crypto) 를 통해서만 닿고, 그건 Arduino 코어에 끌어오기엔 너무 크다.
+**micro-ecc 소프트웨어 P-256** 으로 했다. Mac 과 페어링해 `LESC=1` 확인.
 
-대신 **micro-ecc(uECC)** 가 정석이다 — Nordic 자신이 CryptoCell 없는 nRF52832 에서
-LESC 를 그렇게 했다 (`NRF_CRYPTO_BACKEND_MICRO_ECC_ENABLED`). BSD-2-Clause,
-약 10 KB, 페어링 때 한 번 100 ms 안팎. B11 에서 한다.
+nRF54L 의 CRACEN 하드웨어 가속기는 **못 쓴다** — `nrfx_cracen.h` 가 난수만 내주고,
+공개키 엔진은 NCS 의 `nrf_security`(PSA Crypto)를 거쳐야 닿는데 Arduino 코어에
+끌어오기엔 너무 크다. Adafruit 이 nRF52840 에서 쓰는 CryptoCell 도 이 칩엔 없다.
+Nordic 자신이 CryptoCell 없는 nRF52832 에서 쓴 방법이 micro-ecc 다.
 
-지금은 LESC 요청이 오면 **조용히 멈추지 않고 명확히 끊는다** (`LESC_DHKEY_REQUEST`
-에서 disconnect + pair complete 콜백에 실패 상태).
+**실측**: 키쌍 생성 **202 ms**(부팅 때 한 번), 플래시 **약 4 KB** 증가.
+
+⚠ **바이트 순서가 유일한 함정이다.** BLE 는 공개키를 {X,Y} 각각 **리틀엔디안**,
+DHKey 도 리틀엔디안으로 다루는데 micro-ecc 는 **빅엔디안** 배열을 쓴다.
+32바이트 덩어리마다 뒤집는다. 안 뒤집으면 그냥 페어링이 실패하고, 증상은
+"LESC 만 안 된다" 로만 보인다.
+
+⚠ `uECC_VLI_NATIVE_LITTLE_ENDIAN` 으로 해결하려 하지 마라 — Nordic 문서가 그 매크로를
+바꾸면 라이브러리가 제대로 동작하지 않을 수 있다고 경고한다.
+
+⚠ S145 API 가 nRF52 와 또 달랐다:
+- `sd_rand_application_bytes_available_get()` 이 **없다.** 풀이 비면
+  `sd_rand_application_vector_get()` 이 오류를 내므로 그때 잠깐 쉬었다 재시도한다
+- `sd_ble_gap_lesc_dhkey_reply()` 가 **sec_status 인자를 하나 더** 받는다
+
+#### 시험 요령 — 상대의 옛 본딩이 걸림돌이다
+
+우리 본딩만 지우면 Mac 에는 옛 키가 남아, 재연결 때 우리가 `SEC_INFO_REQUEST` 에
+NULL 로 답하고 **macOS 가 그냥 끊어 버린다.** 시스템 설정에서 기기를 잊게 하는 대신
+`Bluefruit.setAddr()` 로 **주소를 새로 잡으면** 새 기기로 보고 새로 페어링한다.
+자동 반복 시험에는 이 쪽이 훨씬 낫다.
 
 ### 이어서 작업할 때 알아 둘 것
 
