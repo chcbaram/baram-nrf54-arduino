@@ -54,6 +54,13 @@ bool BLEAdvertisingData::addName(void)
   return addData(BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME, name, len);
 }
 
+bool BLEAdvertisingData::addAppearance(uint16_t appearance)
+{
+  /* GAP 쪽에도 넣어야 연결 뒤 조회에 답한다. */
+  (void) sd_ble_gap_appearance_set(appearance);
+  return addData(BLE_GAP_AD_TYPE_APPEARANCE, &appearance, 2);
+}
+
 bool BLEAdvertisingData::addUuid(BLEUuid bleuuid)
 {
   if (bleuuid.size() == 16) {

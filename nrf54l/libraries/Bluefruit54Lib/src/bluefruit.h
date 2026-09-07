@@ -103,6 +103,12 @@ class BLEAdvertisingData
     bool addFlags(uint8_t flags);
     bool addTxPower(void);
     bool addName(void);
+
+    /**
+     * 외형(Appearance)을 광고에 싣고 GAP 에도 설정한다.
+     * ⚠ HID 는 이걸 봐야 호스트가 키보드/마우스 아이콘을 붙인다.
+     */
+    bool addAppearance(uint16_t appearance);
     bool addUuid(BLEUuid bleuuid);
     bool addService(BLEService &service);
 
@@ -536,6 +542,8 @@ extern AdafruitBluefruit Bluefruit;
 #include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"
+#include "BLEHidGeneric.h"
+#include "BLEHidAdafruit.h"
 #include "BLEDfu.h"
 
 #endif

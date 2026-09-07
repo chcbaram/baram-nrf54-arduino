@@ -116,6 +116,31 @@ err_t BLECharacteristic::begin(void)
   return err;
 }
 
+err_t BLECharacteristic::addDescriptor(BLEUuid bleuuid, const void *data, uint16_t len,
+                                       BleSecurityMode read_perm, BleSecurityMode write_perm)
+{
+  if (_handles.value_handle == BLE_GATT_HANDLE_INVALID) return NRF_ERROR_INVALID_STATE;
+  if (!bleuuid.begin()) return NRF_ERROR_INVALID_PARAM;
+
+  ble_gatts_attr_md_t md;
+  memset(&md, 0, sizeof(md));
+  sec_mode_set(&md.read_perm,  (uint8_t) read_perm);
+  sec_mode_set(&md.write_perm, (uint8_t) write_perm);
+  md.vloc = BLE_GATTS_VLOC_STACK;
+  md.vlen = 0;
+
+  ble_gatts_attr_t attr;
+  memset(&attr, 0, sizeof(attr));
+  attr.p_uuid    = &bleuuid._uuid;
+  attr.p_attr_md = &md;
+  attr.init_len  = len;
+  attr.max_len   = len;
+  attr.p_value   = (uint8_t *) data;
+
+  uint16_t hdl = 0;
+  return sd_ble_gatts_descriptor_add(_handles.value_handle, &attr, &hdl);
+}
+
 uint16_t BLECharacteristic::write(const void *data, uint16_t len)
 {
   if (_handles.value_handle == BLE_GATT_HANDLE_INVALID) return 0;

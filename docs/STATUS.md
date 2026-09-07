@@ -59,7 +59,7 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
 **없는 것:** HID, `BLEMidi`, `BLEAncs` / `BLEClientCts`, 실제 DFU.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 21개 통과).
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 25개 통과).
 
 ---
 
@@ -201,7 +201,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B9**~~ ✅ | `BLEClientService`/`BLEClientCharacteristic` 일반화 + `BLEClientBas`/`BLEClientDis` | **완료.** 상류 `central_bleuart` 컴파일 |
 | ~~**B10**~~ ✅ | **본딩 / `BLESecurity`** (레거시 페어링) | **완료.** Mac 으로 4가지 실증 |
 | ~~**B11**~~ ✅ | **LESC** (micro-ecc P-256) | **완료.** Mac 과 `LESC=1` 로 페어링 |
-| B12 (남음) | HID, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
+| **B12** (진행 중) | **HID** — 키보드/마우스/미디어 키. 실기 확인 남음 | |
+| B13 (남음) | `BLEHidGamepad`, `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -601,6 +602,45 @@ DHKey 도 리틀엔디안으로 다루는데 micro-ecc 는 **빅엔디안** 배�
 NULL 로 답하고 **macOS 가 그냥 끊어 버린다.** 시스템 설정에서 기기를 잊게 하는 대신
 `Bluefruit.setAddr()` 로 **주소를 새로 잡으면** 새 기기로 보고 새로 페어링한다.
 자동 반복 시험에는 이 쪽이 훨씬 낫다.
+
+### B12 — HID (2026-09-07: 구현 완료, 실기 확인 남음)
+
+`BLEHidGeneric` / `BLEHidAdafruit` 으로 키보드·마우스·미디어 키를 만들었다.
+상류 `blehid_keyboard` · `blehid_mouse` · `blehid_camerashutter` · `blehid_keyscan`
+이 컴파일된다.
+
+#### TinyUSB 를 안 쓴다
+
+Adafruit 은 HID 정의를 **TinyUSB 에서 빌려 쓴다** (`class/hid/hid.h` 의
+`hid_keyboard_report_t`, `HID_KEY_*`, `TUD_HID_REPORT_DESC_*`). nRF52840 은 USB
+하드웨어가 있어 TinyUSB 를 어차피 싣기 때문이다.
+
+우리는 그럴 수 없다 — **nRF54L15 에 USB 하드웨어가 없고**, TinyUSB 의 hid.h 는
+165 KB 에 `common/tusb_common.h` 를 끌고 온다. 필요한 것만 `ble_hid_defs.h` 에
+직접 적었다: 리포트 구조체, 키코드, ASCII 표, 합본 리포트 맵(171 바이트).
+이름은 상류와 같게 둬서 예제가 그대로 컴파일된다.
+
+⚠ **Report Reference 디스크립터(0x2908)가 필수다.** 없으면 호스트가 어느 리포트가
+어느 ID 인지 몰라 HID 가 통째로 동작하지 않는다 — 연결은 되는데 키가 안 먹는다.
+`BLECharacteristic::addDescriptor()` 를 새로 만들어 붙였다. SoftDevice 는
+디스크립터를 **직전에 추가한 characteristic** 에 붙이므로 순서를 지켜야 한다.
+
+⚠ **HID 는 암호화된 링크를 요구한다.** 리포트 characteristic 의 권한이 암호화
+이상이어야 한다. 본딩(B10)이 먼저 된 뒤에야 의미가 있다.
+
+#### ⚠ Mac 으로는 GATT 계층조차 확인할 수 없다
+
+**Apple 이 HID 서비스(0x1812)를 앱에 안 보여준다.** 시스템이 직접 처리하는
+프로파일이라 CoreBluetooth 가 걸러낸다. 실제로 `blehid.begin()` 이 0 을 돌려주고
+광고에 0x1812 가 실려 있는데도, bleak 은 DIS 만 보고 HID 는 못 봤다.
+(같은 이유로 iOS/macOS 는 앱이 0x1812 서비스를 **게시**하는 것도 막는다.)
+
+그래서 확인은 **호스트 Bluetooth 설정에서 페어링하고 키를 눌러 보는 것**뿐이다.
+`examples/Peripheral/blehid_button` 이 그 용도다 — 버튼 하나에 키 하나만 매핑해서,
+전체 키보드 예제처럼 아무 창에나 타이핑하는 사고를 막는다.
+
+우리 보드를 central 로 써서 0x1812 를 읽는 길도 있다 (`BLEClientService` 로).
+보드가 두 대 붙어 있을 때 해 볼 만하다.
 
 ### 이어서 작업할 때 알아 둘 것
 

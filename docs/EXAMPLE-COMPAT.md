@@ -104,8 +104,8 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 | | 개수 |
 |---|---|
-| **컴파일 통과** | **21** |
-| 우리 BLE API 부족 | 약 16 |
+| **컴파일 통과** | **25** |
+| 우리 BLE API 부족 | 약 12 |
 | 우리 M2(Arduino API) 부족 | 약 20 |
 | 외부 라이브러리·외부 기기 | 약 14 |
 | 계 | 71 |
@@ -115,12 +115,13 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 **⚠ 컴파일 통과가 동작을 뜻하지 않는다.** 별표(*)가 실기까지 확인한 것이다.
 
-### 통과 (21)
+### 통과 (25)
 
 ```
 bleuart*  bleuart_multi*  beacon*  eddystone_url*
 central_scan*  central_bleuart*  neopixel(컴파일만 — 동작 불가)
-pairing_pin*  pairing_passkey  clearbonds  central_pairing
+pairing_pin  pairing_passkey  clearbonds  central_pairing
+blehid_keyboard  blehid_mouse  blehid_camerashutter  blehid_keyscan
 blinky  blinky_ota  rtos_scheduler  SerialEcho
 temp_measure_blocking  temp_measure_non_blocking
 adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
@@ -132,8 +133,16 @@ adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
 - `central_scan` — 주변 광고 수신, 주소·RSSI·AD 파싱, 16비트 UUID 필터 실기 확인
 - `central_bleuart` — 스캔·연결·GATT 탐색·알림·양방향 데이터. 보드 간, 그리고
   `extras/mac_peripheral.py` 를 상대로 확인. DIS/배터리 클라이언트는 컴파일만 확인
-- `pairing_pin` — 페어링·본딩 경로를 Mac 으로 실증 (`docs/STATUS.md` B10).
-  Just Works 페어링, RRAM 본딩 저장, 재연결 시 무페어링 암호화, CCCD 복원 4가지
+⚠ HID 계열 4개도 **컴파일만 확인했다.** 그 이유가 특별하다 —
+**Apple 이 HID 서비스(0x1812)를 앱에 안 보여준다.** 시스템이 직접 처리하는
+프로파일이라 CoreBluetooth 가 걸러내므로, bleak 으로는 GATT 계층조차 못 본다.
+확인하려면 호스트의 Bluetooth 설정에서 직접 페어링하고 키를 눌러 보는 수밖에 없다
+(그래서 `examples/Peripheral/blehid_button` 을 만들었다 — 버튼 하나에 키 하나).
+
+⚠ 페어링 계열 4개(`pairing_pin` · `pairing_passkey` · `clearbonds` ·
+`central_pairing`)도 **컴파일만 확인했다.** 페어링·본딩 동작 자체는 별도 시험
+스케치로 Mac 을 상대로 실증했지만(`docs/STATUS.md` B10·B11), 그건 이 예제들을
+구워서 돌린 것이 아니다. 별표는 예제를 실제로 돌린 것에만 붙인다.
 - `beacon` / `eddystone_url` — 광고 페이로드를 bleak 로 스캔해 바이트 단위로 검증.
   iBeacon 은 major/minor 가 **빅엔디안**으로, EddyStone 은 URL 압축 코드가
   규격대로 나가는 것까지 확인했다
@@ -144,7 +153,7 @@ adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
 |---|---|---|
 | Client / Central 스택 | ~7 | 기본은 끝났다. 남은 것은 `BLEAncs` / `BLEClientCts` / `BLEClientHidAdafruit` 같은 개별 클라이언트 |
 | M2 — SPI / Wire / PDM / PWM | ~16 | Arduino API. BLE 와 무관 |
-| HID 서비스 | 5 | `BLEHidAdafruit`, `BLEHidGamepad` |
+| HID — 게임패드 / 클라이언트 | 2 | `BLEHidGamepad`(+`hid_gamepad_report_t`), `BLEClientHidAdafruit` |
 
 
 

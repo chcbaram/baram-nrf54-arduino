@@ -49,6 +49,14 @@
 #define UUID16_CHR_REPORT                         0x2A4D
 #define UUID16_CHR_PROTOCOL_MODE                  0x2A4E
 #define UUID16_CHR_PNP_ID                         0x2A50
+/* HID 부트 프로토콜 리포트 */
+#define UUID16_CHR_BOOT_KEYBOARD_INPUT_REPORT     0x2A22
+#define UUID16_CHR_BOOT_KEYBOARD_OUTPUT_REPORT    0x2A32
+#define UUID16_CHR_BOOT_MOUSE_INPUT_REPORT        0x2A33
+
+/* ── 디스크립터 ─────────────────────────────────────────────────────── */
+/* HID 리포트의 ID·종류를 알려 준다. 없으면 호스트가 리포트를 해석 못 한다. */
+#define UUID16_DESCRIPTOR_REPORT_REFERENCE        0x2908
 
 /* ── 회사 식별자 (Bluetooth SIG Company Identifiers) ─────────────────── */
 #define UUID16_COMPANY_ID_APPLE                   0x004C

@@ -56,6 +56,18 @@ class BLECharacteristic
 
     err_t begin(void);
 
+    /**
+     * 이 characteristic 에 디스크립터를 붙인다. **begin() 뒤에** 부른다.
+     *
+     * ⚠ HID 의 Report Reference(0x2908)가 이게 없으면 안 붙는다. 그러면 호스트가
+     *   어느 리포트가 어느 ID 인지 몰라 **HID 가 통째로 동작하지 않는다.**
+     *   SoftDevice 는 디스크립터를 **직전에 추가한 characteristic** 에 붙이므로
+     *   순서를 지켜야 한다.
+     */
+    err_t addDescriptor(BLEUuid bleuuid, const void *data, uint16_t len,
+                        BleSecurityMode read_perm  = SECMODE_OPEN,
+                        BleSecurityMode write_perm = SECMODE_NO_ACCESS);
+
     /** GATT 서버의 값을 갱신한다 (알림은 보내지 않는다). */
     uint16_t write(const void *data, uint16_t len);
     uint16_t write(const char *str);
