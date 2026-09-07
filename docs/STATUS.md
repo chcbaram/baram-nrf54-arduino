@@ -63,41 +63,58 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 **없는 것:** `BLEClientHidAdafruit`, `BLEMidi`,
 `BLEAncs` / `BLEClientCts`, 실제 DFU(M4). 그리고 **M2(Arduino API)가 통째로 비어 있다** —
 `Wire` / `SPI` / `analogRead` / `analogWrite` / `attachInterrupt` 는 아직 없다.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 25개 통과).
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 **26개** 통과).
 
 ---
 
 ## 2. 바로 다음에 할 일
 
-### ⭐ 다음 세션은 여기서 시작한다 (2026-09-07 갱신)
+### ⭐ 다음 세션은 여기서 시작한다 (2026-09-08 갱신)
 
-B1~B12 가 모두 끝나 **M3 DoD 를 넘겼고 `0.2.0` 까지 배포됐다.**
-그래서 **최대 병목이 BLE 에서 M2(Arduino API)로 옮겨 갔다** —
-`docs/EXAMPLE-COMPAT.md` 의 미통과 46개 중 **약 20개가 M2 때문에** 막혀 있고,
-BLE API 부족은 약 12개다.
+**결정: BLE 를 먼저 끝낸다.** M2(Arduino API)가 예제 기준으로는 더 큰 병목이지만
+(미통과 45개 중 약 20개), **BLE 를 M4 를 뺀 범위에서 닫고 나서 M2 로 넘어간다.**
+사용자가 그렇게 정했다. M2 로 방향을 되돌리지 마라.
 
-**우선순위**
+**우선순위 — B13b 를 순서대로**
 
-1. **M2 — `Wire`(TWIM) 부터.** XIAO 의 LSM6DS3TR-C `WHO_AM_I` 로 외부 장비 없이
-   검증된다. **착수 전에 CLAUDE.md §7 F10 ④ 체크리스트를 반드시 읽어라** —
-   특히 같은 번호대 SERIAL 블록 충돌(`docs/PERIPHERAL-PINMAP.md` §0)과
-   다중 인스턴스 IRQ 직접 연결이 여기서 그대로 재발한다
-2. **`attachInterrupt`(GPIOTE) / `analogWrite`(PWM)** — 온보드만으로 검증된다
-3. **`SPI`(SPIM00) / `analogRead`(SAADC)** — 루프백과 외부 계측이 필요하다.
-   SPI 에는 CLAUDE.md §4 의 P2 고속 라우팅 · anomaly 8 주의사항이 붙는다
-4. **전류 측정** — M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8).
-   `systemOff()` 는 이제 있다 (아래 (a)(b))
-5. **B13b** — `BLEMidi`, `BLEClientCts`, `BLEAncs`, `BLEClientHidAdafruit`
-   (`BLEHidGamepad` 는 끝났다 — §B13a)
+1. **`BLEMidi`** — 단일 서비스라 작고, **Mac 의 Audio MIDI Setup 으로 검증된다.**
+   HID 와 달리 CoreBluetooth 가 막지 않는 영역이라 게임패드보다 수월하다
+2. **`BLEClientCts`** — B9 클라이언트 위에 얹는다. iPhone 이 CTS 서버다
+3. **`BLEAncs`** — B13b 중 가장 크다. 본딩 + iPhone 필요
+4. **`BLEClientHidAdafruit`** — 상대 HID 기기가 필요하다. BLE 키보드 실물이 없으면
+   보드 2대(한쪽에 `blehid_keyboard`)로 시험한다.
+   ⚠ 상류가 **boot protocol 만** 지원한다고 헤더에 못 박아 두었다 (0x2A22 / 0x2A33).
+   우리 `BLEHidAdafruit` 이 boot 리포트를 내보내는지 먼저 확인해야 보드끼리 시험이 된다
+5. **처리량 실측** — 상류 `throughput` / `central_throughput`.
+   notify 큐를 3 으로 올린 효과를 확인할 유일한 수단이고 아직 수치가 없다
+
+그 다음이 M2 다 (`Wire`(TWIM) -> `attachInterrupt`/`analogWrite` -> `SPI`/`analogRead`),
+그리고 전류 측정으로 M1 을 닫는다. **M2 착수 전에 CLAUDE.md §7 F10 ④ 체크리스트를
+반드시 읽어라** — 같은 번호대 SERIAL 블록 충돌(`docs/PERIPHERAL-PINMAP.md` §0)과
+다중 인스턴스 IRQ 직접 연결이 그대로 재발한다.
+
+**별건으로 남겨 둔 것 두 개** (오늘 게임패드 작업에서 드러났다)
+
+- **Service Changed 켜기** — GATT 지문(`0a20d0c`)은 원인을 **보이게만** 하고 자동
+  복구는 못 한다. 호스트는 본딩이 살아 있으면 CCCD 를 다시 쓰지 않는다.
+  `sd_ble_cfg_set(BLE_GATTS_CFG_SERVICE_CHANGED, …)` 로 SD 구성을 바꿔야 하는데
+  **앱 RAM 요구량이 달라질 수 있다** (L05 여유 184 B). 실측 없이 켜지 마라
+- **HOGP 는 Battery Service 를 필수로 요구한다** — 우리 HID 예제 3종 모두
+  `BLEBas` 가 없다. macOS 는 문제없이 동작했지만 다른 호스트에서 걸릴 수 있다.
+  예제에 한 줄 추가하는 정도의 일이다
 
 ⚠ **구현 전에 레퍼런스부터 확인한다.** 상류(Adafruit), Nordic DevZone, Zephyr
 드라이버를 먼저 본다. 두 번 이게 방향을 바꿨다 — UARTE FRAMETIMEOUT 은
 nRF54L 에서 쓰면 안 되는 것이었고(§2.5), 연결 핸들은 배열 인덱스가 아니었다(B5).
 
-**아직 안 잰 것**: BLE 실효 처리량 (notify 큐를 3 으로 올려 뒀지만 수치가 없다).
-상류 `throughput` / `central_throughput` 예제로 잴 수 있다.
+**저장소는 `origin/main` 과 동기화돼 있다** (`ce03ccf`). 미푸시 없음.
+릴리스는 `0.2.0` 이 최신이고, 그 뒤로 게임패드·GATT 지문·문서가 들어갔다 —
+**다음 릴리스를 낼 때 `0.3.0` 으로 올려라** (`extras/make_release.sh`, §(c)).
 
-**저장소는 `origin/main` 과 동기화돼 있다** (`5f9c128`, 태그 `0.2.0`). 미푸시 없음.
+**이 PC 개발 환경** (2026-09-07 에 맞춰 뒀다):
+`~/Documents/Arduino/hardware/baram-nrf54` 심링크, xPack GCC 14.2.1-1.1 은
+`~/opt/xpack-arm-none-eabi-gcc-14.2.1-1.1`, probe-rs 0.32.0 은
+`~/opt/probe-rs-0.32.0/bin` (저장소에서 뺐다 — `platform.local.txt.example` 참조).
 
 ### 실기 환경 메모
 
