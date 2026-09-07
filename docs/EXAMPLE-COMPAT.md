@@ -57,12 +57,24 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 grep -ohE '\b(BLE[A-Z][A-Za-z]*|Bluefruit\.[A-Za-z]+)' <예제>.ino | sort -u
 ```
 
-⚠ 다음 넷은 우리 힘으로 안 되는 것이 확실하다. 다만 **분모에는 남겨** 둔다 —
+⚠ 다음 셋은 우리 힘으로 안 되는 것이 확실하다. 다만 **분모에는 남겨** 둔다 —
 빼면 "왜 없지?" 를 다시 조사하게 된다.
 - `neopixel` `neomatrix` `gpstest_swuart` — bit-banging. SoftDevice 가 최상위
   인터럽트를 점유해 **동작이** 구조적으로 깨진다 (CLAUDE.md §7 F6).
   단 **컴파일은 된다** — `neopixel` 은 실제로 통과한다
-- `nfc_to_gpio` — **nRF54L 에 NFC 하드웨어 자체가 없다**
+
+⚠ **`nfc_to_gpio` 는 "구조적 불가" 가 아니라 그냥 미구현이다.**
+한때 "nRF54L 에 NFC 하드웨어가 없다" 고 적었는데 **틀렸다.** L15 와 L05 **양쪽 다
+NFCT 가 있다** — `NRF_NFCT_NS_BASE = 0x400D6000`, `NFCT_IRQn = 214`, 핀은
+NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이버도 있다.
+막고 있는 것은 **우리가 NFC 드라이버를 안 만든 것**뿐이다.
+
+> ⚠ 이 오류는 **우리 저장소 안에 이미 반증이 있는데도** 확인하지 않고 단정해서
+> 생겼다 (`nrf54l_domains.h` 가 NFCT 를 P1 도메인에 적어 두고 있다).
+> "칩에 없다" 는 강한 주장이다. 하기 전에 MDK 헤더를 열어라.
+
+⚠ USB 는 다르다. **nRF54L15 에는 USB 하드웨어가 정말 없다** — 이건 맞다
+(nRF54LM20A 에는 있고 M6 에서 본다).
 
 ⚠ 외부 기기가 필요해도 **BLE 자체를 검증하는** 예제는 당연히 남는다:
 `central_*` · `dual_bleuart` · `rssi_proximity_*` (보드 2대), `pairing_*` ·
