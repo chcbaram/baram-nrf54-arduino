@@ -433,3 +433,51 @@ asyncio.run(m())"
 ⚠ macOS 에서 `BleakScanner` 가 `Bluetooth device is turned off` 를 내면 실제로
 꺼져 있거나 **상태 전이를 기다리지 않은 것**이다. CoreBluetooth 는 런루프를
 돌려야 `CBManagerState` 가 갱신된다.
+
+---
+
+## 6. README 의 SoftDevice 굽기 절차 검증 (2026-09-07, XIAO nRF54L15)
+
+README 에 "보드를 처음 쓰기 전에 SoftDevice 를 먼저 구워라" 절을 넣으면서,
+**거기 적은 명령을 그대로 실행해** 실기에서 확인한 기록이다.
+`probe-rs` 를 저장소에서 뺀(커밋 `06bc1ef`) 직후이기도 해서, 툴 경로가
+`platform.local.txt` 를 통해 제대로 잡히는지도 같이 봤다.
+
+프로브: `2886:0066:5784477E` (XIAO 온보드 CMSIS-DAP), 시리얼 `/dev/cu.usbmodem5784477E3`.
+
+| 단계 | 명령 | 결과 |
+|---|---|---|
+| SoftDevice | `arduino-cli burn-bootloader --fqbn …:xiao_nrf54l15 --programmer sd_burn` | ✅ **6.12 s**, `--verify` 통과 |
+| 컴파일 | `Peripheral/bleuart` | ✅ 39,796 B / 5,944 B |
+| 업로드 | `arduino-cli upload` | ✅ 1.91 s |
+| 광고 | bleak 스캔 | ✅ `BARAM nRF54L`, NUS `6e400001-…`, RSSI −62 |
+| 연결 | bleak | ✅ **MTU 247** |
+| 이름 조회 | 보드 시리얼 | ✅ `Connected to Mac` |
+| BLE → 시리얼 | NUS write 2건 | ✅ `hello from mac` / `second line` 그대로 |
+| 해제 | | ✅ `Disconnected, reason = 0x13` |
+
+확인된 것 두 가지:
+
+- `sd_burn` 프로그래머가 **보드에서 SoC 를 골라** 맞는 hex 를 집는다.
+  `xiao_nrf54l15` → `s145_nrf54l15_…`, `nu54dk` → `s145_nrf54l05_…` (후자는 recipe 확인만)
+- probe-rs 를 저장소에서 뺀 뒤에도 굽기·업로드 모두 정상. `platform.local.txt` 의
+  `probers.path` 가 `~/opt/probe-rs-0.32.0/bin` 을 가리킨다
+
+⚠ **부팅 배너는 포트를 여는 사이에 놓친다.** 업로드 직후 포트를 열면 아무것도
+안 나와서 "죽었나" 싶은데, 시리얼을 먼저 열고 `probe-rs reset` 을 걸면 그대로 나온다.
+STATUS §4 에 적힌 그대로다.
+
+### ⚠ 아직 안 잰 것 — SoftDevice 가 **없을 때**의 증상
+
+README 초안에는 "폴트도 로그도 없이 멎는다" 라고 단정해 적었는데 **근거가 없었다.**
+mass erase 후 앱만 올려 확인하려 했으나 실행하지 못했고, 저장소에 남은 기록은
+서로 다른 두 가지를 말한다:
+
+| 출처 | 적힌 증상 |
+|---|---|
+| STATUS §2 실기 메모 | `begin=0 err=0 need=0` — **시리얼은 살아 있고** `begin()` 이 실패로 돌아온다 |
+| STATUS §(이어서 작업할 때) | `sdEnable()` 이 **SVC 를 널 포인터로 포워딩**한다 (= 돌아오지 않는다) |
+
+파티션에 무엇이 남아 있느냐(완전 소거 vs 일부 잔존)에 따라 갈릴 가능성이 크다.
+→ README 문구를 **"둘 중 하나이며 어느 쪽이든 원인이 시리얼에 안 나온다"** 로 고쳤다.
+실제로 재려면 mass erase 후 앱만 올려 두 경우를 각각 만들어야 한다.

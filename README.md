@@ -162,9 +162,11 @@ starts at address 0. Uploading a sketch writes only the sketch — it never puts
 SoftDevice there. A board fresh from the factory, or one that has just been mass
 erased, has nothing in that partition.
 
-If you skip this step, a BLE sketch calls `Bluefruit.begin()`, the call forwards into
-unprogrammed memory, and the board **hangs with no fault, no LED and no serial
-output**. Nothing tells you what went wrong, which is why this page says it first.
+Skip it and BLE simply never comes up. What that looks like depends on what is left
+in the partition — `Bluefruit.begin()` may return `false`, or it may forward a
+supervisor call into unprogrammed memory and not come back — but **nothing on the
+serial line names the cause** either way. That is why this step is here, ahead of your
+first sketch, instead of down in troubleshooting.
 
 The two images never overwrite each other, so writing the SoftDevice does not disturb
 a sketch already on the board. Do it first anyway, so the board is ready the moment
@@ -210,9 +212,10 @@ UID** and give the UID from `probe-rs list`.
 
 ### Is my board missing it?
 
-The sketch runs normally — the LED blinks, `Serial` prints — right up to the first BLE
-call, and then stops there for good. Non-BLE sketches never touch the SoftDevice and
-work fine without it, so blink alone does not prove the board is ready for BLE.
+Everything before the first BLE call behaves normally — the LED blinks, `Serial`
+prints — and then the board never starts advertising. Non-BLE sketches never touch the
+SoftDevice and run fine without it, so a working blink says nothing about whether BLE
+will come up.
 
 ## Your first sketch
 
