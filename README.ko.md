@@ -31,12 +31,13 @@
 - [특징](#특징)
 - [지원 보드](#지원-보드)
 - [설치](#설치)
+- [SoftDevice 를 먼저 굽는다](#softdevice-를-먼저-굽는다)
 - [첫 스케치](#첫-스케치)
 - [지원 범위](#지원-범위)
 - [구조](#구조)
 - [문제 해결](#문제-해결)
 - [기여](#기여)
-- [라이선스](#라이선스--혼재-라이선스이며-오픈소스가-아니다)
+- [라이선스](#라이선스--오픈소스-다만-한-덩어리는-바이너리로-동봉된다)
 
 ---
 
@@ -145,6 +146,67 @@ cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
 
 빠뜨리면 어떻게 되는지까지 포함한 전체 절차:
 [docs/STATUS.md § 다른 PC에서 이어서 작업하기](docs/STATUS.md).
+
+## SoftDevice 를 먼저 굽는다
+
+**새 보드마다 한 번, 첫 스케치를 올리기 전에 해야 한다.**
+
+SoftDevice 는 Nordic 의 Bluetooth 스택이고, 스케치와는 **별개의 이미지**다.
+스케치는 주소 0 에서 시작하고 SoftDevice 는 RRAM 상단의 자기 파티션에 들어간다.
+스케치를 업로드하면 스케치만 쓰인다 — **SoftDevice 는 같이 올라가지 않는다.**
+공장에서 갓 나온 보드나 mass erase 를 한 보드는 그 파티션이 비어 있다.
+
+이 단계를 건너뛰면 BLE 스케치가 `Bluefruit.begin()` 을 부르는 순간 비어 있는 메모리로
+분기해서 **폴트도 LED 도 시리얼 출력도 없이 그대로 멎는다.** 무엇이 잘못됐는지
+알려 주는 것이 아무것도 없다. 이 문서가 이 이야기를 앞에 두는 이유다.
+
+두 이미지는 영역이 겹치지 않으므로 SoftDevice 를 구워도 이미 올라가 있는 스케치는
+지워지지 않는다. 그래도 순서는 **SoftDevice 부터**로 두는 게 낫다 — 스케치를 올리는
+순간 바로 쓸 수 있는 상태가 된다.
+
+### Arduino IDE 에서
+
+1. 디버그 프로브를 연결한다. XIAO nRF54L15 는 온보드라 USB-C 하나면 되고,
+   NU54-DK / NU54V-DK 는 J3 헤더에 외부 CMSIS-DAP 프로브가 필요하다
+2. **툴 → 보드** 에서 보드를 **먼저** 고른다. 어떤 hex 를 쓸지가 여기서 정해진다 —
+   nRF54L05 와 nRF54L15 는 SoftDevice 빌드가 서로 다르다
+3. **툴 → 프로그래머 → `Burn SoftDevice (probe-rs)`**
+4. **툴 → 부트로더 굽기**
+
+> 메뉴 이름과 달리 4번이 굽는 것은 **SoftDevice** 이고 부트로더가 아니다.
+> 부트로더는 아직 없다 (M4 예정). Arduino IDE 에 "두 번째 이미지를 굽는" 메뉴가
+> 따로 없어서 여기에 얹었다.
+
+### arduino-cli 에서
+
+```sh
+arduino-cli burn-bootloader --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 --programmer sd_burn
+```
+
+FQBN 은 자기 보드로 바꾼다 — `nu54dk` / `nu54vdk` / `xiao_nrf54l15`.
+그 다음은 평소대로 올리면 된다:
+
+```sh
+arduino-cli compile --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 <스케치>
+arduino-cli upload  --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 <스케치>
+```
+
+프로브가 여러 개 꽂혀 있으면 `probe-rs` 가 어느 보드인지 고르지 못해 실패한다.
+나머지를 빼거나, **툴 → Upload method → CMSIS-DAP + Probe UID** 로 두고
+`probe-rs list` 가 알려 주는 UID 를 넣는다.
+
+### 다시 구워야 하는 경우
+
+- **툴 → 프로그래머 → `Mass erase / recover (probe-rs)`** 를 실행했을 때 —
+  SoftDevice 를 포함해 RRAM 전체가 지워진다
+- `probe-rs download` 나 `nrfjprog` 로 직접 구웠을 때 — 스케치와 함께
+  SoftDevice 파티션까지 지워질 수 있다
+
+### 안 구워진 보드는 이렇게 보인다
+
+스케치는 멀쩡히 돈다 — LED 도 깜빡이고 `Serial` 도 나온다 — 그러다 **첫 BLE
+호출에서 그대로 멈춘다.** BLE 를 안 쓰는 스케치는 SoftDevice 를 건드리지 않으므로
+없어도 잘 돈다. 즉 **blink 가 된다고 해서 BLE 준비가 됐다는 뜻은 아니다.**
 
 ## 첫 스케치
 

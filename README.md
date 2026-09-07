@@ -32,6 +32,7 @@ Bluefruit (nRF52) sketches keep working.**
 - [Features](#features)
 - [Supported boards](#supported-boards)
 - [Installation](#installation)
+- [Flash the SoftDevice first](#flash-the-softdevice-first)
 - [Your first sketch](#your-first-sketch)
 - [Support scope](#support-scope)
 - [How it is built](#how-it-is-built)
@@ -150,6 +151,68 @@ cp nrf54l/platform.local.txt.example nrf54l/platform.local.txt
 
 Full walkthrough, including what breaks if you skip this:
 [docs/STATUS.md § 다른 PC에서 이어서 작업하기](docs/STATUS.md).
+
+## Flash the SoftDevice first
+
+**Do this once on every new board, before you upload your first sketch.**
+
+The SoftDevice is Nordic's Bluetooth stack, and it is a **separate image** from your
+sketch. It lives in its own RRAM partition near the top of memory, while your sketch
+starts at address 0. Uploading a sketch writes only the sketch — it never puts the
+SoftDevice there. A board fresh from the factory, or one that has just been mass
+erased, has nothing in that partition.
+
+If you skip this step, a BLE sketch calls `Bluefruit.begin()`, the call forwards into
+unprogrammed memory, and the board **hangs with no fault, no LED and no serial
+output**. Nothing tells you what went wrong, which is why this page says it first.
+
+The two images never overwrite each other, so writing the SoftDevice does not disturb
+a sketch already on the board. Do it first anyway, so the board is ready the moment
+your sketch lands.
+
+### From the Arduino IDE
+
+1. Connect the debug probe. XIAO nRF54L15 has one on board, so USB-C is enough;
+   NU54-DK and NU54V-DK need an external CMSIS-DAP probe on the J3 header
+2. **Tools → Board** — pick your board **first**. The correct hex is chosen from it:
+   nRF54L05 and nRF54L15 take different SoftDevice builds
+3. **Tools → Programmer → `Burn SoftDevice (probe-rs)`**
+4. **Tools → Burn Bootloader**
+
+> Despite the menu name, step 4 writes the **SoftDevice**, not a bootloader — there is
+> no bootloader yet (it is planned for M4). The IDE offers no other menu entry for
+> "program a second image", so that is the one it hangs off.
+
+### From arduino-cli
+
+```sh
+arduino-cli burn-bootloader --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 --programmer sd_burn
+```
+
+Substitute your own FQBN — `nu54dk`, `nu54vdk` or `xiao_nrf54l15`. Then upload as
+usual:
+
+```sh
+arduino-cli compile --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 <sketch>
+arduino-cli upload  --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 <sketch>
+```
+
+If several probes are plugged in, `probe-rs` cannot tell which board you mean and the
+command fails. Unplug the others, or use **Tools → Upload method → CMSIS-DAP + Probe
+UID** and give the UID from `probe-rs list`.
+
+### Do it again after
+
+- **Tools → Programmer → `Mass erase / recover (probe-rs)`** — that erases all of
+  RRAM, the SoftDevice included
+- flashing with `probe-rs download` or `nrfjprog` by hand, which can clear the
+  SoftDevice partition along with the sketch
+
+### Is my board missing it?
+
+The sketch runs normally — the LED blinks, `Serial` prints — right up to the first BLE
+call, and then stops there for good. Non-BLE sketches never touch the SoftDevice and
+work fine without it, so blink alone does not prove the board is ready for BLE.
 
 ## Your first sketch
 
