@@ -745,6 +745,28 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       break;
     }
 
+    /* 연결 파라미터가 실제로 바뀌었다. 요청이 아니라 결과다. */
+    case BLE_GAP_EVT_CONN_PARAM_UPDATE: {
+      int8_t slot = _slotOf(conn_hdl);
+      if (slot >= 0) {
+        _connection[slot]._setConnParams(
+            &evt->evt.gap_evt.params.conn_param_update.conn_params);
+      }
+      break;
+    }
+
+    /* 협상이 끝났다. 어느 쪽이 걸었든 여기로 온다 — 링크별로 기록해 둔다. */
+    case BLE_GAP_EVT_PHY_UPDATE: {
+      const ble_gap_evt_phy_update_t *pu = &evt->evt.gap_evt.params.phy_update;
+      int8_t slot = _slotOf(conn_hdl);
+
+      /* 실패하면 PHY 는 그대로다. 실패값을 기록하면 거짓말이 된다. */
+      if (slot >= 0 && pu->status == BLE_HCI_STATUS_CODE_SUCCESS) {
+        _connection[slot]._setPhy(pu->tx_phy);
+      }
+      break;
+    }
+
     /*
      * ⚠ 데이터 길이 갱신 요청에 답하지 않으면 **연결은 유지되는데 ATT 가 전혀
      *   흐르지 않는다.** 링크 계층 절차가 끝나지 않아 호스트의 서비스 탐색이
@@ -782,6 +804,25 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       if (slot >= 0) {
         _connection[slot]._setMtu((theirs < ours) ? theirs : ours);
       }
+      break;
+    }
+
+    /*
+     * 우리가 건 MTU 협상의 응답이다 (BLEConnection::requestMtuExchange).
+     *
+     * ⚠ BLEGatt 의 블로킹 절차와는 별개 경로다. 거기서만 받으면 스케치가 직접 건
+     *   요청의 결과가 **아무 데도 반영되지 않아**, MTU 를 247 로 올려 놓고도
+     *   BLEUart 가 계속 20바이트씩 쪼개 보낸다.
+     */
+    case BLE_GATTC_EVT_EXCHANGE_MTU_RSP: {
+      if (evt->evt.gattc_evt.gatt_status != BLE_GATT_STATUS_SUCCESS) break;
+
+      uint16_t theirs = evt->evt.gattc_evt.params.exchange_mtu_rsp.server_rx_mtu;
+      uint16_t ours   = sdAttMtu();
+      if (theirs < BLE_GATT_ATT_MTU_DEFAULT) theirs = BLE_GATT_ATT_MTU_DEFAULT;
+
+      int8_t slot = _slotOf(conn_hdl);
+      if (slot >= 0) _connection[slot]._setMtu((theirs < ours) ? theirs : ours);
       break;
     }
 

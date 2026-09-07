@@ -34,6 +34,7 @@ static void sec_mode_set(ble_gap_conn_sec_mode_t *m, uint8_t mode)
     _rd_sec     = SECMODE_OPEN;                           \
     _wr_sec     = SECMODE_OPEN;                           \
     _wr_cb      = NULL;                                   \
+    _cccd_cb    = NULL;                                   \
   } while (0)
 
 BLECharacteristic::BLECharacteristic(void)                      : uuid()        { CHR_INIT(); }
@@ -55,6 +56,7 @@ void BLECharacteristic::setFixedLen(uint16_t len)
 }
 void BLECharacteristic::setMaxLen(uint16_t len)         { _max_len = len; }
 void BLECharacteristic::setWriteCallback(write_cb_t fp) { _wr_cb = fp; }
+void BLECharacteristic::setCccdWriteCallback(cccd_write_cb_t fp) { _cccd_cb = fp; }
 
 void BLECharacteristic::setPermission(BleSecurityMode read, BleSecurityMode write)
 {
@@ -230,9 +232,22 @@ void BLECharacteristic::_eventHandler(const ble_evt_t *evt)
   if (evt->header.evt_id != BLE_GATTS_EVT_WRITE) return;
 
   const ble_gatts_evt_write_t *wr = &evt->evt.gatts_evt.params.write;
+  uint16_t conn_hdl = evt->evt.gatts_evt.conn_handle;
+
+  /*
+   * CCCD 는 값 핸들과 **다른 핸들**이다. 값 쓰기와 같은 이벤트로 오므로
+   * 핸들로 갈라야 한다. 섞으면 알림을 켠 것이 데이터 쓰기로 보인다.
+   */
+  if (wr->handle == _handles.cccd_handle && _handles.cccd_handle != BLE_GATT_HANDLE_INVALID) {
+    if (_cccd_cb && wr->len >= 2) {
+      _cccd_cb(conn_hdl, this, (uint16_t) (wr->data[0] | (wr->data[1] << 8)));
+    }
+    return;
+  }
+
   if (wr->handle != _handles.value_handle) return;
 
   if (_wr_cb) {
-    _wr_cb(evt->evt.gatts_evt.conn_handle, this, (uint8_t *) wr->data, wr->len);
+    _wr_cb(conn_hdl, this, (uint8_t *) wr->data, wr->len);
   }
 }

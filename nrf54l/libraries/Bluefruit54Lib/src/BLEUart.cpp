@@ -29,7 +29,8 @@ static void bleuart_write_cb(uint16_t conn_hdl, BLECharacteristic *chr, uint8_t 
 BLEUart::BLEUart(void)
   : BLEService(BLEUART_UUID_SERVICE), _txchr(BLEUART_UUID_CHR_TXD), _rxchr(BLEUART_UUID_CHR_RXD)
 {
-  _rx_cb  = NULL;
+  _rx_cb     = NULL;
+  _notify_cb = NULL;
   _rxhead = 0;
   _rxtail = 0;
   _rx_dropped = 0;
@@ -56,6 +57,24 @@ int BLEUart::rxPop(void)
   uint8_t b = _rxbuf[_rxtail];
   _rxtail = (uint16_t) ((_rxtail + 1) % BLE_UART_RX_FIFO_SIZE);
   return b;
+}
+
+static void bleuart_txd_cccd_cb(uint16_t conn_hdl, BLECharacteristic *chr, uint16_t value)
+{
+  (void) chr;
+  if (_uart_instance) _uart_instance->_notifyHandler(conn_hdl, (value & BLE_GATT_HVX_NOTIFICATION) != 0);
+}
+
+void BLEUart::setNotifyCallback(ble_uart_notify_callback_t fp)
+{
+  _notify_cb = fp;
+  /* 콜백을 뗄 때는 특성 쪽 훅도 같이 뗀다 — 안 그러면 죽은 경로가 남는다. */
+  _txchr.setCccdWriteCallback(fp ? bleuart_txd_cccd_cb : NULL);
+}
+
+void BLEUart::_notifyHandler(uint16_t conn_hdl, bool enabled)
+{
+  if (_notify_cb) _notify_cb(conn_hdl, enabled);
 }
 
 void BLEUart::setPermission(BleSecurityMode read_perm, BleSecurityMode write_perm)
@@ -121,7 +140,13 @@ void BLEUart::_rxHandler(uint16_t conn_hdl, uint8_t *data, uint16_t len)
 int  BLEUart::available(void) { return (int) rxCount(); }
 int  BLEUart::peek(void)      { return (_rxhead == _rxtail) ? -1 : _rxbuf[_rxtail]; }
 int  BLEUart::read(void)      { return rxPop(); }
-void BLEUart::flush(void)     { /* 송신은 notify 라 버퍼링이 없다 */ }
+/*
+ * ⚠ Stream 의 통상적인 의미(송신을 비운다)가 **아니다.** Adafruit 의 BLEUart 는
+ *   flush() 를 **수신 FIFO 비우기**로 쓰고, 상류 예제가 그 전제로 동작한다
+ *   (throughput 은 받은 바이트를 세고 버리는 데 이걸 쓴다). R12 — 호환이 먼저다.
+ *   송신은 notify 라 애초에 비울 버퍼가 없다.
+ */
+void BLEUart::flush(void)     { _rxtail = _rxhead; }
 
 size_t BLEUart::read(uint8_t *buf, size_t size)
 {

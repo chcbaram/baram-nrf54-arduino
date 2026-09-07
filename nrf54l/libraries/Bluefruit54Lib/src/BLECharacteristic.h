@@ -38,6 +38,12 @@ typedef enum {
 class BLECharacteristic;
 typedef void (*write_cb_t) (uint16_t conn_hdl, BLECharacteristic *chr, uint8_t *data, uint16_t len);
 
+/*
+ * 상대가 CCCD 를 쓸 때 (= 알림을 켜거나 끌 때) 불린다. value 는 쓰인 그대로라
+ * BLE_GATT_HVX_NOTIFICATION / _INDICATION 비트를 직접 본다.
+ */
+typedef void (*cccd_write_cb_t) (uint16_t conn_hdl, BLECharacteristic *chr, uint16_t value);
+
 class BLECharacteristic
 {
   public:
@@ -53,6 +59,14 @@ class BLECharacteristic
     void setFixedLen(uint16_t len);
     void setMaxLen(uint16_t len);
     void setWriteCallback(write_cb_t fp);
+
+    /**
+     * 상대가 알림을 켜고 끄는 순간을 잡는다.
+     *
+     * notifyEnabled() 를 폴링하는 것과 다르다 — 상대가 켜자마자 보내기 시작해야
+     * 첫 데이터를 놓치지 않는다. 상류 throughput 예제가 이걸로 전송을 시작한다.
+     */
+    void setCccdWriteCallback(cccd_write_cb_t fp);
 
     err_t begin(void);
 
@@ -99,6 +113,7 @@ class BLECharacteristic
     uint8_t     _rd_sec;
     uint8_t     _wr_sec;
     write_cb_t  _wr_cb;
+    cccd_write_cb_t _cccd_cb;
 };
 
 #endif

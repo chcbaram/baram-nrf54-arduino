@@ -67,6 +67,59 @@ class BLEConnection
     bool disconnect(void);
 
     /**
+     * PHY 를 바꾸자고 **요청**한다. 기본값 AUTO 는 양쪽이 함께 지원하는 가장 빠른
+     * 것을 SoftDevice 가 고르게 한다 — 보통 2M PHY 로 올라가고 처리량이 대략
+     * 두 배가 된다.
+     *
+     * ⚠ 요청일 뿐이다. 상대가 거절하거나 2M 을 지원하지 않으면 1M 으로 남는다.
+     *   **성공 여부가 아니라 요청을 보냈는지만 돌려준다.** 실제 결과는
+     *   `BLE_GAP_EVT_PHY_UPDATE` 로 오고, 그때 getPHY() 가 갱신된다.
+     */
+    bool requestPHY(uint8_t phy = BLE_GAP_PHY_AUTO);
+
+    /** 마지막으로 확정된 TX PHY (`BLE_GAP_PHY_1MBPS` 등). 협상 전에는 1M 이다. */
+    uint8_t getPHY(void) const { return _phy; }
+
+    /**
+     * 현재 연결 간격. 단위는 1.25 ms 라 12 이면 15 ms 다.
+     *
+     * 처리량을 볼 때 MTU 나 PHY 보다 이게 먼저다 — 한 연결 이벤트에 몇 패킷이
+     * 실리느냐를 정하는 것이 이 값이고, **정하는 쪽은 central 이다.**
+     */
+    uint16_t getConnectionInterval(void) const { return _conn_interval; }
+    void _setConnParams(const ble_gap_conn_params_t *p);
+
+    /**
+     * 링크 계층 데이터 길이(DLE)를 늘리자고 요청한다. NULL 을 넘기면 SoftDevice 가
+     * 최대치를 고른다 — 거의 항상 그게 맞다.
+     *
+     * MTU 만 키우고 이걸 빠뜨리면 큰 ATT 패킷이 여러 링크 계층 프레임으로 쪼개져
+     * 처리량이 생각만큼 오르지 않는다. 둘은 같이 가야 한다.
+     */
+    bool requestDataLengthUpdate(const ble_gap_data_length_params_t *params = NULL,
+                                 ble_gap_data_length_limitation_t *limitation = NULL);
+
+    /**
+     * ATT MTU 협상을 **우리가 먼저** 건다 (GATT 클라이언트 역할).
+     *
+     * ⚠ GATT 의 클라이언트/서버는 연결의 central/peripheral 과 별개라,
+     *   peripheral 이어도 이걸 부를 수 있다. 상류 throughput 예제가 그렇게 한다.
+     * ⚠ 비동기다. 협상된 값은 응답이 온 뒤 getMtu() 에 반영된다.
+     */
+    bool requestMtuExchange(uint16_t mtu);
+
+    /**
+     * 연결 간격 등을 바꾸자고 요청한다. 단위는 1.25 ms 라 6 이 7.5 ms 다.
+     *
+     * ⚠ 상대가 거절할 수 있다. iOS 는 특히 까다롭다 —
+     *   Apple 의 Accessory Design Guidelines 범위를 벗어나면 무시된다.
+     * @param sup_timeout 10 ms 단위. 기본 2 초 (상류와 같은 값).
+     */
+    bool requestConnectionParameter(uint16_t conn_interval,
+                                    uint16_t slave_latency = 0,
+                                    uint16_t sup_timeout   = 200);
+
+    /**
      * RSSI 보고를 시작한다. 시작해야 getRssi() 와 Bluefruit.setRssiCallback()
      * 이 값을 받는다.
      * @param threshold_dbm 이만큼 바뀌어야 보고한다. 0 이면 매번.
@@ -82,6 +135,7 @@ class BLEConnection
     /** 링크가 암호화됐는가 (security level 2 이상). */
     bool secured(void) const { return _secured; }
     void _setSecured(bool v) { _secured = v; }
+    void _setPhy(uint8_t v)  { _phy = v; }
 
   protected:
     uint16_t       _conn_hdl;
@@ -92,6 +146,10 @@ class BLEConnection
     uint16_t       _att_mtu;
     ble_gap_addr_t _peer_addr;
     int8_t         _rssi;
+    uint8_t        _phy;
+    uint16_t       _conn_interval;
+    uint16_t       _slave_latency;
+    uint16_t       _sup_timeout;
 };
 
 #endif

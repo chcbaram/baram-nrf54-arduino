@@ -52,6 +52,9 @@ extern const uint8_t BLEUART_UUID_CHR_TXD[16];
 class BLEUart;
 typedef void (*ble_uart_rx_callback_t)(uint16_t conn_hdl);
 
+/** 상대가 알림을 켜거나 끈 순간. enabled 가 false 면 껐다는 뜻이다. */
+typedef void (*ble_uart_notify_callback_t)(uint16_t conn_hdl, bool enabled);
+
 class BLEUart : public BLEService, public Stream
 {
   public:
@@ -71,10 +74,22 @@ class BLEUart : public BLEService, public Stream
 
     void setRxCallback(ble_uart_rx_callback_t fp) { _rx_cb = fp; }
 
+    /**
+     * 상대가 알림을 켜고 끄는 순간을 알려준다.
+     *
+     * write() 는 상대가 켜기 전에는 아무것도 내보내지 않는다. 연결됐다고 바로
+     * 보내면 조용히 버려지므로, 계속 보낼 것이 있으면 여기서 시작해야 한다.
+     */
+    void setNotifyCallback(ble_uart_notify_callback_t fp);
+
     /* ── Stream / Print ─────────────────────────────────────────────── */
     virtual int    available(void);
     virtual int    peek(void);
     virtual int    read(void);
+    /**
+     * ⚠ **수신 FIFO 를 비운다.** Stream 의 통상적인 의미(송신 flush)가 아니다 —
+     *   Adafruit 의 BLEUart 가 그렇게 정의했고 상류 예제가 그 전제로 동작한다.
+     */
     virtual void   flush(void);
     virtual size_t write(uint8_t b);
     virtual size_t write(const uint8_t *content, size_t len);
@@ -94,6 +109,7 @@ class BLEUart : public BLEService, public Stream
 
     /* 코어 내부용 */
     void _rxHandler(uint16_t conn_hdl, uint8_t *data, uint16_t len);
+    void _notifyHandler(uint16_t conn_hdl, bool enabled);
 
     /** FIFO 가 넘쳐 버린 바이트 수. 0 이 아니면 BLE_UART_RX_FIFO_SIZE 를 키워라. */
     uint32_t dropped(void) const { return _rx_dropped; }
@@ -102,6 +118,7 @@ class BLEUart : public BLEService, public Stream
     BLECharacteristic _txchr;
     BLECharacteristic _rxchr;
     ble_uart_rx_callback_t _rx_cb;
+    ble_uart_notify_callback_t _notify_cb;
 
     /* 단순 링버퍼. head == tail 이면 비어 있다. */
     uint8_t           _rxbuf[BLE_UART_RX_FIFO_SIZE];
