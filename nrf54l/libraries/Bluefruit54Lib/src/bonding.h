@@ -37,6 +37,14 @@ typedef struct {
  */
 #define BOND_SYS_ATTR_MAX   (160)
 
+/**
+ * 저장된 CCCD 가 지금 GATT 배치와 안 맞아 버려진 횟수.
+ *
+ * 0 이 아니면 **호스트가 알림을 다시 구독하지 않는 상태**일 수 있다.
+ * 양쪽(보드 · 호스트)의 본딩을 지우고 다시 페어링해야 한다.
+ */
+extern volatile uint32_t g_bond_cccd_stale;
+
 /** 본딩 저장소를 준비한다. Bluefruit.begin() 이 부른다. */
 void bondInit(void);
 

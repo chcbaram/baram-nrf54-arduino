@@ -286,6 +286,7 @@ AdafruitBluefruit::AdafruitBluefruit(void)
   sdConfigDefault(&_conf);
   _cur_service = NULL;
   _char_count  = 0;
+  _gatt_fp     = 2166136261UL;   /* FNV-1a offset basis */
   _begun       = false;
   _auto_conn_led = false;
   _conn_led_interval = 0;
@@ -617,9 +618,33 @@ bool AdafruitBluefruit::_registerClientService(BLEClientService *svc)
   return true;
 }
 
+/* FNV-1a. 암호학적 강도는 필요 없다 — "달라졌는지" 만 알면 된다. */
+static inline uint32_t fp_fold(uint32_t h, uint32_t v)
+{
+  for (uint8_t i = 0; i < 4; i++) {
+    h ^= (uint8_t) (v >> (i * 8));
+    h *= 16777619UL;
+  }
+  return h;
+}
+
 bool AdafruitBluefruit::_registerChar(BLECharacteristic *chr)
 {
+  /*
+   * 지문은 **등록에 성공한 것만** 접는다. UUID 와 두 핸들을 함께 넣는 이유:
+   *   - UUID   : 어떤 characteristic 인지 (서비스 구성이 바뀌면 달라진다)
+   *   - value  : 속성 테이블에서 밀렸는지
+   *   - cccd   : 저장된 CCCD 가 가리키던 자리가 그대로인지
+   * 배열이 꽉 차 등록에 실패하면 접지 않는다 — 그 경우는 GATT 도 불완전하다.
+   */
   if (_char_count >= BLE_MAX_CHARS) return false;
+
+  _gatt_fp = fp_fold(_gatt_fp, chr->uuid._uuid.uuid);
+  _gatt_fp = fp_fold(_gatt_fp, chr->handleValue());
+  _gatt_fp = fp_fold(_gatt_fp, chr->handleCccd());
+  /* 0 은 "저장된 지문 없음"(옛 레코드)을 뜻하므로 지문으로 쓰지 않는다. */
+  if (_gatt_fp == 0) _gatt_fp = 1;
+
   _chars[_char_count++] = chr;
   return true;
 }

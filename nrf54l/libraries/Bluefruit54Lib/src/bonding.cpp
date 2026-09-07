@@ -11,6 +11,14 @@ extern "C" {
 #include "nrf_soc.h"
 }
 
+/**
+ * 옛 GATT 배치의 CCCD 를 버린 횟수 (진단용).
+ *
+ * `Serial` 이 죽은 상태에서도 SWD 로 읽을 수 있게 전역으로 둔다 —
+ * 이 프로젝트의 다른 진단들과 같은 방식이다 (CLAUDE.md §8.3).
+ */
+volatile uint32_t g_bond_cccd_stale = 0;
+
 /* 링커가 정해 주는 파티션. 앱 파티션 밖이다. */
 extern uint32_t __bond_storage_start__;
 extern uint32_t __bond_storage_size__;
@@ -25,6 +33,23 @@ typedef struct {
   uint16_t       _pad;
   bond_keys_t    keys;
   uint8_t        sys_attr[BOND_SYS_ATTR_MAX];
+  /**
+   * sys_attr 을 저장했을 때의 GATT 지문 (AdafruitBluefruit::_gattFingerprint()).
+   *
+   * ⚠ 이것이 없으면 다음 함정에 빠진다.
+   *   sys_attr 은 **속성 핸들 기준**이라 스케치를 바꿔 GATT 구성이 달라지면
+   *   무의미해진다. 그런데 호스트는 본딩이 살아 있으니 CCCD 를 다시 쓰지 않고,
+   *   결과가 "연결·암호화는 되는데 알림만 안 온다" 로 나타난다.
+   *   폴트도 로그도 없어 원인을 찾기가 매우 어렵다.
+   *
+   * ⚠ **반드시 구조체 끝에 둔다.** 앞이나 중간에 넣으면 뒤 필드가 4바이트씩
+   *   밀려 이 코어를 올리기 전에 저장된 레코드의 키가 어긋난다 (매직을 올려
+   *   통째로 버려야 했을 것이다). 끝에 두면 옛 레코드는 슬롯의 남는 자리를
+   *   읽는데, slot_write() 가 슬롯 전체를 0 으로 채우고 쓰므로 **0 이 나온다.**
+   *   0 은 어떤 지문과도 안 맞으니 "CCCD 만 버리고 키는 살린다" 가 된다.
+   *   그래서 코어를 올려도 다시 페어링할 필요가 없다.
+   */
+  uint32_t       gatt_fp;
 } bond_record_t;
 
 static_assert(sizeof(bond_record_t) <= BOND_SLOT_SIZE,
@@ -131,6 +156,7 @@ bool bondSaveKeys(uint8_t role, const bond_keys_t *keys)
   rec.keys  = *keys;
   /* 시스템 속성은 아직 모른다. 나중에 bondSaveCccd() 가 채운다. */
   rec.sys_attr_len = 0;
+  rec.gatt_fp      = 0;
 
   return slot_write((uint8_t) i, &rec);
 }
@@ -171,6 +197,7 @@ bool bondSaveCccd(uint8_t role, uint16_t conn_hdl, const ble_gap_addr_t *peer_ad
 
   bond_record_t rec = *slot_at((uint8_t) i);
   rec.sys_attr_len = (uint8_t) len;
+  rec.gatt_fp      = Bluefruit._gattFingerprint();
   memset(rec.sys_attr, 0, sizeof(rec.sys_attr));
   memcpy(rec.sys_attr, buf, len);
 
@@ -186,6 +213,29 @@ bool bondLoadCccd(uint8_t role, uint16_t conn_hdl, const ble_gap_addr_t *peer_ad
 
   const bond_record_t *r = slot_at((uint8_t) i);
   if (r->sys_attr_len == 0) return false;
+
+  /*
+   * GATT 구성이 그때와 다르면 저장된 CCCD 는 **다른 핸들을 가리킨다.**
+   * 복원하지 않고 버린다 — 잘못 복원하면 엉뚱한 characteristic 의 알림이
+   * 켜지거나, 켜졌다고 착각한 채 아무것도 안 온다.
+   *
+   * ⚠ 버리는 것만으로는 호스트가 다시 구독하지 않는다. 호스트는 본딩이
+   *   살아 있으니 CCCD 를 이미 썼다고 믿는다. 그래서 **경고를 남긴다** —
+   *   이게 없으면 "알림이 안 온다" 는 증상만 남고 원인이 안 보인다.
+   *   자동 복구는 Service Changed 를 켜야 되는데 그건 SoftDevice 구성
+   *   변경이라 별도 작업이다 (docs/STATUS.md).
+   */
+  if (r->gatt_fp != Bluefruit._gattFingerprint()) {
+    g_bond_cccd_stale++;
+    /* printf 를 쓰지 않는다 — 이 파일은 BLE 스케치 전부에 링크되는데
+     * printf 하나가 15 KB 를 끌고 온다 (실측). */
+    Serial.print("bond: stored CCCD is for a different GATT layout (");
+    Serial.print(r->gatt_fp, HEX);
+    Serial.print(" != ");
+    Serial.print(Bluefruit._gattFingerprint(), HEX);
+    Serial.println("). Dropped - re-pair to get notifications back.");
+    return false;
+  }
 
   /* 저장할 때와 **같은 플래그**여야 한다 (위 주석 참조). */
   return sd_ble_gatts_sys_attr_set(conn_hdl, r->sys_attr, r->sys_attr_len,
@@ -238,9 +288,10 @@ void bondPrintList(uint8_t role)
     if (role != BLE_GAP_ROLE_INVALID && r->role != role) continue;
 
     const uint8_t *a = r->keys.peer_id.id_addr_info.addr;
-    Serial.printf("  [%2u] %s %02X:%02X:%02X:%02X:%02X:%02X  sys_attr %u B\n",
+    Serial.printf("  [%2u] %s %02X:%02X:%02X:%02X:%02X:%02X  sys_attr %u B  gatt %08lX\n",
                   i, (r->role == BLE_GAP_ROLE_PERIPH) ? "prph" : "cntr",
-                  a[5], a[4], a[3], a[2], a[1], a[0], r->sys_attr_len);
+                  a[5], a[4], a[3], a[2], a[1], a[0], r->sys_attr_len,
+                  (unsigned long) r->gatt_fp);
   }
 }
 

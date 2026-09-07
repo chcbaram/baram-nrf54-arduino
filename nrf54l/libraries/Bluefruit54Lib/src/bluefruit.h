@@ -463,6 +463,17 @@ class AdafruitBluefruit
     }
     bool _registerChar(BLECharacteristic *chr);
 
+    /**
+     * GATT 테이블의 지문.
+     *
+     * 본딩에 저장하는 시스템 속성(CCCD)은 **속성 핸들 기준**이라 서비스를
+     * 하나 더 붙이거나 순서를 바꾸면 통째로 무의미해진다. 그런데 호스트는
+     * 본딩이 살아 있으면 CCCD 를 다시 쓰지 않으므로 **알림만 조용히 죽는다.**
+     * 그래서 characteristic 을 등록할 때마다 이 값을 굴려 두고, 본딩과 함께
+     * 저장해 다음 연결에서 비교한다 (bonding.cpp).
+     */
+    uint32_t _gattFingerprint(void) const { return _gatt_fp; }
+
     /** 핸들이 들어 있는 슬롯. 없으면 -1. */
     int8_t _slotOf(uint16_t conn_hdl) const;
 
@@ -508,6 +519,7 @@ class AdafruitBluefruit
     BLEService *_cur_service;
     BLECharacteristic *_chars[BLE_MAX_CHARS];
     uint8_t     _char_count;
+    uint32_t    _gatt_fp;      /* _gattFingerprint() — FNV-1a */
     BLEClientService *_client_svcs[BLE_MAX_CLIENT_SERVICE];
     uint8_t     _client_svc_count;
     bool        _begun;
