@@ -279,6 +279,40 @@ static void bluefruit_evt_observer(const ble_evt_t *evt, void *ctx)
   Bluefruit._eventHandler(evt);
 }
 
+void AdafruitBluefruit::configUuid128Count(uint8_t count)
+{
+  if (_begun) return;          /* begin() 뒤에는 못 바꾼다 */
+  _conf.vs_uuid_count = count;
+}
+
+void AdafruitBluefruit::configAttrTableSize(uint32_t size)
+{
+  if (_begun) return;
+  _conf.attr_tab_size = size;
+}
+
+bool AdafruitBluefruit::getAddr(uint8_t mac[6])
+{
+  ble_gap_addr_t addr;
+  if (sd_ble_gap_addr_get(&addr) != NRF_SUCCESS) return false;
+  memcpy(mac, addr.addr, 6);
+  return true;
+}
+
+ble_gap_addr_t AdafruitBluefruit::getAddr(void)
+{
+  ble_gap_addr_t addr;
+  memset(&addr, 0, sizeof(addr));
+  (void) sd_ble_gap_addr_get(&addr);
+  return addr;
+}
+
+bool AdafruitBluefruit::setAddr(const ble_gap_addr_t *addr)
+{
+  if (addr == NULL) return false;
+  return sd_ble_gap_addr_set(addr) == NRF_SUCCESS;
+}
+
 void AdafruitBluefruit::setName(const char *name)
 {
   strncpy(_name, name, sizeof(_name) - 1);
@@ -340,6 +374,7 @@ bool AdafruitBluefruit::begin(uint8_t prph_count, uint8_t central_count)
   }
 
   if (!Gatt._begin()) return false;
+  if (!Security.begin()) return false;
 
   ble_gap_conn_sec_mode_t sec;
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec);
@@ -712,6 +747,7 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
   }
 
   Gatt._eventHandler(evt);
+  Security._eventHandler(evt);
   Scanner._eventHandler(evt);
 
   /* characteristic 쓰기 이벤트 전달 */

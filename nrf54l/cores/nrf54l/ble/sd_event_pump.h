@@ -80,6 +80,8 @@ typedef struct {
     uint16_t att_mtu;            /**< ATT MTU. SD_BLE_ATT_MTU 를 넘을 수 없다 */
     uint16_t event_length;       /**< 연결 이벤트 길이 (1.25 ms 단위) */
     uint8_t  hvn_tx_queue_size;  /**< notify 송신 큐 깊이 (연결당) */
+    uint8_t  vs_uuid_count;      /**< 등록할 수 있는 128비트 vendor UUID 수 */
+    uint32_t attr_tab_size;      /**< GATT 속성 테이블 크기 (바이트) */
 } sd_ble_conf_t;
 
 /** 보드가 정한 컴파일 타임 기본값으로 채운다 (boards.txt 의 -D 들). */

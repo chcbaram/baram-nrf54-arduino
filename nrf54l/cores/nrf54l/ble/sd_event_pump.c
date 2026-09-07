@@ -111,6 +111,17 @@ extern uint32_t __app_ram_start__;
 #define SD_BLE_CONN_CFG_TAG           (1)
 #endif
 
+/*
+ * 등록할 수 있는 128비트 vendor UUID 수.
+ *
+ * ⚠ `BLEUuid::begin()` 이 128비트 UUID 를 SoftDevice 에 등록하는데, 이 수를
+ *   넘으면 등록이 실패하고 그 서비스/특성이 조용히 안 만들어진다.
+ *   NUS(1) + 사용자 서비스 몇 개를 감안해 기본값(SoftDevice 는 10)보다 넉넉히 둔다.
+ */
+#ifndef SD_BLE_VS_UUID_COUNT
+#define SD_BLE_VS_UUID_COUNT          (10)
+#endif
+
 /* 연결 이벤트 길이 (1.25 ms 단위). */
 #ifndef SD_BLE_EVENT_LENGTH
 #define SD_BLE_EVENT_LENGTH           (6)
@@ -482,6 +493,8 @@ void sdConfigDefault(sd_ble_conf_t *conf)
     conf->att_mtu           = SD_BLE_ATT_MTU;
     conf->event_length      = SD_BLE_EVENT_LENGTH;
     conf->hvn_tx_queue_size = SD_BLE_HVN_TX_QUEUE_SIZE;
+    conf->vs_uuid_count     = SD_BLE_VS_UUID_COUNT;
+    conf->attr_tab_size     = BLE_GATTS_ATTR_TAB_SIZE_DEFAULT;
 }
 
 static void sd_ble_cfg_apply(uint32_t ram_base)
@@ -521,6 +534,16 @@ static void sd_ble_cfg_apply(uint32_t ram_base)
     cfg.conn_cfg.conn_cfg_tag                              = SD_BLE_CONN_CFG_TAG;
     cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size   = m_conf.hvn_tx_queue_size;
     m_cfg_gatts = sd_ble_cfg_set(BLE_CONN_CFG_GATTS, &cfg, ram_base);
+
+    /* 128비트 vendor UUID 자리. 모자라면 서비스 등록이 조용히 실패한다. */
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.common_cfg.vs_uuid_cfg.vs_uuid_count = m_conf.vs_uuid_count;
+    (void) sd_ble_cfg_set(BLE_COMMON_CFG_VS_UUID, &cfg, ram_base);
+
+    /* GATT 속성 테이블. 서비스를 많이 올리면 키워야 한다. */
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.gatts_cfg.attr_tab_size.attr_tab_size = m_conf.attr_tab_size;
+    (void) sd_ble_cfg_set(BLE_GATTS_CFG_ATTR_TAB_SIZE, &cfg, ram_base);
 
 }
 

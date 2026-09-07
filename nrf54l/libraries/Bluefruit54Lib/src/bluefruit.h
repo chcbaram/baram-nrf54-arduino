@@ -88,6 +88,8 @@ typedef void (*ble_adv_stop_callback_t)  (void);
 typedef void (*ble_rssi_callback_t)      (uint16_t conn_hdl, int8_t rssi);
 
 #include "BLECentral.h"
+#include "bonding.h"
+#include "BLESecurity.h"
 
 class BLEClientService;   /* 아래 include 에서 정의된다 (순환 의존) */
 
@@ -322,6 +324,7 @@ class AdafruitBluefruit
     BLEAdvertisingData ScanResponse;
     BLEPeriph      Periph;
     BLECentral     Central;
+    BLESecurity    Security;
     BLEGatt        Gatt;
     BLEScanner     Scanner;
 
@@ -420,6 +423,23 @@ class AdafruitBluefruit
       configPrphConn(mtu, event_len, hvn_qsize, wrcmd_qsize);
     }
 
+    /**
+     * 등록할 128비트 vendor UUID 수. **begin() 보다 먼저** 불러야 한다.
+     * 모자라면 `BLEUuid::begin()` 이 실패하고 그 서비스가 조용히 안 만들어진다.
+     */
+    void configUuid128Count(uint8_t count);
+    void configUuid(uint8_t count) { configUuid128Count(count); }   /* 상류 이름 */
+
+    /** GATT 속성 테이블 크기. **begin() 보다 먼저** 불러야 한다. */
+    void configAttrTableSize(uint32_t size);
+
+    /** 우리 BLE 주소를 읽는다. buf 는 6바이트, 리틀엔디안이다. */
+    bool getAddr(uint8_t mac[6]);
+    ble_gap_addr_t getAddr(void);
+
+    /** 우리 BLE 주소를 바꾼다. 공개/정적 랜덤 주소만 된다. */
+    bool setAddr(const ble_gap_addr_t *addr);
+
     void setName(const char *name);
     const char *getName(void) const { return _name; }
     bool setTxPower(int8_t power);
@@ -504,7 +524,6 @@ extern AdafruitBluefruit Bluefruit;
  * 순서 주의: 이 헤더들은 위의 클래스 선언에 의존하므로 파일 끝에 와야 한다.
  */
 #include "BLEUart.h"
-#include "bonding.h"
 #include "BLEClientService.h"
 #include "BLEClientCharacteristic.h"
 #include "BLEClientUart.h"
