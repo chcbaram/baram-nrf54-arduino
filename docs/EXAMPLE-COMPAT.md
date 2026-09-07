@@ -40,6 +40,27 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 > 무관한 기본 예제들이 거기 묶여 있었다. R10(USB 하드웨어 없음)은 사실이지만
 > 그게 이 예제들을 막는 이유는 아니었다.
 
+## 우리가 제공하는 예제 (20개)
+
+**상류 예제를 쓰려고 nRF52 코어를 따로 설치하게 만들지 않는다.** Adafruit 호환을
+내세우면서 예제를 안 넣으면 사용자가 다른 코어를 설치해 예제만 꺼내 오는 셈이 된다.
+그래서 기능이 되는 것은 예제로 함께 낸다.
+
+```
+Peripheral/  bleuart  bleuart_multi  custom_service  adv_advanced  rssi
+             beacon  eddystone_url  pairing  clearbonds
+             blehid_button  blehid_mouse  blehid_media
+Central/     central_scan  central_bleuart  central_client
+Hardware/    blinky  SerialEcho  temp_measure  rtos_scheduler  board_test
+```
+
+세 보드(nu54dk / nu54vdk / xiao_nrf54l15) 전부에서 빌드된다.
+
+⚠ 상류 예제를 그대로 복사하지 않고 **다시 썼다.** 주석 톤을 맞추고, 이 코어에서
+다른 부분(예: `temp_measure` 는 비동기 판이 아직 안 된다)을 그 자리에 적기 위해서다.
+`blehid_button` 은 상류에 없는 것인데, 상류 `blehid_keyboard` 가 포커스된 창에
+그냥 타이핑해 버려서 시험하기 위험하기 때문에 버튼 하나에 키 하나만 매핑했다.
+
 ## 제외 규칙 — 하나씩 확인한 뒤에만 뺀다
 
 예제를 세는 대상에서 빼려면 **둘 다** 만족해야 한다.
