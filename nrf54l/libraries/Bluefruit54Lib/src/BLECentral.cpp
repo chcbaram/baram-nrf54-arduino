@@ -60,6 +60,11 @@ bool BLECentral::stopConnecting(void)
   return sd_ble_gap_connect_cancel() == NRF_SUCCESS;
 }
 
+void BLECentral::clearBonds(void)
+{
+  bondClear(BLE_GAP_ROLE_CENTRAL);
+}
+
 bool BLECentral::connected(uint16_t conn_hdl)
 {
   BLEConnection *conn = Bluefruit.Connection(conn_hdl);

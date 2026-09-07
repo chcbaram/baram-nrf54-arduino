@@ -176,6 +176,9 @@ class BLEPeriph
     uint8_t connected(void);
     bool    connected(uint16_t conn_hdl);
 
+    /** peripheral 로 맺었던 본딩을 모두 지운다. */
+    void clearBonds(void);
+
     /**
      * 선호 연결 간격. 단위는 1.25 ms 다 (BLE 규격).
      *
@@ -472,6 +475,7 @@ class AdafruitBluefruit
      *   영영 안 온다. Adafruit 이 ada_callback() 으로 미루는 이유가 그것이다.
      */
     void _deferConnect(uint16_t conn_hdl, uint8_t role);
+    void _deferSaveCccd(uint16_t conn_hdl, uint8_t role);
     void _deferDisconnect(uint16_t conn_hdl, uint8_t reason, uint8_t role);
     void _callbackTask(void);      /* 위 태스크의 본체 */
 

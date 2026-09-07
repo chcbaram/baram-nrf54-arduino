@@ -18,11 +18,17 @@ enum {
   CHR_PROPS_INDICATE       = (1u << 5),
 };
 
-/* 보안 모드. 지금은 OPEN 만 구현한다 (본딩은 B4). */
+/*
+ * 보안 모드. 값은 Adafruit 과 같고, `ble_gap_conn_sec_mode_t` 바이트를 그대로
+ * 옮길 수 있게 만들어진 것이라 **0x<lv><sm>** 로 읽는다 (구현 주석 참조).
+ */
 typedef enum {
-  SECMODE_NO_ACCESS  = 0x00,
-  SECMODE_OPEN       = 0x11,
-  SECMODE_ENC_NO_MITM= 0x21,
+  SECMODE_NO_ACCESS        = 0x00,   /* sm=0 lv=0 */
+  SECMODE_OPEN             = 0x11,   /* sm=1 lv=1 — 보안 없이 접근 */
+  SECMODE_ENC_NO_MITM      = 0x21,   /* sm=1 lv=2 — 암호화 필요, MITM 불요 */
+  SECMODE_ENC_WITH_MITM    = 0x31,   /* sm=1 lv=3 — 암호화 + MITM */
+  SECMODE_SIGNED_NO_MITM   = 0x12,   /* sm=2 lv=1 */
+  SECMODE_SIGNED_WITH_MITM = 0x22,   /* sm=2 lv=2 */
 } BleSecurityMode;
 
 /* notify 재시도 횟수와 한 번의 대기 한도. */

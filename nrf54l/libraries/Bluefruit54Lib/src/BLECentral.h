@@ -33,6 +33,9 @@ class BLECentral
     bool    connected(uint16_t conn_hdl);
     uint8_t connected(void);
 
+    /** central 로 맺었던 본딩을 모두 지운다. */
+    void clearBonds(void);
+
     void setConnectCallback(ble_connect_callback_t fp)       { _connect_cb = fp; }
     void setDisconnectCallback(ble_disconnect_callback_t fp) { _disconnect_cb = fp; }
 

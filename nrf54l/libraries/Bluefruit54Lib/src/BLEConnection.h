@@ -58,6 +58,12 @@ class BLEConnection
      */
     uint16_t getPeerName(char *buf, uint16_t bufsize);
 
+    /** 이 상대와 본딩해 둔 키가 있는가. */
+    bool bonded(void);
+
+    /** 페어링을 시작한다. central 이 거는 쪽이다. */
+    bool requestPairing(void);
+
     bool disconnect(void);
 
     /**
@@ -73,10 +79,15 @@ class BLEConnection
 
     void _setRssi(int8_t v) { _rssi = v; }
 
+    /** 링크가 암호화됐는가 (security level 2 이상). */
+    bool secured(void) const { return _secured; }
+    void _setSecured(bool v) { _secured = v; }
+
   protected:
     uint16_t       _conn_hdl;
     bool           _in_use;
     bool           _connected;
+    bool           _secured;
     uint8_t        _role;
     uint16_t       _att_mtu;
     ble_gap_addr_t _peer_addr;

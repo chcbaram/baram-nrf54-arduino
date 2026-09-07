@@ -58,6 +58,16 @@ int BLEUart::rxPop(void)
   return b;
 }
 
+void BLEUart::setPermission(BleSecurityMode read_perm, BleSecurityMode write_perm)
+{
+  /*
+   * TX 는 우리가 notify 하는 쪽이라 읽기 권한이, RX 는 상대가 쓰는 쪽이라
+   * 쓰기 권한이 의미를 갖는다. 상류처럼 둘 다 걸어 둔다.
+   */
+  _txchr.setPermission(read_perm, write_perm);
+  _rxchr.setPermission(read_perm, write_perm);
+}
+
 err_t BLEUart::begin(void)
 {
   _uart_instance = this;

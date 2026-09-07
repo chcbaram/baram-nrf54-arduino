@@ -156,9 +156,15 @@ bool bondSaveCccd(uint8_t role, uint16_t conn_hdl, const ble_gap_addr_t *peer_ad
   uint8_t  buf[BOND_SYS_ATTR_MAX];
   uint16_t len = sizeof(buf);
 
-  /* CCCD 만 받는다. 사용자 정의 속성까지 가져오면 슬롯을 넘길 수 있다. */
+  /*
+   * ⚠ **시스템 서비스와 사용자 서비스를 모두 가져와야 한다.**
+   *   SYS_SRVCS 만 주면 Service Changed 같은 시스템 CCCD 만 담기고,
+   *   NUS 처럼 **우리가 만든 서비스의 CCCD 는 빠진다.** 그러면 저장은 되는데
+   *   (8 바이트쯤) 재연결 때 알림이 여전히 꺼져 있다. 실제로 그 증상을 겪었다.
+   */
   if (sd_ble_gatts_sys_attr_get(conn_hdl, buf, &len,
-                                BLE_GATTS_SYS_ATTR_FLAG_SYS_SRVCS) != NRF_SUCCESS) {
+                                BLE_GATTS_SYS_ATTR_FLAG_SYS_SRVCS |
+                                BLE_GATTS_SYS_ATTR_FLAG_USR_SRVCS) != NRF_SUCCESS) {
     return false;
   }
   if (len > BOND_SYS_ATTR_MAX) return false;
@@ -181,8 +187,10 @@ bool bondLoadCccd(uint8_t role, uint16_t conn_hdl, const ble_gap_addr_t *peer_ad
   const bond_record_t *r = slot_at((uint8_t) i);
   if (r->sys_attr_len == 0) return false;
 
+  /* 저장할 때와 **같은 플래그**여야 한다 (위 주석 참조). */
   return sd_ble_gatts_sys_attr_set(conn_hdl, r->sys_attr, r->sys_attr_len,
-                                   BLE_GATTS_SYS_ATTR_FLAG_SYS_SRVCS) == NRF_SUCCESS;
+                                   BLE_GATTS_SYS_ATTR_FLAG_SYS_SRVCS |
+                                   BLE_GATTS_SYS_ATTR_FLAG_USR_SRVCS) == NRF_SUCCESS;
 }
 
 void bondClear(uint8_t role)

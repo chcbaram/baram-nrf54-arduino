@@ -201,19 +201,17 @@ void BLESecurity::_eventHandler(const ble_evt_t *evt)
       break;
     }
 
-    case BLE_GAP_EVT_CONN_SEC_UPDATE:
+    case BLE_GAP_EVT_CONN_SEC_UPDATE: {
+      const ble_gap_conn_sec_t *sec = &evt->evt.gap_evt.params.conn_sec_update.conn_sec;
+
+      /* level 2 이상이면 암호화된 링크다. CCCD 저장 여부가 여기 달렸다. */
+      if (conn != NULL) conn->_setSecured(sec->sec_mode.lv >= 2);
       if (_secured_cb) _secured_cb(conn_hdl);
       break;
+    }
 
+    /* CCCD 저장은 상대가 CCCD 를 쓰는 순간에 한다 (bluefruit.cpp 참조). */
     case BLE_GAP_EVT_DISCONNECTED:
-      /*
-       * 암호화된 링크였다면 CCCD 를 남겨 둔다. 안 남기면 재연결 때 상대가
-       * 알림을 다시 켜야 하고, 본딩의 의미가 반쯤 사라진다.
-       */
-      if (conn != NULL) {
-        ble_gap_addr_t peer = conn->getPeerAddr();
-        bondSaveCccd(conn->getRole(), conn_hdl, &peer);
-      }
       if (_pairing_conn_hdl == conn_hdl) _pairing_conn_hdl = BLE_CONN_HANDLE_INVALID;
       break;
 

@@ -53,12 +53,13 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | **central — GATT 탐색 + `BLEClientUart`** | ✅ MTU 247, 양방향 |
 | `BLEClientService` / `BLEClientCharacteristic` | ✅ 상류 `central_bleuart` 컴파일 |
 | 본딩 키 RRAM 저장 | ✅ 저장·재부팅 유지·IRK 주소 해석 |
+| **페어링 / 본딩** | ✅ Just Works, 재연결 무페어링 암호화, CCCD 복원 |
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
-**없는 것:** 페어링 절차(`BLESecurity` — 키 저장소는 됐고 절차가 남았다),
-HID, LESC, 실제 DFU.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 17개 통과).
+**없는 것:** LESC(P-256 ECDH — CRACEN 이 nrfx 로 안 열려 micro-ecc 가 필요하다),
+HID, `BLEMidi`, `BLEAncs` / `BLEClientCts`, 실제 DFU.
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 21개 통과).
 
 ---
 
@@ -198,7 +199,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B7**~~ ✅ | **GATT 클라이언트** + 콜백 지연 실행 -> `getPeerName()` | **완료.** `Connected to Mac` 실증 |
 | ~~**B8**~~ ✅ | **central 역할** — 스캔 / 연결 / GATT 탐색 / `BLEClientUart` | **완료.** 두 보드 간 양방향 실증 |
 | ~~**B9**~~ ✅ | `BLEClientService`/`BLEClientCharacteristic` 일반화 + `BLEClientBas`/`BLEClientDis` | **완료.** 상류 `central_bleuart` 컴파일 |
-| B10 (남음) | 본딩/`BLESecurity`, HID | |
+| ~~**B10**~~ ✅ | **본딩 / `BLESecurity`** (레거시 페어링) | **완료.** Mac 으로 4가지 실증 |
+| B11 (남음) | LESC (micro-ecc), HID, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -535,6 +537,51 @@ nRF54L05 도 실측해서 **peripheral 2 + central 1** 로 올렸다 (`0x20005C3
 **그 과정에서 SoftDevice 영역이 지워질 수 있다** — 실제로 겪었고 증상은
 `begin=0 err=0 need=0` (cfg_set 이 아예 안 불린 상태) 이었다.
 SoftDevice hex 를 다시 구우면 복구된다.
+
+### B10 — 페어링 / 본딩 ✅ (2026-09-07)
+
+Mac 을 상대로 4가지를 실증했다. bleak 은 macOS 에서 `pair()` 를 못 하지만,
+**암호화가 필요한 characteristic 을 읽으면 CoreBluetooth 가 자동으로 페어링을 건다.**
+그래서 사람 손 없이 반복 시험이 된다 (PIN 흐름만 폰이 필요하다).
+
+```
+[connect] handle=0 notifyEnabled=0
+[secured] handle=0 ...            <- 암호화됨
+[pair done] status=0x00 bonds=1   <- 본딩 저장
+...끊었다 다시 연결...
+[connect] handle=1 notifyEnabled=1  <- 재페어링 없이 암호화 + CCCD 복원
+```
+
+#### 걸린 것 셋 — 전부 조용히 실패하는 종류였다
+
+**1. `sec_mode_set()` 의 니블 순서가 뒤집혀 있었다.**
+`SECMODE_*` 상수는 `ble_gap_conn_sec_mode_t` 바이트를 그대로 옮기도록 만든 값이라
+**0x<lv><sm>** 다. 뒤집어 쓰면 `SECMODE_ENC_NO_MITM`(0x21) 이 sm=2 lv=1(서명)이 되어
+`characteristic_add` 가 `NRF_ERROR_INVALID_PARAM` 을 낸다.
+⚠ **OPEN(0x11)과 NO_ACCESS(0x00)가 좌우대칭이라 그동안 안 드러났다.**
+암호화 권한을 처음 쓰는 순간 터졌다.
+
+**2. CCCD 를 시스템 서비스만 저장했다.**
+`sd_ble_gatts_sys_attr_get()` 에 `SYS_SRVCS` 만 줬더니 8바이트가 저장되는데
+**NUS 처럼 우리가 만든 서비스의 CCCD 는 안 들어간다.** `USR_SRVCS` 를 함께 줘야 한다.
+증상은 "저장은 되는데 재연결하면 알림이 꺼져 있다" 였다.
+
+**3. `SYS_ATTR_MISSING` 을 기다리면 안 된다.**
+그 이벤트는 상대가 CCCD 가 걸린 속성을 **건드려야** 온다. 재연결한 상대는 이미
+구독했다고 믿고 아무것도 안 건드리므로 영영 안 온다. **연결 즉시** 복원해야 한다.
+
+#### LESC 는 없다
+
+P-256 ECDH 가 필요한데 **nRF54L 의 CRACEN 은 nrfx 로 ECC 가 안 열린다** —
+`nrfx_cracen.h` 는 난수만 준다. CRACEN 의 공개키 엔진은 NCS 의 `nrf_security`
+(PSA Crypto) 를 통해서만 닿고, 그건 Arduino 코어에 끌어오기엔 너무 크다.
+
+대신 **micro-ecc(uECC)** 가 정석이다 — Nordic 자신이 CryptoCell 없는 nRF52832 에서
+LESC 를 그렇게 했다 (`NRF_CRYPTO_BACKEND_MICRO_ECC_ENABLED`). BSD-2-Clause,
+약 10 KB, 페어링 때 한 번 100 ms 안팎. B11 에서 한다.
+
+지금은 LESC 요청이 오면 **조용히 멈추지 않고 명확히 끊는다** (`LESC_DHKEY_REQUEST`
+에서 disconnect + pair complete 콜백에 실패 상태).
 
 ### 이어서 작업할 때 알아 둘 것
 

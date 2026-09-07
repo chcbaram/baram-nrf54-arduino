@@ -164,7 +164,7 @@ void BLEAdvertising::_restartIfNeeded(void)
  *
  *   부수 효과로 콜백이 오래 걸려도 이벤트 펌프가 막히지 않는다.
  */
-enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT };
+enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT, BLE_CB_SAVE_CCCD };
 
 typedef struct {
   uint8_t  type;
@@ -230,10 +230,30 @@ void AdafruitBluefruit::_callbackTask(void)
         break;
       }
 
+      /*
+       * ⚠ RRAM 쓰기는 완료 이벤트를 기다리므로 **BLE 이벤트 태스크에서 하면
+       *   안 된다.** 그래서 여기로 미룬다. 이 시점에도 연결은 살아 있어
+       *   sys_attr 을 읽을 수 있다 (끊긴 뒤에는 못 읽는다).
+       */
+      case BLE_CB_SAVE_CCCD: {
+        int8_t slot = _slotOf(msg.conn_hdl);
+        if (slot >= 0) {
+          ble_gap_addr_t peer = _connection[slot].getPeerAddr();
+          bondSaveCccd(msg.role, msg.conn_hdl, &peer);
+        }
+        break;
+      }
+
       default:
         break;
     }
   }
+}
+
+void AdafruitBluefruit::_deferSaveCccd(uint16_t conn_hdl, uint8_t role)
+{
+  ble_cb_msg_t msg = { BLE_CB_SAVE_CCCD, 0, role, conn_hdl };
+  if (_cb_queue) xQueueSend((QueueHandle_t) _cb_queue, &msg, 0);
 }
 
 void AdafruitBluefruit::_deferConnect(uint16_t conn_hdl, uint8_t role)
@@ -505,6 +525,11 @@ bool BLEPeriph::connected(uint16_t conn_hdl)
   return (conn != NULL) && conn->connected() && (conn->getRole() == BLE_GAP_ROLE_PERIPH);
 }
 
+void BLEPeriph::clearBonds(void)
+{
+  bondClear(BLE_GAP_ROLE_PERIPH);
+}
+
 uint8_t BLEPeriph::connected(void)
 {
   uint8_t n = 0;
@@ -623,6 +648,20 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       _connection[slot]._begin(evt);
 
       /*
+       * 본딩된 상대면 저장해 둔 시스템 속성(CCCD)을 **연결 즉시** 되돌려 준다.
+       *
+       * ⚠ SYS_ATTR_MISSING 을 기다리면 안 된다. 그 이벤트는 상대가 CCCD 가 걸린
+       *   속성을 **건드려야** 온다. 재연결한 상대는 이미 구독했다고 믿고 아무것도
+       *   안 건드리므로 영영 안 오고, 우리 쪽 알림은 꺼진 채로 남는다.
+       *   실제로 그 증상을 봤다 — 재연결 후 secured=1 인데 notify=0 이었다.
+       *   (SYS_ATTR_MISSING 처리는 그대로 두되 예비 경로일 뿐이다.)
+       */
+      {
+        ble_gap_addr_t peer = _connection[slot].getPeerAddr();
+        (void) bondLoadCccd(_connection[slot].getRole(), conn_hdl, &peer);
+      }
+
+      /*
        * 연결이 맺어지면 SoftDevice 가 광고를 멈춘다. 자리가 남았어도
        * **여기서 자동으로 다시 켜지 않는다** — Adafruit 과 같은 동작이라
        * 스케치가 연결 콜백에서 Advertising.start(0) 을 부른다.
@@ -737,10 +776,25 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
       break;
     }
 
-    case BLE_GATTS_EVT_SYS_ATTR_MISSING:
-      /* 본딩을 안 하므로 시스템 속성이 없다. NULL 로 답한다. */
-      sd_ble_gatts_sys_attr_set(conn_hdl, NULL, 0, 0);
+    case BLE_GATTS_EVT_SYS_ATTR_MISSING: {
+      /*
+       * 상대가 시스템 속성(주로 CCCD)을 요구한다. 본딩해 둔 상대면 저장된 것을
+       * 되돌려 준다 — 그래야 재연결 때 알림을 다시 켜지 않아도 데이터가 흐른다.
+       * 그게 본딩의 실익 절반이다.
+       *
+       * ⚠ **답을 안 하면 그 링크의 GATT 가 멈춘다.** 저장된 것이 없더라도
+       *   NULL 로라도 반드시 답해야 한다.
+       */
+      bool restored = false;
+      int8_t slot = _slotOf(conn_hdl);
+
+      if (slot >= 0) {
+        ble_gap_addr_t peer = _connection[slot].getPeerAddr();
+        restored = bondLoadCccd(_connection[slot].getRole(), conn_hdl, &peer);
+      }
+      if (!restored) sd_ble_gatts_sys_attr_set(conn_hdl, NULL, 0, 0);
       break;
+    }
 
     default:
       break;
@@ -753,6 +807,26 @@ void AdafruitBluefruit::_eventHandler(const ble_evt_t *evt)
   /* characteristic 쓰기 이벤트 전달 */
   for (uint8_t i = 0; i < _char_count; i++) {
     if (_chars[i]) _chars[i]->_eventHandler(evt);
+  }
+
+  /*
+   * 본딩된 상대가 CCCD 를 켜거나 끄면 **그 시점에** 저장한다. 값이 바뀌는
+   * 순간이라 놓치는 상태가 없고, Adafruit 도 같은 지점이다.
+   * (끊길 때 한 번 저장하는 방식도 동작은 하지만 마지막 상태만 남는다.)
+   */
+  if (evt->header.evt_id == BLE_GATTS_EVT_WRITE) {
+    int8_t slot = _slotOf(conn_hdl);
+
+    if (slot >= 0 && _connection[slot].secured()) {
+      uint16_t h = evt->evt.gatts_evt.params.write.handle;
+
+      for (uint8_t i = 0; i < _char_count; i++) {
+        if (_chars[i] && _chars[i]->handleCccd() == h) {
+          _deferSaveCccd(conn_hdl, _connection[slot].getRole());
+          break;
+        }
+      }
+    }
   }
 
   /* 클라이언트 쪽 알림(HVX) 과 연결 해제 전달 */

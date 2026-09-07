@@ -59,6 +59,12 @@ class BLEUart : public BLEService, public Stream
 
     virtual err_t begin(void);
 
+    /**
+     * 두 characteristic 의 접근 권한을 함께 정한다.
+     * ⚠ **begin() 보다 먼저** 불러야 한다 — 권한은 속성을 만들 때 확정된다.
+     */
+    void setPermission(BleSecurityMode read_perm, BleSecurityMode write_perm);
+
     /** 상대가 알림을 켰는가. 켜기 전에 write() 해도 나가지 않는다. */
     bool notifyEnabled(void);
     bool notifyEnabled(uint16_t conn_hdl);

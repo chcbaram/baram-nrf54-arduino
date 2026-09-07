@@ -6,10 +6,22 @@
 #include "bluefruit.h"
 #include <string.h>
 
+/*
+ * ⚠ 니블 순서에 주의하라. `BleSecurityMode` 상수는 Adafruit 이
+ *   `ble_gap_conn_sec_mode_t` 바이트를 **그대로 memcpy** 하도록 만든 값이라,
+ *   비트필드 배치(리틀엔디안: sm 이 하위 4비트, lv 가 상위 4비트)를 따른다.
+ *   즉 **0x<lv><sm>** 다:
+ *     SECMODE_OPEN        0x11 -> sm=1 lv=1
+ *     SECMODE_ENC_NO_MITM 0x21 -> sm=1 lv=2   (level 2 = 암호화, MITM 없음)
+ *
+ *   이걸 뒤집어 쓰면 0x21 이 sm=2 lv=1(서명)이 되어 SoftDevice 가
+ *   `NRF_ERROR_INVALID_PARAM`(0x07) 로 거절한다. 실제로 그 버그가 있었는데,
+ *   **OPEN(0x11)과 NO_ACCESS(0x00)가 좌우대칭이라 오래 안 드러났다.**
+ */
 static void sec_mode_set(ble_gap_conn_sec_mode_t *m, uint8_t mode)
 {
-  m->sm = (mode >> 4) & 0x0F;
-  m->lv = (mode     ) & 0x0F;
+  m->sm = (mode     ) & 0x0F;
+  m->lv = (mode >> 4) & 0x0F;
 }
 
 #define CHR_INIT()                                        \

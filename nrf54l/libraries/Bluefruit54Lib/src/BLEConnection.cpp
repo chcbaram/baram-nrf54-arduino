@@ -11,6 +11,7 @@ BLEConnection::BLEConnection(void)
   _conn_hdl  = BLE_CONN_HANDLE_INVALID;
   _in_use    = false;
   _connected = false;
+  _secured   = false;
   _role      = BLE_GAP_ROLE_INVALID;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;
   _rssi      = 0;
@@ -35,6 +36,7 @@ void BLEConnection::_begin(const ble_evt_t *evt)
   _conn_hdl  = evt->evt.gap_evt.conn_handle;
   _in_use    = true;
   _connected = true;
+  _secured   = false;
   _role      = evt->evt.gap_evt.params.connected.role;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;   /* 협상 전 */
   _rssi      = 0;
@@ -51,6 +53,7 @@ void BLEConnection::_end(void)
   _conn_hdl  = BLE_CONN_HANDLE_INVALID;
   _in_use    = false;
   _connected = false;
+  _secured   = false;
   _role      = BLE_GAP_ROLE_INVALID;
   _att_mtu   = BLE_GATT_ATT_MTU_DEFAULT;
 }
@@ -67,6 +70,20 @@ uint16_t BLEConnection::getPeerName(char *buf, uint16_t bufsize)
                                                buf, (uint16_t) (bufsize - 1));
   buf[len] = 0;
   return len;
+}
+
+bool BLEConnection::bonded(void)
+{
+  if (!_connected) return false;
+
+  bond_keys_t keys;
+  return bondLoadKeys(_role, &_peer_addr, &keys);
+}
+
+bool BLEConnection::requestPairing(void)
+{
+  if (!_connected) return false;
+  return Bluefruit.Security.authenticate(_conn_hdl);
 }
 
 bool BLEConnection::disconnect(void)
