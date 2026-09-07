@@ -9,7 +9,7 @@ Bluefruit (nRF52) sketches keep working.**
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
 [![Status](https://img.shields.io/badge/status-M3%20(BLE)%20in%20progress-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ Early release — v0.1.0 (BLE landed after it)
+> ### ⚠ Early release — v0.2.0
 > Blink, `Serial`, multitasking and tickless idle run on real hardware across three
 > boards, and the core installs from Board Manager.
 >
@@ -17,7 +17,9 @@ Bluefruit (nRF52) sketches keep working.**
 > `bleuart` example runs with two `#include` lines removed, and MTU 247
 > negotiation, several concurrent connections, iBeacon, EddyStone, scanning,
 > connecting and the GATT client are all confirmed on hardware.
-> **Bonding and HID are not there yet.** `analogRead` / `Wire` / `SPI` land in M2.
+> **Pairing, bonding (including LE Secure Connections) and HID keyboard / mouse /
+> media keys work too** — a button on the board types into a paired host.
+> `analogRead` / `Wire` / `SPI` land in M2.
 >
 > Current state and example coverage: [docs/STATUS.md](docs/STATUS.md) ·
 > [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
@@ -240,9 +242,15 @@ FreeRTOS with tickless idle.
 nRF54L15 (four peripheral and one central by default) and three on nRF54L05
 (two and one).
 
-**Coming** — bonding and pairing, HID services, `analogRead` / `analogWrite`,
-`Wire`, `SPI`, `attachInterrupt` (M2), and a bootloader with UART and BLE OTA
-DFU (M4).
+**Pairing and bonding** — Just Works, passkey and PIN, plus LE Secure
+Connections (P-256, via micro-ecc). Keys live in an RRAM partition outside the
+application, so they survive a firmware update. CCCDs are restored on reconnect.
+
+**HID** — `BLEHidAdafruit` with keyboard, mouse and consumer (media) keys over a
+composite report descriptor.
+
+**Coming** — `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
+and a bootloader with UART and BLE OTA DFU (M4).
 
 **Not supported**
 

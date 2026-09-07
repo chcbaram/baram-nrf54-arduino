@@ -9,14 +9,16 @@
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
 [![Status](https://img.shields.io/badge/status-M3%20(BLE)%20in%20progress-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ 초기 릴리스 — v0.1.0 (BLE 는 그 이후 추가됨)
+> ### ⚠ 초기 릴리스 — v0.2.0
 > blink / `Serial` / 멀티태스킹 / tickless idle 이 **보드 3종에서 실기 동작**하고
 > Board Manager 로 설치된다.
 >
 > **BLE 는 peripheral 과 central 이 모두 동작한다** — Adafruit `bleuart` 원본
 > 예제가 `#include` 두 줄만 지우면 그대로 돌고, MTU 247 협상·다중 연결·
 > iBeacon / EddyStone·스캔·연결·GATT 클라이언트까지 실기에서 확인했다.
-> **본딩과 HID 는 아직 없다.** `analogRead` / `Wire` / `SPI` 는 M2 다.
+> **페어링·본딩(LESC 포함)과 HID 키보드 / 마우스 / 미디어키도 동작한다** —
+> 보드의 버튼을 누르면 페어링된 호스트에 키 입력으로 들어간다.
+> `analogRead` / `Wire` / `SPI` 는 M2 다.
 >
 > 진행 상황과 예제 호환 현황: [docs/STATUS.md](docs/STATUS.md) ·
 > [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
@@ -233,8 +235,14 @@ tickless idle 을 켠 FreeRTOS.
 정한다. nRF54L15 는 합쳐서 링크 5개(기본 peripheral 4 + central 1),
 nRF54L05 는 3개(기본 peripheral 2 + central 1)까지 RAM 이 잡혀 있다.
 
-**예정** — 본딩 / 페어링, HID 서비스,
-`analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
+**페어링 / 본딩** — Just Works, passkey, PIN 에 더해 LE Secure Connections
+(P-256, micro-ecc). 키는 **앱 파티션 밖** RRAM 에 저장되므로 펌웨어를 갱신해도
+남는다. 재연결 시 CCCD 를 복원한다.
+
+**HID** — `BLEHidAdafruit`. 키보드 / 마우스 / 컨슈머(미디어)키를 하나의 복합
+리포트 디스크립터로 제공한다.
+
+**예정** — `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
 부트로더와 UART / BLE OTA DFU (M4).
 
 **미지원**
