@@ -46,17 +46,19 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | advertising / GATT 서버 / 커스텀 서비스 | ✅ |
 | `BLEUart`(NUS) · `BLEDis` · `BLEBas` | ✅ |
 | ATT MTU 협상 | ✅ 247 |
-| **동시 연결** | ✅ L15 4개 / L05 2개, 폰+Mac 2링크 양방향 실증 |
+| **동시 연결** | ✅ L15 5링크 / L05 3링크분 RAM, 폰+Mac 2링크 양방향 실증 |
 | `BLEBeacon`(iBeacon) · `EddyStoneUrl` | ✅ 광고 바이트 단위 검증 |
 | `getPeerName()` (GATT 클라이언트) | ✅ `Connected to Mac` |
 | **central — 스캔 / 필터 / 연결** | ✅ 두 보드 간 |
 | **central — GATT 탐색 + `BLEClientUart`** | ✅ MTU 247, 양방향 |
+| `BLEClientService` / `BLEClientCharacteristic` | ✅ 상류 `central_bleuart` 컴파일 |
+| 본딩 키 RRAM 저장 | ✅ 저장·재부팅 유지·IRK 주소 해석 |
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
-**없는 것:** `BLEClientService`/`BLEClientCharacteristic` 일반화(그래서
-`BLEClientBas`/`BLEClientDis` 없음), 본딩/페어링, HID, 실제 DFU.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 15개 통과).
+**없는 것:** 페어링 절차(`BLESecurity` — 키 저장소는 됐고 절차가 남았다),
+HID, LESC, 실제 DFU.
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 16개 통과).
 
 ---
 
@@ -270,14 +272,19 @@ Adafruit 이 이걸로 안 터지는 이유는 `BLE_MAX_CONNECTION` 을 설정�
 슬롯을 돈다. Adafruit `bleuart_multi` 의 `for (conn_hdl = 0; conn_hdl < MAX; ...)` 는
 같은 결함이 있다 — 핸들이 낮게 유지되는 동안만 우연히 동작한다.
 
-**최종 구성 (nRF54L15): 링크 4개 + notify 큐 3, SD 예약 28 KB.**
+**그때 고른 구성 (nRF54L15): 링크 4개 + notify 큐 3, SD 예약 28 KB.**
 링크 5개도 RAM 은 되지만 그러면 큐를 1 에서 못 올리고, 큐 1 은 연결 이벤트당
 notify 1건이라 처리량이 크게 깎인다. 연결 수보다 처리량을 골랐다 —
-Adafruit `BANDWIDTH_MAX` 와 같은 조합이다. 실측표는 `docs/MEMORY-MAP.md`.
+Adafruit `BANDWIDTH_MAX` 와 같은 조합이다.
+
+⚠ **이 값은 이후 B8 에서 바뀌었다.** central 을 넣으면서 예약을 32 KB 로 키워
+지금은 `peripheral 4 + central 1 + 큐 3` 이다. 현재 값은 `docs/MEMORY-MAP.md` 가 기준.
 
 **nRF54L05 도 실측했다 (2026-09-06, NU54-DK 실기): 링크 2개 + 큐 3.**
 필요량 `0x20004AC8`, 예약을 `0x4780` → `0x4B80` 으로 올려 여유 184 B.
-앱 RAM 은 80,000 → 78,976 B (−1,024 B). 링크 3개는 `0x5668` 이라 96 KB 로는 안 된다.
+
+⚠ **이 값도 이후 바뀌었다.** central 을 넣으려고 예약을 `0x5D00` 으로 키워
+지금은 `peripheral 2 + central 1 + 큐 3` (`0x20005C38`), 앱 RAM 74,496 B 다.
 
 ⚠ **L05 와 L15 의 SoftDevice RAM 요구량이 완전히 같았다.** SoC 별로 재배치된
 별도 SD 빌드인데도 그렇다 — 요구량은 설정(링크 수 · MTU · 큐 깊이)만 따른다.

@@ -13,10 +13,10 @@
 > blink / `Serial` / 멀티태스킹 / tickless idle 이 **보드 3종에서 실기 동작**하고
 > Board Manager 로 설치된다.
 >
-> **BLE 는 peripheral 이 동작한다** — Adafruit `bleuart` 원본 예제가 `#include`
-> 두 줄만 지우면 그대로 돌고, MTU 247 협상·다중 연결·iBeacon / EddyStone 까지
-> 실기에서 확인했다. **central(스캔·연결)과 본딩·HID 는 아직 없다.**
-> `analogRead` / `Wire` / `SPI` 는 M2 다.
+> **BLE 는 peripheral 과 central 이 모두 동작한다** — Adafruit `bleuart` 원본
+> 예제가 `#include` 두 줄만 지우면 그대로 돌고, MTU 247 협상·다중 연결·
+> iBeacon / EddyStone·스캔·연결·GATT 클라이언트까지 실기에서 확인했다.
+> **본딩과 HID 는 아직 없다.** `analogRead` / `Wire` / `SPI` 는 M2 다.
 >
 > 진행 상황과 예제 호환 현황: [docs/STATUS.md](docs/STATUS.md) ·
 > [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
@@ -223,10 +223,17 @@ void loop()
 tickless idle 을 켠 FreeRTOS.
 
 **BLE (peripheral)** — advertising, GATT 서버(커스텀 서비스 포함), `BLEUart`(NUS),
-`BLEDis`, `BLEBas`, ATT MTU 247 협상, **동시 연결**(nRF54L15 4개 / nRF54L05 2개),
-`BLEBeacon`(iBeacon)과 `EddyStoneUrl`, 상대 이름 읽기(`getPeerName()`).
+`BLEDis`, `BLEBas`, ATT MTU 247 협상, `BLEBeacon`(iBeacon)과 `EddyStoneUrl`,
+상대 이름 읽기(`getPeerName()`).
 
-**예정** — BLE central(스캔·연결)과 `BLEClient*` 계열, 본딩 / 페어링, HID 서비스,
+**BLE (central)** — 스캔과 필터(`BLEScanner`), 연결(`BLECentral`), 서비스·특성
+탐색, `BLEClientUart` / `BLEClientBas` / `BLEClientDis`.
+
+**동시 연결** — 역할 배분은 `Bluefruit.begin(peripheral, central)` 로 스케치가
+정한다. nRF54L15 는 합쳐서 링크 5개(기본 peripheral 4 + central 1),
+nRF54L05 는 3개(기본 peripheral 2 + central 1)까지 RAM 이 잡혀 있다.
+
+**예정** — 본딩 / 페어링, HID 서비스,
 `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
 부트로더와 UART / BLE OTA DFU (M4).
 

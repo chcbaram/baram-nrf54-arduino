@@ -7,13 +7,20 @@ Bluefruit (nRF52) sketches keep working.**
 
 [![License: MIT](https://img.shields.io/badge/core-MIT-blue.svg)](LICENSE)
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
-[![Status](https://img.shields.io/badge/status-M1%20(pre--release)-yellow.svg)](docs/STATUS.md)
+[![Status](https://img.shields.io/badge/status-M3%20(BLE)%20in%20progress-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ Early release — v0.1.0
+> ### ⚠ Early release — v0.1.0 (BLE landed after it)
 > Blink, `Serial`, multitasking and tickless idle run on real hardware across three
-> boards, and the core installs from Board Manager. **BLE is not implemented yet**
-> (milestone M3), and `analogRead` / `Wire` / `SPI` land in M2.
-> Current state: [docs/STATUS.md](docs/STATUS.md)
+> boards, and the core installs from Board Manager.
+>
+> **BLE works in both the peripheral and central roles** — Adafruit's own
+> `bleuart` example runs with two `#include` lines removed, and MTU 247
+> negotiation, several concurrent connections, iBeacon, EddyStone, scanning,
+> connecting and the GATT client are all confirmed on hardware.
+> **Bonding and HID are not there yet.** `analogRead` / `Wire` / `SPI` land in M2.
+>
+> Current state and example coverage: [docs/STATUS.md](docs/STATUS.md) ·
+> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
 
 ---
 
@@ -220,8 +227,22 @@ More under **File → Examples → Bluefruit54Lib** (`bleuart`, `bleuart_multi`,
 **Supported** — GPIO, `millis()` / `micros()` / `delay()`, `Serial`, `SchedulerRTOS`,
 FreeRTOS with tickless idle.
 
-**Coming** — `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2);
-BLE (M3); bootloader with UART and BLE OTA DFU (M4).
+**BLE (peripheral)** — advertising, a GATT server including custom services,
+`BLEUart` (NUS), `BLEDis`, `BLEBas`, ATT MTU 247 negotiation, `BLEBeacon`
+(iBeacon) and `EddyStoneUrl`, and reading the peer's name with `getPeerName()`.
+
+**BLE (central)** — scanning and filtering (`BLEScanner`), connecting
+(`BLECentral`), service and characteristic discovery, and `BLEClientUart` /
+`BLEClientBas` / `BLEClientDis`.
+
+**Concurrent connections** — the sketch decides the split with
+`Bluefruit.begin(peripheral, central)`. RAM is reserved for five links on
+nRF54L15 (four peripheral and one central by default) and three on nRF54L05
+(two and one).
+
+**Coming** — bonding and pairing, HID services, `analogRead` / `analogWrite`,
+`Wire`, `SPI`, `attachInterrupt` (M2), and a bootloader with UART and BLE OTA
+DFU (M4).
 
 **Not supported**
 
