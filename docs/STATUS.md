@@ -1,6 +1,6 @@
 # 진행 상황 / 다음 세션 인수인계
 
-최종 갱신: 2026-09-07 · 커밋 `5f9c128` (릴리스 `0.2.0`)
+최종 갱신: 2026-09-08 · 릴리스 `0.2.0` + `BLEHidGamepad`
 
 프로젝트 지침과 설계 결정은 [CLAUDE.md](../CLAUDE.md) 가 정본이다.
 이 문서는 **"지금 어디까지 됐고 다음에 뭘 하면 되는지"** 만 짧게 적는다.
@@ -56,10 +56,11 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | **페어링 / 본딩** | ✅ Just Works, 재연결 무페어링 암호화, CCCD 복원 |
 | **LESC** (LE Secure Connections) | ✅ micro-ecc P-256, Mac 과 `LESC=1` |
 | **HID 키보드** | ✅ 호스트 페어링 후 버튼 -> 키 입력 |
+| **HID 게임패드** | ✅ Mac 이 Usage 1/5 로 열거, 테스터에서 축·버튼 반응 |
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
-**없는 것:** `BLEHidGamepad` / `BLEClientHidAdafruit`, `BLEMidi`,
+**없는 것:** `BLEClientHidAdafruit`, `BLEMidi`,
 `BLEAncs` / `BLEClientCts`, 실제 DFU(M4). 그리고 **M2(Arduino API)가 통째로 비어 있다** —
 `Wire` / `SPI` / `analogRead` / `analogWrite` / `attachInterrupt` 는 아직 없다.
 예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 25개 통과).
@@ -86,7 +87,8 @@ BLE API 부족은 약 12개다.
    SPI 에는 CLAUDE.md §4 의 P2 고속 라우팅 · anomaly 8 주의사항이 붙는다
 4. **전류 측정** — M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8).
    `systemOff()` 는 이제 있다 (아래 (a)(b))
-5. **B13** — `BLEHidGamepad`, `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts`
+5. **B13b** — `BLEMidi`, `BLEClientCts`, `BLEAncs`, `BLEClientHidAdafruit`
+   (`BLEHidGamepad` 는 끝났다 — §B13a)
 
 ⚠ **구현 전에 레퍼런스부터 확인한다.** 상류(Adafruit), Nordic DevZone, Zephyr
 드라이버를 먼저 본다. 두 번 이게 방향을 바꿨다 — UARTE FRAMETIMEOUT 은
@@ -211,7 +213,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B10**~~ ✅ | **본딩 / `BLESecurity`** (레거시 페어링) | **완료.** Mac 으로 4가지 실증 |
 | ~~**B11**~~ ✅ | **LESC** (micro-ecc P-256) | **완료.** Mac 과 `LESC=1` 로 페어링 |
 | ~~**B12**~~ ✅ | **HID** — 키보드/마우스/미디어 키 | **완료.** 호스트 페어링 후 버튼 -> 키 입력 확인 |
-| B13 (남음) | `BLEHidGamepad`, `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
+| ~~**B13a**~~ ✅ | `BLEHidGamepad` | **완료.** Mac 에서 리포트 수신 확인 (§B13a) |
+| B13b (남음) | `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -651,6 +654,51 @@ Adafruit 은 HID 정의를 **TinyUSB 에서 빌려 쓴다** (`class/hid/hid.h` �
 
 우리 보드를 central 로 써서 0x1812 를 읽는 길도 있다 (`BLEClientService` 로).
 보드가 두 대 붙어 있을 때 해 볼 만하다.
+
+### B13a — 게임패드 ✅ (2026-09-08)
+
+`BLEHidGamepad` + `hid_gamepad_report_t` / `GAMEPAD_HAT_*` / `GAMEPAD_BUTTON_*`.
+상류 원본 `blehid_gamepad.ino` 가 include 3줄 삭제만으로 컴파일된다.
+
+실기: XIAO nRF54L15 + Mac. `hidutil list` 가 **UsagePage 1 / Usage 5(Gamepad)** 로
+잡고, `ioreg` 로 꺼낸 리포트 맵이 우리가 넣은 바이트열과 **완전히 일치**했다.
+브라우저 게임패드 테스터에서 버튼 32개 / 축 6개가 잡히고 값이 움직인다.
+macOS 리포트 카운터(`ReportAvailableCalls`)가 0 -> 23 으로 올라간다.
+
+TinyUSB 를 안 쓰므로 `TUD_HID_REPORT_DESC_GAMEPAD()` 가 펼쳐진 바이트열을
+직접 적었다 (`BLEHidGamepad.cpp`). 구조체와 맵이 어긋나면 값이 엉뚱한 자리에서
+읽히므로 `static_assert(sizeof(...) == 11)` 로 빌드에서 막았다.
+
+#### ⚠ 상류를 그대로 옮기면 리포트가 하나도 안 나간다 — 하루의 절반을 썼다
+
+상류의 단일 연결 API 는 `BLE_CONN_HANDLE_INVALID` 를 아래로 내려보내고
+**Adafruit 의 `BLECharacteristic::notify()` 가 그것을 실제 핸들로 치환**한다.
+우리 `notify()` 는 그 치환을 하지 않고 `Bluefruit.connected(conn)` 에서 바로
+false 를 돌려준다. 그대로 옮겼더니 모든 리포트가 첫 줄에서 버려졌다.
+
+→ `Bluefruit.connHandle()` 을 넘긴다. `BLEHidAdafruit` 이 이미 그렇게 하고 있었다.
+  **상류 파일을 옮길 때 이 치환 관례가 다른지 먼저 확인하라.**
+
+증상이 고약한 이유: 연결·페어링·암호화·MTU·리포트 맵이 전부 정상이라
+**호스트 문제로 보인다.** 실제로 낡은 본딩을 의심해 양쪽 본딩을 다 지웠는데
+그건 원인이 아니었다. macOS 는 HID 서비스를 앱에 감추므로(§B12) bleak 으로도
+못 본다.
+
+**원인을 가른 계측**: GATTS 쓰기를 전부 찍었다. macOS 가 `h=26` 에 `01 00`
+(notify 켜기)을 **정상적으로 쓰고 있었다**는 것이 드러나면서 범위가 우리 쪽으로
+좁혀졌다. 그 다음은 `notify()` 를 따라 내려가면 바로 나온다.
+호스트가 무엇을 하는지 모를 때는 **추측하지 말고 쓰기를 덤프하라.**
+
+#### macOS 에서 HID 를 확인하는 법 (bleak 이 막힐 때)
+
+| 무엇 | 명령 |
+|---|---|
+| 열거·Usage 확인 | `hidutil list \| grep -i <이름>` |
+| 호스트가 받은 리포트 맵 | `ioreg -l -r -c IOHIDResourceDeviceUserClient` 의 `ReportDescriptor` |
+| 리포트가 실제로 도착하는지 | 같은 출력의 `DebugState.ReportAvailableCalls` |
+
+`ReportAvailableCalls` 가 0 이면 호스트에 아무것도 안 오는 것이다.
+이 세 가지가 있으면 GUI 없이도 대부분 판정된다.
 
 ### 이어서 작업할 때 알아 둘 것
 

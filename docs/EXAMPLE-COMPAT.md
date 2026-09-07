@@ -13,7 +13,7 @@
 `blemidi` 는 라이브러리 문제가 아니라 **우리에게 `BLEMidi` 가 없는 것**이었고,
 `neopixel` 은 **우리 코어에 `interrupts()`/`noInterrupts()` 가 없던 것**이었다.
 
-최종 측정: 2026-09-07 · XIAO nRF54L15 기준
+최종 측정: 2026-09-08 · XIAO nRF54L15 기준 (`blehid_gamepad` 추가)
 
 ---
 
@@ -40,7 +40,7 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 > 무관한 기본 예제들이 거기 묶여 있었다. R10(USB 하드웨어 없음)은 사실이지만
 > 그게 이 예제들을 막는 이유는 아니었다.
 
-## 우리가 제공하는 예제 (22개)
+## 우리가 제공하는 예제 (23개)
 
 **상류 예제를 쓰려고 nRF52 코어를 따로 설치하게 만들지 않는다.** Adafruit 호환을
 내세우면서 예제를 안 넣으면 사용자가 다른 코어를 설치해 예제만 꺼내 오는 셈이 된다.
@@ -50,6 +50,7 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 Peripheral/  bleuart  bleuart_multi  custom_service  adv_advanced  rssi
              beacon  eddystone_url  pairing  clearbonds
              blehid_keyboard  blehid_button  blehid_mouse  blehid_media
+             blehid_gamepad
 Central/     central_scan  central_bleuart  central_client
 DualRoles/   dual_bleuart
 Hardware/    blinky  SerialEcho  temp_measure  rtos_scheduler  board_test
@@ -92,7 +93,7 @@ throughput  central_throughput
 진짜 빠진 것은 **`throughput` / `central_throughput`** 이다. 처리량은 아직 한 번도
 안 쟀고, notify 큐를 3 으로 올린 효과를 확인할 유일한 수단이다.
 
-### B. 우리 BLE API 가 아직 없다 — 8개
+### B. 우리 BLE API 가 아직 없다 — 7개
 
 | 예제 | 상태 | 필요한 것 |
 |---|---|---|
@@ -100,7 +101,6 @@ throughput  central_throughput
 | `ancs` | 📅 **지원 예정** | `BLEAncs` (iPhone 알림). 클라이언트 기반(B9)이 있어 얹기 쉽다 |
 | `client_cts` | 📅 **지원 예정** | `BLEClientCts` (시각 동기). 〃 |
 | `central_hid` | 📅 **지원 예정** | `BLEClientHidAdafruit` |
-| `blehid_gamepad` | 📅 **지원 예정** | `BLEHidGamepad` + `hid_gamepad_report_t` |
 | `dfu_ota` | 📅 M4 | 실제 DFU. 지금 `BLEDfu` 는 서비스만 올리고 명확히 거절한다 |
 | `dfu_serial` | 📅 M4 | 부트로더가 있어야 한다 |
 | `blinky_ota` | 📅 M4 | 〃 |
@@ -214,8 +214,8 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 | | 개수 |
 |---|---|
-| **컴파일 통과** | **25** |
-| 우리 BLE API 부족 | 약 12 |
+| **컴파일 통과** | **26** |
+| 우리 BLE API 부족 | 약 11 |
 | 우리 M2(Arduino API) 부족 | 약 20 |
 | 외부 라이브러리·외부 기기 | 약 14 |
 | 계 | 71 |
@@ -225,7 +225,7 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 **⚠ 컴파일 통과가 동작을 뜻하지 않는다.** 별표(*)가 실기까지 확인한 것이다.
 
-### 통과 (25)
+### 통과 (26)
 
 ```
 bleuart*  bleuart_multi*  beacon*  eddystone_url*
@@ -234,7 +234,7 @@ blinky*  rtos_scheduler*  SerialEcho*  temp_measure_blocking*
 adv_advanced*  rssi_callback*
 blinky_ota  temp_measure_non_blocking  adv_AdafruitColor  rssi_poll
 pairing_pin  pairing_passkey  clearbonds  central_pairing
-blehid_keyboard  blehid_mouse  blehid_camerashutter  blehid_keyscan
+blehid_keyboard  blehid_mouse  blehid_gamepad*  blehid_camerashutter  blehid_keyscan
 neopixel(컴파일만 — bit-banging 이라 동작 불가)
 ```
 
