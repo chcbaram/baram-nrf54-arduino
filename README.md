@@ -315,10 +315,20 @@ Issues and pull requests are welcome. Two things worth knowing first:
   [docs/HIL/](docs/HIL/) with enough detail to reproduce them. Several entries in the
   trap list exist because a datasheet or a comment turned out to be wrong.
 
-## License — **mixed, not "open source"**
+## License — open source, with one component shipped as a binary
 
-The bundled SoftDevice does not meet the OSI definition, so the project as a whole
-cannot honestly be called open source.
+**The core itself is MIT.** Everything written for this project is open source and
+you can read, modify and redistribute it.
+
+One piece arrives as a binary: the Nordic **SoftDevice S145**, shipped as a hex
+image. That is not a choice about openness — the Bluetooth qualification is
+attached to that exact image, and altering it would void it. Nordic's licence
+**explicitly permits redistributing** the binary, which is what lets this core
+install from Board Manager with a working BLE stack. The conditions are that it
+runs only on Nordic ICs and is not modified or reverse engineered.
+
+`adafruit/Adafruit_nRF52_Arduino` has shipped the same way for years, as have the
+Seeed, smartme.io and CAMI forks.
 
 | Component | License |
 |---|---|

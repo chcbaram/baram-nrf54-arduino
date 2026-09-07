@@ -991,9 +991,15 @@ baram-nrf54-arduino/                 # 저장소 루트
 | 5 | 바이너리 리버스엔지니어링·수정·디스어셈블 금지 |
 
 ### README에 반드시 쓸 것
-- 코어 자체 코드는 MIT
-- 번들된 SoftDevice는 Nordic-5-Clause, Nordic IC 전용
-- **"오픈소스"라고 단정하지 말 것** — 4·5항 때문에 OSI 정의를 충족하지 않는다. "혼재 라이선스"로 표기
+- **코어 자체 코드는 MIT** — 이걸 먼저 세운다
+- SoftDevice 가 바이너리인 **이유**를 밝힌다: Bluetooth 인증이 그 이미지에 붙어 있어
+  손대면 무효가 된다. 개방성에 대한 선택이 아니다
+- **재배포가 명시적으로 허용됨**(2항)을 앞세우고, 조건(4·5항 — Nordic IC 전용,
+  수정·리버스 금지)은 그 뒤에 둔다
+- Adafruit nRF52 코어 등 전례가 수년째 같은 방식이라는 것을 덧붙인다
+
+⚠ **"오픈소스가 아니다" 로 단정하지 마라.** 코어는 오픈소스이고, 한 구성요소가
+라이선스 정책상 바이너리로 동봉되는 것이다. 표현을 그렇게 잡는다.
 
 ### 전례 (문제없이 운영 중)
 `adafruit/Adafruit_nRF52_Arduino`, Seeed·smartme.io·CAMI 포크들이 SoftDevice를 번들해 Board Manager로 배포 중.
@@ -1164,7 +1170,7 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 
 **DoD**: 깨끗한 환경에서 Board Manager URL로 설치 → blink 업로드 성공. Linux/Windows 양쪽에서 확인.
 
-### M6 — LM20A 확장 (선택)
+### M6 — LM20A 확장 (계획)
 
 - [ ] nRF54LM20A variant. I2S→TDM 차이 반영. USB 지원 여부 별도 판단
 
