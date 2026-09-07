@@ -55,6 +55,7 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | 본딩 키 RRAM 저장 | ✅ 저장·재부팅 유지·IRK 주소 해석 |
 | **페어링 / 본딩** | ✅ Just Works, 재연결 무페어링 암호화, CCCD 복원 |
 | **LESC** (LE Secure Connections) | ✅ micro-ecc P-256, Mac 과 `LESC=1` |
+| **HID 키보드** | ✅ 호스트 페어링 후 버튼 -> 키 입력 |
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
@@ -201,7 +202,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B9**~~ ✅ | `BLEClientService`/`BLEClientCharacteristic` 일반화 + `BLEClientBas`/`BLEClientDis` | **완료.** 상류 `central_bleuart` 컴파일 |
 | ~~**B10**~~ ✅ | **본딩 / `BLESecurity`** (레거시 페어링) | **완료.** Mac 으로 4가지 실증 |
 | ~~**B11**~~ ✅ | **LESC** (micro-ecc P-256) | **완료.** Mac 과 `LESC=1` 로 페어링 |
-| **B12** (진행 중) | **HID** — 키보드/마우스/미디어 키. 실기 확인 남음 | |
+| ~~**B12**~~ ✅ | **HID** — 키보드/마우스/미디어 키 | **완료.** 호스트 페어링 후 버튼 -> 키 입력 확인 |
 | B13 (남음) | `BLEHidGamepad`, `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
@@ -603,7 +604,7 @@ NULL 로 답하고 **macOS 가 그냥 끊어 버린다.** 시스템 설정에서
 `Bluefruit.setAddr()` 로 **주소를 새로 잡으면** 새 기기로 보고 새로 페어링한다.
 자동 반복 시험에는 이 쪽이 훨씬 낫다.
 
-### B12 — HID (2026-09-07: 구현 완료, 실기 확인 남음)
+### B12 — HID ✅ (2026-09-07)
 
 `BLEHidGeneric` / `BLEHidAdafruit` 으로 키보드·마우스·미디어 키를 만들었다.
 상류 `blehid_keyboard` · `blehid_mouse` · `blehid_camerashutter` · `blehid_keyscan`
@@ -636,6 +637,7 @@ Adafruit 은 HID 정의를 **TinyUSB 에서 빌려 쓴다** (`class/hid/hid.h` �
 (같은 이유로 iOS/macOS 는 앱이 0x1812 서비스를 **게시**하는 것도 막는다.)
 
 그래서 확인은 **호스트 Bluetooth 설정에서 페어링하고 키를 눌러 보는 것**뿐이다.
+✅ 그렇게 확인했다 — 페어링 후 버튼을 누르니 키가 입력됐다.
 `examples/Peripheral/blehid_button` 이 그 용도다 — 버튼 하나에 키 하나만 매핑해서,
 전체 키보드 예제처럼 아무 창에나 타이핑하는 사고를 막는다.
 

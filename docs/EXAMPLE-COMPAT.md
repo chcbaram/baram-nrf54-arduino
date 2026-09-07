@@ -119,20 +119,40 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 ```
 bleuart*  bleuart_multi*  beacon*  eddystone_url*
-central_scan*  central_bleuart*  neopixel(컴파일만 — 동작 불가)
+central_scan*  central_bleuart*
+blinky*  rtos_scheduler*  SerialEcho*  temp_measure_blocking*
+adv_advanced*  rssi_callback*
+blinky_ota  temp_measure_non_blocking  adv_AdafruitColor  rssi_poll
 pairing_pin  pairing_passkey  clearbonds  central_pairing
 blehid_keyboard  blehid_mouse  blehid_camerashutter  blehid_keyscan
-blinky  blinky_ota  rtos_scheduler  SerialEcho
-temp_measure_blocking  temp_measure_non_blocking
-adv_AdafruitColor  adv_advanced  rssi_callback  rssi_poll
+neopixel(컴파일만 — bit-banging 이라 동작 불가)
 ```
 
-실기 확인 내용:
+**실기 확인 12개** (별표). 우리 예제 `blehid_button` 도 실기 확인했다 —
+호스트에서 페어링하고 버튼을 누르면 키가 입력된다 (상류 예제가 아니라 별도로 센다).
+
+실기 확인 방법과 내용:
+- `blinky` · `rtos_scheduler` — 시리얼 출력이 없다. **LED GPIO 를 SWD 로 읽어**
+  토글을 확인했다 (P2.00, `OUT` = `0x50050400`).
+  ⚠ nRF54L 은 GPIO `OUT` 이 **오프셋 0x000** 이다. nRF52 의 0x504 로 읽으면 늘 0 이 나온다
+- `SerialEcho` — 보낸 문자열이 그대로 되돌아온다. 시리얼 수신 수정(§2.5)의 확인이기도 하다
+- `temp_measure_blocking` — 38.25 °C. ⚠ **9600 보** 다 (115200 아님)
+- `adv_advanced` — "Advertising is started"
+- `rssi_callback` — 연결 후 `Rssi = -40`
 - `bleuart` — `docs/HIL/M3-softdevice.md` §3.9
 - `bleuart_multi` — 폰 + Mac 동시 2링크, 양방향 전달 (`docs/STATUS.md` B5)
 - `central_scan` — 주변 광고 수신, 주소·RSSI·AD 파싱, 16비트 UUID 필터 실기 확인
 - `central_bleuart` — 스캔·연결·GATT 탐색·알림·양방향 데이터. 보드 간, 그리고
   `extras/mac_peripheral.py` 를 상대로 확인. DIS/배터리 클라이언트는 컴파일만 확인
+#### 아직 못 돌린 것과 그 이유
+
+| 예제 | 상태 |
+|---|---|
+| `temp_measure_non_blocking` | ❌ **우리 코어에 nrfx TEMP IRQ 가 연결돼 있지 않다.** 콜백이 안 온다. blocking 판은 된다 |
+| `adv_AdafruitColor` | ⚠ 광고가 안 잡혔다. 원인 미확인 (그 예제는 `Serial.begin` 이 주석 처리돼 있어 단서가 없다) |
+| `rssi_poll` | 아직 안 돌림 |
+| `blinky_ota` | 아직 안 돌림 |
+
 ⚠ HID 계열 4개도 **컴파일만 확인했다.** 그 이유가 특별하다 —
 **Apple 이 HID 서비스(0x1812)를 앱에 안 보여준다.** 시스템이 직접 처리하는
 프로파일이라 CoreBluetooth 가 걸러내므로, bleak 으로는 GATT 계층조차 못 본다.
