@@ -66,6 +66,67 @@ Hardware/    blinky  SerialEcho  temp_measure  rtos_scheduler  board_test
 `dual_bleuart` 는 peripheral 과 central 을 **동시에** 하는 예제다 —
 `begin(1, 1)`. 역할 배분이 런타임이라 가능하다 (B8 절 참조).
 
+## 아직 제공하지 않는 상류 예제 (58개) — 이유별
+
+우리가 이름을 맞춰 제공하는 것은 14개다. 나머지를 **왜** 못/안 넣었는지로 나눈다.
+"무엇을 먼저 만들지" 는 A -> B -> C 순으로 본다.
+
+### A. 우리 API 로 지금 만들 수 있다 (예제만 없음) — 22개
+
+```
+pairing_pin  pairing_passkey  central_pairing
+rssi_callback  rssi_poll
+temp_measure_blocking  temp_measure_non_blocking
+adv_AdafruitColor  nrf_blinky  controller  image_transfer
+custom_hrm  custom_htm
+blehid_camerashutter  blehid_keyscan
+central_bleuart_multi  central_scan_advanced  central_custom_hrm
+rssi_proximity_central  rssi_proximity_peripheral
+throughput  central_throughput
+```
+
+⚠ 절반쯤은 **우리 예제가 이미 같은 기능을 덮는다** — `pairing` / `clearbonds` /
+`rssi` / `temp_measure` / `custom_service` 가 이름만 다르다. 굳이 상류 이름으로
+하나씩 더 만들 이유는 없다.
+
+진짜 빠진 것은 **`throughput` / `central_throughput`** 이다. 처리량은 아직 한 번도
+안 쟀고, notify 큐를 3 으로 올린 효과를 확인할 유일한 수단이다.
+
+### B. 우리 BLE API 가 아직 없다 — 8개
+
+| 예제 | 필요한 것 |
+|---|---|
+| `blemidi` | `BLEMidi` — 단일 서비스라 작다 |
+| `blehid_gamepad` | `BLEHidGamepad` + `hid_gamepad_report_t` |
+| `central_hid` | `BLEClientHidAdafruit` |
+| `ancs` | `BLEAncs` (iPhone 알림) |
+| `client_cts` | `BLEClientCts` (시각 동기) |
+| `dfu_ota` `dfu_serial` `blinky_ota` | 실제 DFU — M4 |
+
+`BLEAncs` / `BLEClientCts` 는 클라이언트 기반(B9)이 이미 있어 얹기 쉽다.
+
+### C. M2(Arduino API) 가 아직 없다 — 12개
+
+```
+adc  adc_vbat  Fading  hwpwm  hw_systick  software_timer
+digital_interrupt_deferred  Serial1_test  hwinfo  fwinfo  meminfo  blink_sleep
+```
+
+`analogRead` / `analogWrite` / `attachInterrupt` / `Wire` / `SPI` 가 걸려 있다.
+
+### D. 외부 기기·보드 고유 하드웨어 — 16개
+
+```
+ancs_arcada  ancs_oled  client_cts_oled  neopixel  neomatrix
+image_eink_transfer  gpstest_swuart  tone_happy_birthday
+bluefruit_playground  arduino_science_journal  tf4micro-motion-kit
+pairing_passkey_arcada  central_ti_sensortag_optical  homekit_lightbulb
+StandardFirmataBLE  nfc_to_gpio
+```
+
+⚠ 이 중 `neopixel` · `neomatrix` · `gpstest_swuart` 는 bit-banging 이라
+**영구 불가**다 (컴파일은 된다). `nfc_to_gpio` 는 하드웨어는 있고 드라이버가 없다.
+
 ## 제외 규칙 — 하나씩 확인한 뒤에만 뺀다
 
 예제를 세는 대상에서 빼려면 **둘 다** 만족해야 한다.
