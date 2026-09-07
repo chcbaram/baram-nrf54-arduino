@@ -40,7 +40,7 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 > 무관한 기본 예제들이 거기 묶여 있었다. R10(USB 하드웨어 없음)은 사실이지만
 > 그게 이 예제들을 막는 이유는 아니었다.
 
-## 우리가 제공하는 예제 (20개)
+## 우리가 제공하는 예제 (22개)
 
 **상류 예제를 쓰려고 nRF52 코어를 따로 설치하게 만들지 않는다.** Adafruit 호환을
 내세우면서 예제를 안 넣으면 사용자가 다른 코어를 설치해 예제만 꺼내 오는 셈이 된다.
@@ -49,8 +49,9 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 ```
 Peripheral/  bleuart  bleuart_multi  custom_service  adv_advanced  rssi
              beacon  eddystone_url  pairing  clearbonds
-             blehid_button  blehid_mouse  blehid_media
+             blehid_keyboard  blehid_button  blehid_mouse  blehid_media
 Central/     central_scan  central_bleuart  central_client
+DualRoles/   dual_bleuart
 Hardware/    blinky  SerialEcho  temp_measure  rtos_scheduler  board_test
 ```
 
@@ -58,8 +59,12 @@ Hardware/    blinky  SerialEcho  temp_measure  rtos_scheduler  board_test
 
 ⚠ 상류 예제를 그대로 복사하지 않고 **다시 썼다.** 주석 톤을 맞추고, 이 코어에서
 다른 부분(예: `temp_measure` 는 비동기 판이 아직 안 된다)을 그 자리에 적기 위해서다.
-`blehid_button` 은 상류에 없는 것인데, 상류 `blehid_keyboard` 가 포커스된 창에
-그냥 타이핑해 버려서 시험하기 위험하기 때문에 버튼 하나에 키 하나만 매핑했다.
+`blehid_keyboard` 는 상류와 같이 시리얼로 친 것을 그대로 호스트에 타이핑한다 —
+**포커스된 창에 들어가므로** 주석에 경고를 달았다. `blehid_button` 은 상류에 없는
+것으로, 버튼 하나에 키 하나만 매핑해 시험을 통제할 수 있게 만든 것이다.
+
+`dual_bleuart` 는 peripheral 과 central 을 **동시에** 하는 예제다 —
+`begin(1, 1)`. 역할 배분이 런타임이라 가능하다 (B8 절 참조).
 
 ## 제외 규칙 — 하나씩 확인한 뒤에만 뺀다
 
