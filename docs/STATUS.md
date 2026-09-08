@@ -57,13 +57,14 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | **LESC** (LE Secure Connections) | ✅ micro-ecc P-256, Mac 과 `LESC=1` |
 | **HID 키보드** | ✅ 호스트 페어링 후 버튼 -> 키 입력 |
 | **HID 게임패드** | ✅ Mac 이 Usage 1/5 로 열거, 테스터에서 축·버튼 반응 |
+| **처리량 실측** | ✅ 2M PHY / MTU 247, 맥 상대 양방향 26~28 KB/s (§2.6) |
 | 역할 배분 런타임 지정 | ✅ `begin(4,0)` `(0,4)` `(2,2)` `(1,1)` 전부 |
 | tickless idle 과 BLE 동시 동작 | ✅ 틱 vs SYSCOUNTER 0.0 ppm |
 
 **없는 것:** `BLEClientHidAdafruit`, `BLEMidi`,
 `BLEAncs` / `BLEClientCts`, 실제 DFU(M4). 그리고 **M2(Arduino API)가 통째로 비어 있다** —
 `Wire` / `SPI` / `analogRead` / `analogWrite` / `attachInterrupt` 는 아직 없다.
-예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 **26개** 통과).
+예제 호환 현황은 `docs/EXAMPLE-COMPAT.md` (71개 중 **28개** 통과).
 
 ---
 
@@ -85,8 +86,8 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
    보드 2대(한쪽에 `blehid_keyboard`)로 시험한다.
    ⚠ 상류가 **boot protocol 만** 지원한다고 헤더에 못 박아 두었다 (0x2A22 / 0x2A33).
    우리 `BLEHidAdafruit` 이 boot 리포트를 내보내는지 먼저 확인해야 보드끼리 시험이 된다
-5. **처리량 실측** — 상류 `throughput` / `central_throughput`.
-   notify 큐를 3 으로 올린 효과를 확인할 유일한 수단이고 아직 수치가 없다
+~~5. **처리량 실측**~~ — ✅ **끝났다 (§2.6).** 맥 상대 양방향 26~28 KB/s.
+   notify 큐 깊이는 병목이 아니었다. 남은 것은 iOS 쪽 수치뿐이다
 
 그 다음이 M2 다 (`Wire`(TWIM) -> `attachInterrupt`/`analogWrite` -> `SPI`/`analogRead`),
 그리고 전류 측정으로 M1 을 닫는다. **M2 착수 전에 CLAUDE.md §7 F10 ④ 체크리스트를
@@ -107,8 +108,9 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 드라이버를 먼저 본다. 두 번 이게 방향을 바꿨다 — UARTE FRAMETIMEOUT 은
 nRF54L 에서 쓰면 안 되는 것이었고(§2.5), 연결 핸들은 배열 인덱스가 아니었다(B5).
 
-**저장소는 `origin/main` 과 동기화돼 있다** (`ce03ccf`). 미푸시 없음.
-릴리스는 `0.2.0` 이 최신이고, 그 뒤로 게임패드·GATT 지문·문서가 들어갔다 —
+**저장소는 `origin/main` 과 동기화돼 있다.** 미푸시 없음.
+릴리스는 `0.2.0` 이 최신이고, 그 뒤로 게임패드·GATT 지문·처리량 API(`d7f95b8`)·문서가
+들어갔다 —
 **다음 릴리스를 낼 때 `0.3.0` 으로 올려라** (`extras/make_release.sh`, §(c)).
 
 **이 PC 개발 환경** (2026-09-07 에 맞춰 뒀다):
@@ -207,7 +209,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | `NRFX_GRTC_CONFIG_AUTOEN` 0 → **1** | SoftDevice 요구사항. 안 켜면 `0x1003` 으로 거부당한다 |
 | GRTC `CLKSEL` LFXO → **SystemLFCLK** | SoftDevice 가 LFCLK 를 관리한다는 전제와 맞춘다 |
 
-### B 단계 — Bluefruit API 계층 — ✅ **B12 까지 완료, B13 만 남음**
+### B 단계 — Bluefruit API 계층 — ✅ **B13a·B13c 완료, B13b 만 남음**
 
 **목표는 M3 DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본이
 **무수정으로** 컴파일·동작하는 것.
@@ -231,6 +233,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B11**~~ ✅ | **LESC** (micro-ecc P-256) | **완료.** Mac 과 `LESC=1` 로 페어링 |
 | ~~**B12**~~ ✅ | **HID** — 키보드/마우스/미디어 키 | **완료.** 호스트 페어링 후 버튼 -> 키 입력 확인 |
 | ~~**B13a**~~ ✅ | `BLEHidGamepad` | **완료.** Mac 에서 리포트 수신 확인 (§B13a) |
+| ~~**B13c**~~ ✅ | **처리량 API** — `requestPHY` / DLE / MTU 협상 + 실측 | **완료.** 맥 상대 26~28 KB/s (§2.6) |
 | B13b (남음) | `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
@@ -239,9 +242,9 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 서비스 4종·DIS·배터리·UART·MTU 247 전부 확인.
 DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md §8.1.
 
-**아직 없는 것 (B13):**
+**아직 없는 것 (B13b):**
 
-- `BLEHidGamepad` / `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12 에서 됐다
+- `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12, 게임패드는 B13a 에서 됐다
 - `BLEMidi`
 - `BLEAncs` / `BLEClientCts` — iOS 알림·시각. 실기 검증에 iPhone 이 필요하다
 - **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결
@@ -786,13 +789,83 @@ nrfx 드라이버도 오류 이벤트에서 수신을 멈추지 않는다(보고
 
 ---
 
+## 2.6 처리량 실측 — ✅ (2026-09-08)
+
+**병목은 우리 쪽이 아니었다.** 이게 결론이다.
+
+### 무엇을 추가했나 (커밋 `d7f95b8`)
+
+상류 `throughput` 이 딱 네 가지 때문에 막혀 있었다.
+
+| 추가 | 하는 일 |
+|---|---|
+| `BLEConnection::requestPHY(phy = AUTO)` | 2M PHY 요청 |
+| `BLEConnection::requestDataLengthUpdate()` | 링크 계층 DLE. NULL 이면 스택이 최대치 |
+| `BLEConnection::requestMtuExchange(mtu)` | **우리가 먼저** 거는 MTU 협상 (GATT 클라이언트) |
+| `BLEUart::setNotifyCallback()` | 상대가 알림을 켜는 순간 — `BLECharacteristic::setCccdWriteCallback` 위에 얹었다 |
+
+**거는 것만큼 받아 적는 것이 중요하다.** 협상된 MTU 를 아무도 저장하지 않으면
+244 로 합의해 놓고도 `BLEUart` 가 계속 20바이트씩 쪼갠다. 그래서
+`BLE_GATTC_EVT_EXCHANGE_MTU_RSP` / `BLE_GAP_EVT_PHY_UPDATE` /
+`BLE_GAP_EVT_CONN_PARAM_UPDATE` 를 링크별로 기록하게 했다
+(`getPHY()` / `getMtu()` / `getConnectionInterval()`).
+
+⚠ `BLEGatt` 의 블로킹 MTU 절차와는 **별개 경로**다. 거기서만 받으면 스케치가 직접
+건 요청의 결과가 아무 데도 반영되지 않는다.
+
+⚠ **`BLEUart::flush()` 는 수신 FIFO 를 비운다.** Stream 의 통상적인 의미가 아니지만
+Adafruit 이 그렇게 정의했고 상류 예제가 그 전제로 돈다 (R12). 송신은 notify 라
+애초에 비울 버퍼가 없다.
+
+### 실측 (XIAO nRF54L15 ↔ macOS, `extras/mac_throughput.py`)
+
+협상 결과: **2M PHY / ATT MTU 247 / 페이로드 244 B / 연결 간격 30 ms**
+
+| 방향 | 속도 |
+|---|---|
+| 보드 → 맥 | 26~28 KB/s = **211~226 kbps** |
+| 맥 → 보드 | 27~30 KB/s = **217~245 kbps** |
+
+**왜 이 수준인가** — 연결 간격 **7.5 ms 를 요청했는데 맥이 30 ms 를 줬다.**
+정하는 쪽은 central 이다. 30 ms 에 26.4 KB/s 면 연결 이벤트당 약 **790 바이트**이고,
+이벤트당 처리량이 같다면 간격만 7.5 ms 가 될 때 산술적으로 **100 KB/s 대**가 된다.
+즉 병목은 PHY 도 MTU 도 칩도 아니라 **호스트가 주는 연결 간격**이다.
+
+이것이 "1M PHY 로 210 kbps 나오는데 그 이상 되냐" 는 질문의 답이다 —
+**2M 에 MTU 247 을 다 붙여도 애플 호스트에서는 같은 자리다.**
+
+### 알림 큐 깊이는 병목이 아니다 — 키우지 마라
+
+`SD_BLE_HVN_TX_QUEUE_SIZE` 를 바꿔 가며 같은 시험을 돌렸다.
+
+| 큐 깊이 | 다운링크 |
+|---|---|
+| 1 | 27.5 KB/s |
+| **3 (현재)** | 26.4~28.2 KB/s |
+| 6 | 26.7 KB/s |
+
+**전부 측정 잡음 안이다.** RAM 만 먹으므로 3 을 유지한다.
+이유는 위와 같다 — 큐가 아니라 연결 이벤트가 병목이라, 큐를 키워도 실을 자리가 없다.
+
+### 재현 방법
+
+1. 보드에 `examples/Peripheral/throughput` 을 굽는다
+2. `python3 extras/mac_throughput.py 30`
+3. **PHY / MTU / 연결 간격은 보드 쪽 시리얼에만 나온다.** CoreBluetooth 는 노출하지 않는다
+
+⚠ **호스트 GATT 캐시에 걸리면 측정이 통째로 틀린다** (§4 의 7번).
+처음 시도에서 PHY 1M / MTU 23 으로 붙어 "스택이 느리다" 로 오독할 뻔했다.
+측정용 빌드에서 `setAddr()` 로 주소를 흔들어야 뚫렸다.
+
+---
+
 ## 3. 아직 검증 못 한 가정
 
 | 가정 | 언제 검증되나 |
 |---|---|
 | ~~BASEPRI/PRIMASK 분리가 BLE 라디오 타이밍을 지키는지 (§7 F9)~~ | ✅ **풀렸다.** advertising 과 연결을 유지한 채 tickless idle 에서 틱 vs SYSCOUNTER 0.0 ppm |
 | 링크 3개 이상 동시 연결 | 호스트가 2대뿐이라 못 해 봤다. 슬롯 관리는 개수와 무관하므로 2개에서 검증된 경로와 같다 |
-| BLE 실효 처리량 (특히 iOS) | 아직 안 쟀다. notify 큐를 3 으로 올려 뒀지만 수치가 없다. Adafruit `throughput` 예제로 잴 수 있다 |
+| ~~BLE 실효 처리량~~ | ✅ **맥은 쟀다** — 양방향 26~28 KB/s, 병목은 호스트가 주는 연결 간격이었다 (§2.6). **iOS 는 아직이다.** 아이폰이 더 짧은 간격을 주면 수치가 올라간다 |
 | `USE_LFRC` 경로 (크리스털 없는 보드) | 해당 보드가 생길 때 |
 | probe-rs 가 아닌 J-Link 업로드 | 메뉴에 없음. 필요해지면 추가 |
 | 10분 이상 장시간(수 시간) 안정성 | 5분까지만 확인 |
@@ -821,7 +894,13 @@ nrfx 드라이버도 오류 이벤트에서 수신을 멈추지 않는다(보고
    외부 캡이 없는 보드에 외부 캡 설정을 쓰면 발진이 빨라진다 (XIAO 실측 +805 ppm).
    F12 와 증상이 똑같다 — 타깃 안에서는 완벽히 정상으로 보이고 **호스트 시계와
    비교해야만 드러난다.** 값은 벤더 보드 정의(Zephyr DTS)에서 가져오는 게 빠르다.
-7. **nRF54L05 는 L15 다이의 비닝이다.** 사양 밖 메모리가 물리적으로 있어서
+7. **호스트(맥/폰)가 GATT 를 캐시한다. 코어 버그로 오진하기 딱 좋다.**
+   보드의 static 주소는 고정이라 펌웨어를 바꿔도 그대로고, 호스트는 그 주소로
+   **옛 속성 테이블을 계속 내준다.** 증상이 고약하다 — 광고도 보이고 연결도 되는데
+   서비스가 덜 보이고 characteristic 이 0개이며, **PHY 1M / MTU 23 으로 붙는다.**
+   하루에 두 번 걸렸다(`bleuart` 확인, 처리량 측정). 해법은 호스트에서 그 기기를
+   삭제하거나 `Bluefruit.setAddr()` 로 주소를 흔드는 것이다.
+8. **nRF54L05 는 L15 다이의 비닝이다.** 사양 밖 메모리가 물리적으로 있어서
    잘못된 링커 스크립트로도 동작해 버린다. 칩은 FICR 로 확인해라
    (`INFO.PART` @ `0x00FFC31C`).
 
