@@ -233,6 +233,7 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 |---|---|---|---|
 | NU54-DK / NU54V-DK | nRF54L05 / nRF54L15 | `nu54dk` (공유) | `docs/boards/NU54-DK.md` |
 | XIAO nRF54L15 / Sense | nRF54L15 | `xiao_nrf54l15` | `docs/boards/XIAO-nRF54L15.md` |
+| XIAO nRF54LM20A / Sense | nRF54LM20A (FCCSP98) | **없음 — M6** | `docs/boards/XIAO-nRF54LM20A.md` |
 
 **어디에 쓸지 판단 기준은 "보드 사실이냐 칩 사실이냐" 하나다:**
 
@@ -290,9 +291,13 @@ Serial.println(BOARD_NAME);   // "XIAO nRF54L15 / Sense (Seeed)"
 **M6 에서 해야 할 것:**
 - variant + 링커 스크립트 + 메모리 맵 (LM20 DTS 에서 뽑는다)
 - `nrf54l_domains.h` 에 LM20A 도메인 표 추가.
-  ⚠ **규칙이 그대로인지 확인 필요** — P3 가 P1 과 같은 대역(0x500D)에 있고,
-  SPIM/TWIM/UARTE **23·24 는 GRTC 와 같은 0x500E 대역**이라 L15 의
-  "첫 자리 = 도메인, 도메인당 포트 하나" 규칙이 단순 확장되지 않을 수 있다
+  ✅ **규칙 확인 완료 (2026-09-12, Pin Planner)** — `docs/PERIPHERAL-PINMAP.md` §5.
+  **도메인 20 이 포트를 둘 소유한다: P1 과 P3.** SPIM/TWIM/UARTE 20~24,
+  PWM20~22, GPIOTE20 이 양쪽에 닿는다. 단 SAADC·PDM·TDM·QDEC 는 P1 전용이다.
+  SERIAL 23·24 가 GRTC 와 같은 0x500E 대역에 있지만 GPIO 는 도메인 20 쪽이다 —
+  **주소 대역으로 도메인을 추측하면 안 된다.**
+  포트 하나를 비교하는 L15 식 매크로로는 표현되지 않으므로,
+  `extras/gen_pinmap.py` 로 LM20A 용 `nrf54l_pinmap.h` 를 한 벌 더 생성하라
 - **USB 는 별개 대공사다.** nrfx 에 `nrf_usbhs.h` HAL 은 있으나
   **`nrfx_usbhs` 드라이버가 없다** (`nrfx_usbd` 는 nRF52 용).
   디바이스 스택(TinyUSB 등)의 nRF54L USBHS 포트 유무부터 조사해야 한다.

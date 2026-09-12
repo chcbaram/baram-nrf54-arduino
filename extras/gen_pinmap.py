@@ -255,7 +255,9 @@ CAPS_LEGEND = [
 def render_board(board, chip, soc, package, md_path, variant_h):
     doc = fetch(soc, package)
     table, wildcard = pin_table(doc)
-    used = variant_usage(variant_h)
+    # variant 가 아직 없는 보드도 표는 낼 수 있다 (M6 대기 중인 LM20A 보드).
+    # 그럴 때 'Name in sketch' 열은 비고, 헤더의 보드 이름이 그 자리를 대신한다.
+    used = variant_usage(variant_h) if variant_h and os.path.exists(variant_h) else OrderedDict()
     common = port_common(wildcard)
     L = []
 
@@ -279,7 +281,9 @@ def render_board(board, chip, soc, package, md_path, variant_h):
         has_alias = any(a for _, _, a in entries)
         aw = max([len(a) for _, _, a in entries] + [4]) if has_alias else 0
         # 이름 열은 가장 긴 것에 맞춘다. LED_BUILTIN 같은 별칭까지 붙어 길어진다.
-        nw = max([len(', '.join(used.get(sig, []))) for _, sig, _ in entries] + [8])
+        # variant 가 없으면 이 열은 통째로 비므로 아예 내지 않는다.
+        nw = (max([len(', '.join(used.get(sig, []))) for _, sig, _ in entries] + [14])
+              if used else None)
 
         L.append(f" {hdr}" if hdr.endswith('헤더') or '헤더' in hdr else f" {hdr} 헤더")
         head = f"   {'Pin':>3s} {'GPIO':6s} "
@@ -287,8 +291,11 @@ def render_board(board, chip, soc, package, md_path, variant_h):
         if has_alias:
             head += f"{'Board':{aw}s} "
             rule += f"{'-' * aw} "
-        head += f"{'Name in sketch':{nw}s} {'PWM':3s} {'IRQ':3s} {'ADC':4s} Only this pin"
-        rule += f"{'-' * nw} {'-' * 3} {'-' * 3} {'-' * 4} {'-' * 34}"
+        if nw:
+            head += f"{'Name in sketch':{nw}s} "
+            rule += f"{'-' * nw} "
+        head += f"{'PWM':3s} {'IRQ':3s} {'ADC':4s} Only this pin"
+        rule += f"{'-' * 3} {'-' * 3} {'-' * 4} {'-' * 34}"
         L.append(head)
         L.append(rule)
 
@@ -325,7 +332,8 @@ def pin_row(lead, pin, alias, aw, nw, table, wildcard, used):
     if alias is not None:
         row += f"{alias:{aw}s} "
     pwm, irq, ain = arduino_caps(pin, table, wildcard)
-    row += f"{(', '.join(used.get(pin, [])) or ''):{nw}s} "
+    if nw:
+        row += f"{(', '.join(used.get(pin, [])) or ''):{nw}s} "
     row += f"{'o' if pwm else 'x':3s} {'o' if irq else 'x':3s} {(ain or 'x'):4s} "
     row += shorten(table.get(pin, []))
     return row.rstrip()
@@ -526,13 +534,16 @@ CHIPS = [
     ('nRF54L05',   'nrf54l05',   'qfn48-6x6-qfaa'),
     ('nRF54L10',   'nrf54l10',   'qfn48-6x6-qfaa'),
     ('nRF54L15',   'nrf54l15',   'qfn48-6x6-qfaa'),
-    ('nRF54LM20A', 'nrf54lm20a', 'qfn52-6x6-qgaa'),
+    ('nRF54LM20A', 'nrf54lm20a', 'fccsp98-3.67x3.85-paaa'),
 ]
 
 BOARDS = [
     ('NU54-DK',        'nRF54L05', 'nrf54l05',  'qfn48-6x6-qfaa', 'NU54-DK.md',        'nu54dk'),
     ('NU54V-DK',       'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'NU54-DK.md',        'nu54dk'),
     ('XIAO_nRF54L15',  'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'XIAO-nRF54L15.md',  'xiao_nrf54l15'),
+    # variant 없음 — M6 대기. 표는 docs/boards 와 Pin Planner 만으로 만들어진다.
+    ('XIAO_nRF54LM20A', 'nRF54LM20A', 'nrf54lm20a', 'fccsp98-3.67x3.85-paaa',
+     'XIAO-nRF54LM20A.md', None),
 ]
 
 
@@ -549,5 +560,6 @@ if __name__ == '__main__':
     for board, chip, soc, pkg, md, variant in BOARDS:
         body = render_board(board, chip, soc, pkg,
                             os.path.join(ROOT, 'docs/boards', md),
-                            os.path.join(ROOT, 'nrf54l/variants', variant, 'variant.h'))
+                            os.path.join(ROOT, 'nrf54l/variants', variant, 'variant.h')
+                            if variant else None)
         print(' ', write_example(f'pinmap_{board}', f'{board} 핀맵 ({chip})', body))
