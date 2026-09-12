@@ -185,13 +185,19 @@ void BLEAdvertising::_restartIfNeeded(void)
  *
  *   부수 효과로 콜백이 오래 걸려도 이벤트 펌프가 막히지 않는다.
  */
-enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT, BLE_CB_SAVE_CCCD, BLE_CB_SECURED };
+enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT, BLE_CB_SAVE_CCCD, BLE_CB_SECURED, BLE_CB_DEFER };
 
 typedef struct {
   uint8_t  type;
   uint8_t  reason;
   uint8_t  role;      /* BLE_GAP_ROLE_* — 해제 시점엔 슬롯이 비어 있을 수 있어 함께 나른다 */
   uint16_t conn_hdl;
+
+  /* BLE_CB_DEFER 전용. 작은 고정 크기라 힙을 쓰지 않는다. */
+  ble_defer_fn_t fn;
+  void          *ctx;
+  uint16_t       len;
+  uint8_t        data[BLE_CB_DEFER_MAX];
 } ble_cb_msg_t;
 
 /* 링크마다 연결+해제가 겹칠 수 있으므로 넉넉히 잡는다. */
@@ -279,10 +285,36 @@ void AdafruitBluefruit::_callbackTask(void)
         Security._invokeSecuredCallback(msg.conn_hdl);
         break;
 
+      /*
+       * 이벤트 태스크에서 부르면 안 되는 콜백을 여기로 넘긴다.
+       * 지금은 ANCS 가 쓴다 — 그 알림 콜백 안에서 스케치가 제목·본문을
+       * 가져오는데, 그게 데이터 알림을 기다리는 블로킹 절차라서다.
+       */
+      case BLE_CB_DEFER:
+        if (msg.fn) msg.fn(msg.ctx, msg.data, msg.len);
+        break;
+
       default:
         break;
     }
   }
+}
+
+bool AdafruitBluefruit::_deferCallback(ble_defer_fn_t fn, void *ctx,
+                                      const void *data, uint16_t len)
+{
+  if (fn == NULL || len > BLE_CB_DEFER_MAX) return false;
+
+  ble_cb_msg_t msg;
+  memset(&msg, 0, sizeof(msg));
+  msg.type = BLE_CB_DEFER;
+  msg.fn   = fn;
+  msg.ctx  = ctx;
+  msg.len  = len;
+  if (data && len) memcpy(msg.data, data, len);
+
+  if (_cb_queue == NULL) return false;
+  return xQueueSend((QueueHandle_t) _cb_queue, &msg, 0) == pdTRUE;
 }
 
 void AdafruitBluefruit::_deferSecured(uint16_t conn_hdl)

@@ -334,6 +334,12 @@ class BLEGatt
 };
 
 /* ── 싱글턴 ────────────────────────────────────────────────────────── */
+/** _deferCallback() 이 나르는 최대 바이트 수. ANCS 알림이 8바이트다. */
+#define BLE_CB_DEFER_MAX   (8)
+
+/** 콜백 태스크에서 부를 함수. */
+typedef void (*ble_defer_fn_t)(void *ctx, const uint8_t *data, uint16_t len);
+
 class AdafruitBluefruit
 {
   public:
@@ -501,6 +507,15 @@ class AdafruitBluefruit
      */
     void _deferConnect(uint16_t conn_hdl, uint8_t role);
     void _deferSecured(uint16_t conn_hdl);
+
+    /**
+     * 콜백을 **이벤트 태스크 밖**에서 돌린다.
+     *
+     * 알림 콜백 안에서 다시 GATT 를 부르는 코드(ANCS 가 그렇다)는 이벤트
+     * 태스크에서 돌면 안 된다 — 기다리는 응답을 처리할 주체가 자기 자신이 된다.
+     * data 는 `BLE_CB_DEFER_MAX` 까지 복사된다 (힙을 쓰지 않으려는 제한).
+     */
+    bool _deferCallback(ble_defer_fn_t fn, void *ctx, const void *data, uint16_t len);
     void _deferSaveCccd(uint16_t conn_hdl, uint8_t role);
     void _deferDisconnect(uint16_t conn_hdl, uint8_t reason, uint8_t role);
     void _callbackTask(void);      /* 위 태스크의 본체 */
@@ -561,6 +576,7 @@ extern AdafruitBluefruit Bluefruit;
 #include "BLEClientBas.h"
 #include "BLEClientDis.h"
 #include "BLEClientCts.h"
+#include "BLEAncs.h"
 #include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"
