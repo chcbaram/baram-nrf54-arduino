@@ -76,19 +76,21 @@ def chip(x, y, w, text, kind, anchor='middle'):
             f'fill="{fg}">{esc(text)}</text>')
 
 
-def render(board, chip_name, md_path, power, note, nc=None, order=None):
+def render(board, chip_name, md_path, power, note,
+           nc=None, order=None, sides=('P2', 'P4')):
     nc = nc or {}
     order = order or {}
     """power: {헤더이름: {핀번호: 넷}} — 표에 없는 전원 핀을 채운다.
     nc:    {헤더이름: {핀번호: 사유}} — 패드는 있으나 미연결인 자리.
-    order: {헤더이름: [위에서 아래로 그릴 핀 번호]} — 실물 배치를 따른다."""
+    order: {헤더이름: [위에서 아래로 그릴 핀 번호]} — 실물 배치를 따른다.
+    sides: (왼쪽 헤더, 오른쪽 헤더) — 보드를 놓고 보는 방향에 맞춘다."""
     hdrs = board_headers(md_path)
     rows = {}
     for name, entries in hdrs:
         key = name.split()[0]
         rows[key] = {n: (gpio, alias) for n, gpio, alias in entries}
 
-    left_key, right_key = 'P2', 'P4'
+    left_key, right_key = sides
     for k, extra in power.items():
         rows.setdefault(k, {})
         for n, net in extra.items():
@@ -178,12 +180,15 @@ if __name__ == '__main__':
                         26: 'VDD_3V3_SYS', 25: 'VDD_MOD', 3: 'MOD_RST'})
     POWER['P2'].update({27: 'SWDCLK', 28: 'SWDIO', 29: 'VDD_MOD'})
     NC = {'P4': {14: '미연결 — SB20 미실장', 15: '미연결 — SB21 미실장'}}
-    # 실물 배치: P2 는 1번이 위, P4 는 30번이 위다.
-    ORDER = {'P2': list(range(1, 31)), 'P4': list(range(30, 0, -1))}
+    # 실물을 놓고 본 방향 그대로 그린다:
+    #   왼쪽 P4 — 1번이 위,  오른쪽 P2 — 30번이 위
+    ORDER = {'P4': list(range(1, 31)), 'P2': list(range(30, 0, -1))}
+    SIDES = ('P4', 'P2')
     svg = render('NU54V-DK', 'nRF54L15',
                  os.path.join(ROOT, 'docs/boards/NU54V-DK.md'), POWER,
                  '회로도에서 생성 · 전원/GND 는 실물 통전 확인 · '
-                 'P4 는 도면과 18행 일치 · P2 핀 번호는 실크스크린 미대조', NC, ORDER)
+                 'P4 는 도면과 18행 일치 · P2 핀 번호는 실크스크린 미대조',
+                 NC, ORDER, SIDES)
     out = os.path.join(ROOT, 'docs/boards/NU54V-DK-pinout.svg')
     open(out, 'w', encoding='utf-8').write(svg)
     print(' ', out)
