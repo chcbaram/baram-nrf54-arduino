@@ -31,7 +31,7 @@ C = {
     'uart':   ('#ef6c00', '#ffffff'),   # UART
     'led':    ('#00838f', '#ffffff'),   # 온보드 LED / 버튼
     'taken':  ('#9e9e9e', '#ffffff'),   # 보드가 이미 쓰는 핀
-    'nc':     ('#ffffff', '#90a4ae'),   # 헤더에 이름은 있으나 미연결
+    'nc':     ('#eceff1', '#78909c'),   # 헤더에 이름은 있으나 미연결
     'unk':    ('#cfd8dc', '#546e7a'),   # 도면에서 확정 못 한 것
 }
 
@@ -70,7 +70,10 @@ TOP     = 120         # 제목 영역
 def chip(x, y, w, text, kind, anchor='middle'):
     bg, fg = C[kind]
     tx = x + w / 2 if anchor == 'middle' else x + 8
-    return (f'<rect x="{x}" y="{y}" width="{w}" height="{CHIP_H}" rx="4" fill="{bg}"/>'
+    # 미연결은 테두리를 점선으로 — 색만으로는 '빈 칸' 과 구별되지 않는다
+    edge = (' stroke="#90a4ae" stroke-width="1" stroke-dasharray="3 2"'
+            if kind == 'nc' else '')
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="{CHIP_H}" rx="4" fill="{bg}"{edge}/>'
             f'<text x="{tx}" y="{y + CHIP_H/2 + 4}" text-anchor="{anchor}" '
             f'font-family="ui-monospace,Menlo,Consolas,monospace" font-size="11" '
             f'fill="{fg}">{esc(text)}</text>')
