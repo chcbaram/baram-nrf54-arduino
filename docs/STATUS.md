@@ -82,10 +82,11 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
    상류 원본 `blemidi.ino` 가 include 3줄 삭제만으로 컴파일된다
 ~~2. **`BLEClientCts`**~~ — ✅ **끝났다 (§2.8).** iPhone 상대로 시각·시간대 확인
 ~~3. **`BLEAncs`**~~ — ✅ **끝났다 (§2.9).** iPhone 알림을 앱 이름·제목·본문까지 수신
-4. **`BLEClientHidAdafruit`** — 상대 HID 기기가 필요하다. BLE 키보드 실물이 없으면
-   보드 2대(한쪽에 `blehid_keyboard`)로 시험한다.
-   ⚠ 상류가 **boot protocol 만** 지원한다고 헤더에 못 박아 두었다 (0x2A22 / 0x2A33).
-   우리 `BLEHidAdafruit` 이 boot 리포트를 내보내는지 먼저 확인해야 보드끼리 시험이 된다
+~~4. **`BLEClientHidAdafruit`**~~ — ✅ **끝났다 (§2.10).** 보드 2대로 실기 확인
+
+**→ B13b 가 끝났다. M4(부트로더)를 뺀 BLE 는 여기서 닫힌다.**
+다음은 M2 다 — `Wire`(TWIM) -> `attachInterrupt`/`analogWrite` -> `SPI`/`analogRead`,
+그리고 전류 측정으로 M1 을 닫는다.
 ~~5. **처리량 실측**~~ — ✅ **끝났다 (§2.6).** 맥 상대 양방향 26~28 KB/s.
    notify 큐 깊이는 병목이 아니었다. 남은 것은 iOS 쪽 수치뿐이다
 
@@ -237,7 +238,7 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B13b-1**~~ ✅ | **`BLEMidi`** — BLE-MIDI 1.0 | **완료.** 양방향 실기 확인 (§2.7) |
 | ~~**B13b-2**~~ ✅ | **`BLEClientCts`** — 폰의 시계를 읽는다 | **완료.** iPhone 상대 실기 확인 (§2.8) |
 | ~~**B13b-3**~~ ✅ | **`BLEAncs`** — iPhone 알림 | **완료.** 실기 확인 (§2.9) |
-| B13b (남음) | `BLEClientHidAdafruit` | |
+| ~~**B13b-4**~~ ✅ | **`BLEClientHidAdafruit`** — 남의 HID 를 읽는다 | **완료.** 보드 2대 실기 확인 (§2.10) |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -245,10 +246,11 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 서비스 4종·DIS·배터리·UART·MTU 247 전부 확인.
 DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md §8.1.
 
-**아직 없는 것 (B13b):**
+**아직 없는 것:**
 
-- `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12, 게임패드는 B13a 에서 됐다 / `BLEClientCts` — iOS 알림·시각. 실기 검증에 iPhone 이 필요하다
 - **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결
+- 클라이언트 쪽 **게임패드**는 구현돼 있으나 실기 미확인 (부트 프로토콜에 게임패드가
+  없어 일반 Report 를 본다)
 
 > 아래 세 줄은 B10~B12 이전에 적힌 것이라 지웠다. 본딩 · central · HID 는
 > 모두 완료됐다 (§1 표와 B8·B10·B11·B12 절 참조).
@@ -1041,6 +1043,56 @@ a  e=3ans  v n11added   [other] 롯데O
 - **타이머 알람은 안 온다.** 알림 센터에 남지 않는 종류라서다. 문자·카드 결제처럼
   센터에 쌓이는 것으로 시험하라
 - 캡처 창을 넉넉히 잡아라. 이번에 세 번을 창이 어긋나 "안 온다" 로 오판했다
+
+---
+
+## 2.10 `BLEClientHidAdafruit` — ✅ (2026-09-12)
+
+남의 HID 기기를 읽는다. `BLEHidAdafruit` 의 반대쪽이다.
+예제는 `examples/Central/central_hid`, 상류 원본도 include 3줄 삭제만으로 컴파일된다.
+
+**실기 (보드 2대):** NU54-DK 가 키보드, XIAO 가 central.
+
+```
+KBD     boot 'a' press=1 release=1
+CENTRAL keys 0x04('a')
+CENTRAL keys                        <- 뗀 리포트
+```
+
+키코드 `0x04` 를 받아 ASCII `'a'` 로 옮기는 것까지 확인했다.
+
+#### ⚠ 라이브러리 버그 — characteristic 이 9개를 넘으면 뒤쪽이 조용히 빠진다
+
+**이번 작업에서 가장 중요한 발견이다.** `BLEClientService::discoverCharacteristics()` 가
+`BLE_CLIENT_CHAR_MAX`(8) 짜리 배열로 **한 번만** 훑고 있었다. HID 서비스는
+characteristic 이 11개라 **9번째부터가 통째로 빠졌고**, 하필 그게 부트 리포트였다.
+
+증상은 `discover()` 실패 -> 연결 즉시 해제 반복이다. 서비스는 찾는데 그 안의
+characteristic 이 없다고 나오니 상대(우리 키보드)를 의심하게 된다.
+
+→ **범위를 나눠 여러 번 훑도록** 고쳤다. 배열을 키우지 않은 이유는 스택에 들고 있는
+  크기가 서비스 크기를 따라 늘지 않게 하려는 것이다.
+
+#### 없어서 새로 만든 것 둘
+
+- **`BLEHidGeneric::bootKeyboardReport()` / `bootMouseReport()`** — 상류에는 있는데
+  우리에겐 없었다. 부트 프로토콜은 **리포트 프로토콜과 다른 characteristic**
+  (0x2A22 / 0x2A33)으로 나가므로, 이게 없으면 부트 모드 호스트에 아무것도 안 간다.
+  characteristic 자체는 이미 만들고 있었다 — 보내는 길만 없었다
+- **`hid_keycode_to_ascii[128][2]`** — 상류는 TinyUSB 매크로를 쓴다.
+  손으로 옮기지 않고 **우리 `hid_ascii_to_keycode` 를 뒤집어 생성했다.**
+  두 표가 어긋나면 "어떤 키만 이상하다" 로 나타나 찾기 어렵다.
+  Enter 는 두 ASCII 가 같은 키코드로 가므로 줄바꿈 쪽을 남겼다
+
+#### 보드 2대 시험 요령
+
+- **프로브가 둘이면 `arduino-cli upload` 가 실패한다** (어느 쪽인지 못 고른다).
+  `probe-rs download --probe <VID:PID:serial>` 로 직접 굽는다
+- ⚠ 그렇게 구우면 **SoftDevice 가 지워진다.** 앱을 구운 뒤 SoftDevice hex 를
+  다시 구워야 한다. 안 그러면 `Bluefruit.begin()` 이 조용히 죽는다
+- 부트 모드는 **central 이 켜 줘야 한다** — `setBootMode(true)`.
+  안 켜면 상대가 리포트 프로토콜로 보내고 부트 characteristic 은 조용하다
+- 미디어 키(Consumer Control)는 **부트 프로토콜에 없어 받을 수 없다.** 상류도 같다
 
 ---
 
