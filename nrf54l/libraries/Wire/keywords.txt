@@ -1,0 +1,17 @@
+Wire	KEYWORD1
+Wire1	KEYWORD1
+TwoWire	KEYWORD1
+
+begin	KEYWORD2
+end	KEYWORD2
+setClock	KEYWORD2
+beginTransmission	KEYWORD2
+endTransmission	KEYWORD2
+requestFrom	KEYWORD2
+write	KEYWORD2
+available	KEYWORD2
+read	KEYWORD2
+peek	KEYWORD2
+flush	KEYWORD2
+
+WIRE_BUFFER_SIZE	LITERAL1

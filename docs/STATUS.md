@@ -1111,7 +1111,25 @@ characteristic 이 없다고 나오니 상대(우리 키보드)를 의심하게 
 
 ## 2.11 `Wire` (I2C) — ✅ (2026-09-12)
 
-M2 의 첫 항목. `cores/nrf54l/Wire.{h,cpp}`, 예제는 `examples/Hardware/i2c_scanner`.
+M2 의 첫 항목. `libraries/Wire/`, 예제는 `libraries/Wire/examples/i2c_scanner`.
+
+#### ⚠ 코어가 아니라 **라이브러리**여야 한다 — 실측으로 확인
+
+처음에 `cores/nrf54l/Wire.{h,cpp}` 에 넣었는데 **모든 스케치가 1 KB 씩 무거워졌다.**
+`rtos_scheduler` 가 24,088 -> 25,112 B 로 늘었고, `nm` 으로 보니 I2C 를 쓰지 않는
+`blinky` 의 ELF 에 `TwoWire` 와 `nrfx_twim` 이 통째로 들어 있었다.
+
+이유는 §7 F13 ① 이다. Arduino 는 **스케치가 include 한 라이브러리만 링크**하지만,
+`cores/` 는 `core.a` 로 묶이고 우리는 그것을 `-Wl,--whole-archive` 로 링크한다.
+즉 **코어에 넣은 것은 안 쓰는 스케치에도 다 들어간다.**
+
+→ `libraries/Wire/` 로 옮겼다. `rtos_scheduler` 가 24,088 B 로 정확히 되돌아왔다.
+  **Adafruit 이 `Wire` 와 `SPI` 를 라이브러리에 두는 이유가 이것이다** — 따라야 했다.
+
+부수 효과도 있다. 라이브러리에는 예제를 같이 넣을 수 있어
+**IDE 의 파일 -> 예제 -> Wire** 에 바로 뜬다. 코어에 두면 그 자리가 없다.
+
+⚠ **`SPI` 도 라이브러리로 만들어라.** 같은 이유다.
 
 **실기 (XIAO):**
 

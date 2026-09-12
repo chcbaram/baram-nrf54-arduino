@@ -966,13 +966,18 @@ baram-nrf54-arduino/                 # 저장소 루트
 │   │   └── NU54-DK.md               #   NU54-DK + NU54V-DK (회로도 동일)
 │   └── HIL/                         # 실기 검증 기록 (마일스톤 × 보드)
 └── nrf54l/                          # ★ 아카이브되는 플랫폼 루트
-    ├── platform.txt  boards.txt  programmers.txt  keywords.txt
+    ├── platform.txt  boards.txt  programmers.txt
+    │   #  ⚠ 플랫폼 keywords.txt 는 **아직 없다.** 라이브러리는 각자
+    │   #    keywords.txt 를 갖는다 (Wire 에는 있고 Bluefruit54Lib 에는 없다)
     ├── cores/nrf54l/
     │   ├── avr/                     # pgmspace 셰임
     │   ├── freertos/                # MIT, 원본 고지 유지
     │   ├── nordic/                  # nrfx + MDK + CMSIS + softdevice_handler 이식본
     │   └── linker/
-    ├── libraries/
+    ├── libraries/                   # Bluefruit54Lib / Wire / (M2) SPI ...
+    │   #  ⚠ Wire·SPI 를 cores/ 에 넣지 마라. core.a 를 --whole-archive 로
+    │   #    링크하므로(§7 F13 ①) 안 쓰는 스케치까지 무거워진다 (실측 +1 KB).
+    │   #    라이브러리면 예제도 함께 배포된다.
     ├── variants/nu54dk/
     ├── bootloader/                  # M4
     └── softdevice/
