@@ -7,22 +7,33 @@ Bluefruit (nRF52) sketches keep working.**
 
 [![License: MIT](https://img.shields.io/badge/core-MIT-blue.svg)](LICENSE)
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
-[![Status](https://img.shields.io/badge/status-M3%20(BLE)%20in%20progress-yellow.svg)](docs/STATUS.md)
+[![Status](https://img.shields.io/badge/status-M4%20(DFU)%20next-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ Early release — v0.2.0
-> Blink, `Serial`, multitasking and tickless idle run on real hardware across three
-> boards, and the core installs from Board Manager.
+> ### ⚠ Early release — v0.3.0
+> **All the Arduino peripheral APIs are here** — `Wire`, `SPI`, `attachInterrupt`,
+> `analogWrite` and `analogRead`, each verified on hardware, alongside blink,
+> `Serial`, multitasking and tickless idle across three boards. The core installs
+> from Board Manager.
 >
 > **BLE works in both the peripheral and central roles** — Adafruit's own
 > `bleuart` example runs with two `#include` lines removed, and MTU 247
 > negotiation, several concurrent connections, iBeacon, EddyStone, scanning,
 > connecting and the GATT client are all confirmed on hardware.
-> **Pairing, bonding (including LE Secure Connections) and HID keyboard / mouse /
-> media keys work too** — a button on the board types into a paired host.
-> `analogRead` / `Wire` / `SPI` land in M2.
+> **Pairing, bonding (including LE Secure Connections) and HID** — keyboard,
+> mouse, media keys and gamepad — work too, along with BLE-MIDI, iPhone
+> notifications (ANCS) and reading the time from a paired phone.
 >
-> Current state and example coverage: [docs/STATUS.md](docs/STATUS.md) ·
-> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
+> ⚠ **Peripherals are tied to a GPIO port on nRF54L**, unlike nRF52 where any pin
+> took any peripheral. A wrong pin assignment fails the build rather than going
+> silent at runtime, and the bundled **PinMap** examples carry the table for every
+> chip and board.
+>
+> Still missing: a bootloader. Uploading needs SWD today; UART and BLE OTA DFU
+> are next (M4).
+>
+> Current state and coverage: [docs/STATUS.md](docs/STATUS.md) ·
+> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) ·
+> [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md)
 
 ---
 
@@ -38,7 +49,7 @@ Bluefruit (nRF52) sketches keep working.**
 - [How it is built](#how-it-is-built)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [License](#license--mixed-not-open-source)
+- [License](#license--open-source-with-one-component-shipped-as-a-binary)
 
 ---
 
@@ -287,8 +298,10 @@ void loop()
 }
 ```
 
-More under **File → Examples → Bluefruit54Lib** (`bleuart`, `bleuart_multi`,
-`custom_service`, `beacon`, `eddystone_url`).
+More under **File → Examples → Bluefruit54Lib** — `bleuart`, `bleuart_multi`,
+`custom_service`, `beacon`, `eddystone_url`, `blehid_keyboard`, `blehid_gamepad`,
+`blemidi`, `ancs`, `client_cts`, `central_hid` and others. The **Wire**, **SPI**
+and **PinMap** libraries ship their own examples in the same menu.
 
 ## Support scope
 
@@ -461,6 +474,8 @@ This project is not affiliated with or endorsed by Nordic Semiconductor.
 | [docs/boards/](docs/boards/) | One document per board, from the schematics |
 | [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) | RRAM / RAM layout per chip |
 | [docs/PERIPHERAL-PINMAP.md](docs/PERIPHERAL-PINMAP.md) | Which pins a given peripheral can reach |
+| [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md) | Third-party libraries, compiled and measured |
+| [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) | How many Adafruit examples build as-is |
 | [docs/HIL/](docs/HIL/) | Hardware verification logs |
 | [docs/LICENSE-INVENTORY.md](docs/LICENSE-INVENTORY.md) | Licensing, component by component |
 

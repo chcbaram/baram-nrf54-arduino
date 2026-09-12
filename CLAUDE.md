@@ -1151,19 +1151,19 @@ DoD 의 "I2C 센서 라이브러리" 는 이렇게 정리했다 (`docs/LIBRARY-C
       실기 확인: `docs/HIL/M3-softdevice.md`
 - [x] **raw advertising 동작** — 공중에서 `BARAM-nRF54L` 탐지, 연결 성립.
       **§7 F9 공존 검증 통과**
-- [ ] `Bluefruit.begin()`, advertising (Bluefruit API 계층)
-- [ ] `BLEService` / `BLECharacteristic`
-- [ ] `BLEUart` (NUS)
-- [ ] 페어링 / 본딩
-- [ ] **이벤트 펌프 격리** — `sd_ble_evt_get()` 루프, 이벤트 태스크, SoftDevice
+- [x] `Bluefruit.begin()`, advertising (Bluefruit API 계층)
+- [x] `BLEService` / `BLECharacteristic`
+- [x] `BLEUart` (NUS) — Adafruit `bleuart` 예제가 include 두 줄만 빼고 동작
+- [x] 페어링 / 본딩 — Just Works / passkey / PIN / LESC, 키는 RRAM 파티션에
+- [x] **이벤트 펌프 격리** — `sd_ble_evt_get()` 루프, 이벤트 태스크, SoftDevice
       enable/disable, 인터럽트 우선순위 처리를 `cores/nrf54l/ble/sd_event_pump.c`
       한 파일에 모은다. 백엔드를 바꾸면 통째로 버려질 코드이므로 흩뿌리지 마라.
       **추상화가 아니라 코드 배치 규칙이다** (R11 위반 아님)
-- [ ] **`BLEDfu` 클래스 제공** — M3 시점에는 부트로더가 없다. `begin()` 이 서비스를
+- [x] **`BLEDfu` 클래스 제공** — M3 시점에는 부트로더가 없다. `begin()` 이 서비스를
       등록하되 실제 DFU 트리거는 M4 에서 연결한다.
       **명확한 에러를 반환하고 로그를 남겨라. 조용히 성공한 척하지 마라.**
       (`lolren/nrf54-arduino-core` 가 `ERROR_NOT_SUPPORTED` 를 반환하는 방식을 쓴다)
-- [ ] `enterOTADfu()` 상당 API 의 시그니처 확보
+- [x] `enterOTADfu()` 상당 API 의 시그니처 확보
       (Adafruit `examples/Hardware/dfu_ota/dfu_ota.ino` 참조)
 
 **DoD**: Adafruit `Bluefruit52Lib/examples/Peripheral/bleuart` 원본 스케치가

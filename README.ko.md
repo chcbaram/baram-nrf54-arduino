@@ -7,21 +7,29 @@
 
 [![License: MIT](https://img.shields.io/badge/core-MIT-blue.svg)](LICENSE)
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
-[![Status](https://img.shields.io/badge/status-M3%20(BLE)%20in%20progress-yellow.svg)](docs/STATUS.md)
+[![Status](https://img.shields.io/badge/status-M4%20(DFU)%20next-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ 초기 릴리스 — v0.2.0
-> blink / `Serial` / 멀티태스킹 / tickless idle 이 **보드 3종에서 실기 동작**하고
-> Board Manager 로 설치된다.
+> ### ⚠ 초기 릴리스 — v0.3.0
+> **Arduino 페리페럴 API 가 전부 들어왔다** — `Wire` · `SPI` · `attachInterrupt` ·
+> `analogWrite` · `analogRead` 다섯 개를 모두 실기 검증했다. blink / `Serial` /
+> 멀티태스킹 / tickless idle 도 **보드 3종에서 동작**하고 Board Manager 로 설치된다.
 >
 > **BLE 는 peripheral 과 central 이 모두 동작한다** — Adafruit `bleuart` 원본
 > 예제가 `#include` 두 줄만 지우면 그대로 돌고, MTU 247 협상·다중 연결·
 > iBeacon / EddyStone·스캔·연결·GATT 클라이언트까지 실기에서 확인했다.
-> **페어링·본딩(LESC 포함)과 HID 키보드 / 마우스 / 미디어키도 동작한다** —
-> 보드의 버튼을 누르면 페어링된 호스트에 키 입력으로 들어간다.
-> `analogRead` / `Wire` / `SPI` 는 M2 다.
+> **페어링·본딩(LESC 포함)과 HID** — 키보드 / 마우스 / 미디어키 / 게임패드 — 에
+> 더해 BLE-MIDI, iPhone 알림(ANCS), 페어링된 폰에서 시각 읽기도 동작한다.
 >
-> 진행 상황과 예제 호환 현황: [docs/STATUS.md](docs/STATUS.md) ·
-> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md)
+> ⚠ **nRF54L 은 페리페럴이 GPIO 포트에 묶여 있다.** 아무 핀에나 붙던 nRF52 와
+> 다르다. 잘못 배정하면 런타임에 조용히 실패하는 대신 **빌드가 멈추고**, 칩별·
+> 보드별 전체 표는 동봉된 **PinMap** 예제에 있다.
+>
+> 아직 없는 것: **부트로더.** 업로드는 지금 SWD 로만 된다. UART / BLE OTA DFU 가
+> 다음(M4)이다.
+>
+> 진행 상황과 호환 현황: [docs/STATUS.md](docs/STATUS.md) ·
+> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) ·
+> [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md)
 
 ---
 
@@ -279,8 +287,10 @@ void loop()
 }
 ```
 
-예제가 더 있다: **파일 → 예제 → Bluefruit54Lib** (`bleuart`, `bleuart_multi`,
-`custom_service`, `beacon`, `eddystone_url`).
+예제가 더 있다: **파일 → 예제 → Bluefruit54Lib** — `bleuart`, `bleuart_multi`,
+`custom_service`, `beacon`, `eddystone_url`, `blehid_keyboard`, `blehid_gamepad`,
+`blemidi`, `ancs`, `client_cts`, `central_hid` 등. **Wire** · **SPI** · **PinMap**
+라이브러리도 같은 메뉴에 각자 예제를 둔다.
 
 ## 지원 범위
 
@@ -444,6 +454,8 @@ CAMI 포크들도 그렇다.
 | [docs/boards/](docs/boards/) | 보드별 회로도 분석 (보드 하나당 문서 하나) |
 | [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) | 칩별 RRAM / RAM 배치 |
 | [docs/PERIPHERAL-PINMAP.md](docs/PERIPHERAL-PINMAP.md) | 페리페럴이 쓸 수 있는 GPIO |
+| [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md) | 제3자 라이브러리 — 실제로 빌드해 본 결과 |
+| [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) | Adafruit 예제가 얼마나 그대로 빌드되나 |
 | [docs/HIL/](docs/HIL/) | 실기 검증 기록 |
 | [docs/LICENSE-INVENTORY.md](docs/LICENSE-INVENTORY.md) | 구성 요소별 라이선스 |
 
