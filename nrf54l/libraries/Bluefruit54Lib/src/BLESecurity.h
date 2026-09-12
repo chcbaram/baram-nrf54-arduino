@@ -74,6 +74,12 @@ class BLESecurity
     void setPairCompleteCallback(pair_complete_cb_t fp)       { _complete_cb = fp; }
     void setSecuredCallback(secured_conn_cb_t fp)             { _secured_cb = fp; }
 
+    /* 내부용 — 콜백 태스크가 부른다 (bluefruit.cpp 의 BLE_CB_SECURED). */
+    void _invokeSecuredCallback(uint16_t conn_hdl)
+    {
+      if (_secured_cb) _secured_cb(conn_hdl);
+    }
+
     /* 코어 내부용 */
     void _eventHandler(const ble_evt_t *evt);
 

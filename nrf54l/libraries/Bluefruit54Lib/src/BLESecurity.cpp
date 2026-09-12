@@ -315,7 +315,8 @@ void BLESecurity::_eventHandler(const ble_evt_t *evt)
 
       /* level 2 이상이면 암호화된 링크다. CCCD 저장 여부가 여기 달렸다. */
       if (conn != NULL) conn->_setSecured(sec->sec_mode.lv >= 2);
-      if (_secured_cb) _secured_cb(conn_hdl);
+      /* 콜백 태스크로 미룬다 — 그 안에서 탐색하는 스케치가 많다 (bluefruit.cpp). */
+      if (_secured_cb) Bluefruit._deferSecured(conn_hdl);
       break;
     }
 

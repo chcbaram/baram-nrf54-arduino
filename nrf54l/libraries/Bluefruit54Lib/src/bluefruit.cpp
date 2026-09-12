@@ -78,6 +78,20 @@ bool BLEAdvertisingData::addService(BLEService &service)
   return addUuid(service.uuid);
 }
 
+bool BLEAdvertisingData::addService(BLEClientService &service)
+{
+  /* 일반 서비스 목록이 아니라 solicitation 목록으로 들어간다. */
+  if (service.uuid.size() == 16) {
+    uint16_t u16 = service.uuid._uuid.uuid;
+    return addData(BLE_GAP_AD_TYPE_SOLICITED_SERVICE_UUIDS_16BIT, &u16, 2);
+  }
+  if (service.uuid._uuid128 != NULL) {
+    return addData(BLE_GAP_AD_TYPE_SOLICITED_SERVICE_UUIDS_128BIT,
+                   service.uuid._uuid128, 16);
+  }
+  return false;
+}
+
 /* ── advertising 제어 ──────────────────────────────────────────────── */
 
 BLEAdvertising::BLEAdvertising(void)
@@ -171,7 +185,7 @@ void BLEAdvertising::_restartIfNeeded(void)
  *
  *   부수 효과로 콜백이 오래 걸려도 이벤트 펌프가 막히지 않는다.
  */
-enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT, BLE_CB_SAVE_CCCD };
+enum { BLE_CB_CONNECT = 0, BLE_CB_DISCONNECT, BLE_CB_SAVE_CCCD, BLE_CB_SECURED };
 
 typedef struct {
   uint8_t  type;
@@ -251,10 +265,30 @@ void AdafruitBluefruit::_callbackTask(void)
         break;
       }
 
+      /*
+        * ⚠ 보안 콜백도 여기서 돈다. 스케치는 이 안에서 상대의 서비스를
+        *   탐색하는 것이 보통인데(상류 client_cts 가 그렇다), 탐색은
+        *   응답 이벤트를 기다리는 **블로킹 절차**다. 이벤트 태스크에서
+        *   부르면 기다리는 이벤트를 처리할 주체가 자기 자신이라 영영 안 온다.
+        *
+        *   실제로 그렇게 돌다가 CTS 탐색이 조용히 실패했다 — 폰은 정상이고
+        *   같은 코드가 loop() 에서는 성공해서, 원인이 상대에게 있는 것처럼
+        *   보였다. B7 에서 연결 콜백을 옮긴 것과 같은 이유다.
+        */
+      case BLE_CB_SECURED:
+        Security._invokeSecuredCallback(msg.conn_hdl);
+        break;
+
       default:
         break;
     }
   }
+}
+
+void AdafruitBluefruit::_deferSecured(uint16_t conn_hdl)
+{
+  ble_cb_msg_t msg = { BLE_CB_SECURED, 0, 0, conn_hdl };
+  if (_cb_queue) xQueueSend((QueueHandle_t) _cb_queue, &msg, 0);
 }
 
 void AdafruitBluefruit::_deferSaveCccd(uint16_t conn_hdl, uint8_t role)

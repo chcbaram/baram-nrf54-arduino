@@ -112,6 +112,14 @@ class BLEAdvertisingData
     bool addUuid(BLEUuid bleuuid);
     bool addService(BLEService &service);
 
+    /**
+     * 우리가 **상대에게 요구하는** 서비스를 광고한다 (Solicitation UUID).
+     *
+     * 서버로 올린 서비스를 싣는 위 판과 정반대다 — 이쪽은 "당신이 이 서비스를
+     * 가졌다면 붙어 달라" 는 뜻이다. iOS 는 CTS·ANCS 를 이 방식으로만 열어 준다.
+     */
+    bool addService(BLEClientService &service);
+
     uint8_t        count(void) const { return _count; }
     uint8_t const *buffer(void) const { return _buf; }
     void           clearData(void) { _count = 0; }
@@ -492,6 +500,7 @@ class AdafruitBluefruit
      *   영영 안 온다. Adafruit 이 ada_callback() 으로 미루는 이유가 그것이다.
      */
     void _deferConnect(uint16_t conn_hdl, uint8_t role);
+    void _deferSecured(uint16_t conn_hdl);
     void _deferSaveCccd(uint16_t conn_hdl, uint8_t role);
     void _deferDisconnect(uint16_t conn_hdl, uint8_t reason, uint8_t role);
     void _callbackTask(void);      /* 위 태스크의 본체 */
@@ -551,6 +560,7 @@ extern AdafruitBluefruit Bluefruit;
 #include "BLEClientUart.h"
 #include "BLEClientBas.h"
 #include "BLEClientDis.h"
+#include "BLEClientCts.h"
 #include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"
