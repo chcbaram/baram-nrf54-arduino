@@ -20,11 +20,10 @@
      MISO     P2.04    15
      CS       P2.05    14        <- set SD_CS below to match yours
 
- Card detect is supported below but off by default. The board's Zephyr
- definition puts it on P2.00, active high, but on the board this was
- tested on that pin measured floating with a card inserted - it read
- back whichever internal pull was enabled - so the line appears not to
- be connected there. Turn it on once you have checked your own.
+ Card detect is on P2.00 and works: the socket's switch shorts it to
+ ground while the slot is empty and opens once a card is in, so with an
+ internal pull-up a card reads high. That matches the active-high the
+ board's Zephyr definition declares.
 
  baram-nrf54l-arduino - MIT license
 *********************************************************************/
@@ -44,18 +43,18 @@
 // #define SD_MISO   _PINNUM(2, 4)
 
 /*
- * Card detect, if your socket has the switch wired. It lets the sketch
- * wait for a card and notice one being pulled out, instead of failing
- * at begin() and staying failed.
+ * Card detect. Comment out if your socket has no switch wired - with
+ * the pull-up below an unconnected pin just reads "card present", so
+ * leaving it on costs nothing either way.
  *
- * Polarity differs between sockets, so check rather than assume: set
- * the pin to INPUT_PULLUP and read it, then to INPUT_PULLDOWN and read
- * again. If the two disagree the line is floating and nothing is wired
- * there; if they agree, that level is what the switch drives with a
- * card in, and SD_CD_ACTIVE_LOW follows from it.
+ * Polarity differs between sockets, and one reading will not tell you:
+ * the switch is open with a card in, so the pin only follows the
+ * internal pull and looks exactly like an unconnected one. Read it
+ * with a card and again without. Here it is driven low when the slot
+ * is empty and floats when full, so pull-up plus active high.
  */
-// #define SD_CD             _PINNUM(2, 0)   // per the board's Zephyr DTS
-// #define SD_CD_ACTIVE_LOW  0                // DTS says active high
+#define SD_CD                _PINNUM(2, 0)   // NU54-DK header pin 20
+#define SD_CD_ACTIVE_LEVEL   HIGH           // level the pin reads with a card in
 
 void setup()
 {
@@ -75,12 +74,7 @@ void setup()
 bool cardPresent(void)
 {
 #if defined(SD_CD)
-  int level = digitalRead(SD_CD);
-  #if SD_CD_ACTIVE_LOW
-    return level == LOW;
-  #else
-    return level == HIGH;
-  #endif
+  return digitalRead(SD_CD) == SD_CD_ACTIVE_LEVEL;
 #else
   return true;                 // no switch to ask - assume it is there
 #endif

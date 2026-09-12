@@ -27,6 +27,7 @@
      MOSI     P2.02    17
      MISO     P2.04    15
      CS       P2.05    14        <- set SD_CS below to match yours
+     CD       P2.00    20        card detect (see below)
 
  baram-nrf54l-arduino - MIT license
 *********************************************************************/
@@ -45,6 +46,20 @@
 // #define SD_MOSI   _PINNUM(2, 2)
 // #define SD_MISO   _PINNUM(2, 4)
 
+/*
+ * Card detect. Comment out if your socket has no switch wired - with
+ * the pull-up below an unconnected pin just reads "card present", so
+ * leaving it on costs nothing either way.
+ *
+ * Polarity differs between sockets, and one reading will not tell you:
+ * the switch is open with a card in, so the pin only follows the
+ * internal pull and looks exactly like an unconnected one. Read it
+ * with a card and again without. Here it is driven low when the slot
+ * is empty and floats when full, so pull-up plus active high.
+ */
+#define SD_CD                _PINNUM(2, 0)   // NU54-DK header pin 20
+#define SD_CD_ACTIVE_LEVEL   HIGH           // level the pin reads with a card in
+
 SdFat sd;
 
 void setup()
@@ -59,13 +74,22 @@ void setup()
 
   /* 4 MHz is plenty here and keeps header wiring out of the picture.
    * Raise it once the card is known to work. */
-  if ( !sd.begin(SD_CS, SD_SCK_MHZ(4)) )
-  {
-    Serial.println("begin failed - card inserted? CS right? formatted?");
-    return;
-  }
-  Serial.println("mounted");
+#if defined(SD_CD)
+  pinMode(SD_CD, INPUT_PULLUP);
+#endif
+}
 
+bool cardPresent(void)
+{
+#if defined(SD_CD)
+  return digitalRead(SD_CD) == SD_CD_ACTIVE_LEVEL;
+#else
+  return true;                 // no switch to ask - assume it is there
+#endif
+}
+
+void listFiles(void)
+{
   FsFile root, entry;
   if ( !root.open("/") ) { Serial.println("cannot open root"); return; }
 
@@ -87,5 +111,32 @@ void setup()
 
 void loop()
 {
-  delay(1000);
+  static bool mounted = false;
+  bool present = cardPresent();
+
+  if ( present && !mounted )
+  {
+    delay(100);                // contacts bounce on the way in
+
+    /* 4 MHz is plenty here and keeps header wiring out of the picture.
+     * Raise it once the card is known to work. */
+    if ( sd.begin(SD_CS, SD_SCK_MHZ(4)) )
+    {
+      Serial.println("mounted");
+      listFiles();
+      mounted = true;
+    }
+    else
+    {
+      Serial.println("begin failed - card seated? CS right? formatted?");
+      delay(1000);
+    }
+  }
+  else if ( !present && mounted )
+  {
+    Serial.println("card removed");
+    mounted = false;
+  }
+
+  delay(200);
 }
