@@ -81,7 +81,7 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 ~~1. **`BLEMidi`**~~ — ✅ **끝났다 (§2.7).** 양방향 실기 확인.
    상류 원본 `blemidi.ino` 가 include 3줄 삭제만으로 컴파일된다
 ~~2. **`BLEClientCts`**~~ — ✅ **끝났다 (§2.8).** iPhone 상대로 시각·시간대 확인
-3. **`BLEAncs`** — B13b 중 가장 크다. 본딩 + iPhone 필요
+~~3. **`BLEAncs`**~~ — ✅ **끝났다 (§2.9).** iPhone 알림을 앱 이름·제목·본문까지 수신
 4. **`BLEClientHidAdafruit`** — 상대 HID 기기가 필요하다. BLE 키보드 실물이 없으면
    보드 2대(한쪽에 `blehid_keyboard`)로 시험한다.
    ⚠ 상류가 **boot protocol 만** 지원한다고 헤더에 못 박아 두었다 (0x2A22 / 0x2A33).
@@ -236,7 +236,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B13c**~~ ✅ | **처리량 API** — `requestPHY` / DLE / MTU 협상 + 실측 | **완료.** 맥 상대 26~28 KB/s (§2.6) |
 | ~~**B13b-1**~~ ✅ | **`BLEMidi`** — BLE-MIDI 1.0 | **완료.** 양방향 실기 확인 (§2.7) |
 | ~~**B13b-2**~~ ✅ | **`BLEClientCts`** — 폰의 시계를 읽는다 | **완료.** iPhone 상대 실기 확인 (§2.8) |
-| B13b (남음) | `BLEClientHidAdafruit`, `BLEAncs` | |
+| ~~**B13b-3**~~ ✅ | **`BLEAncs`** — iPhone 알림 | **완료.** 실기 확인 (§2.9) |
+| B13b (남음) | `BLEClientHidAdafruit` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -246,8 +247,7 @@ DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md �
 
 **아직 없는 것 (B13b):**
 
-- `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12, 게임패드는 B13a 에서 됐다
-- `BLEAncs` / `BLEClientCts` — iOS 알림·시각. 실기 검증에 iPhone 이 필요하다
+- `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12, 게임패드는 B13a 에서 됐다 / `BLEClientCts` — iOS 알림·시각. 실기 검증에 iPhone 이 필요하다
 - **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결
 
 > 아래 세 줄은 B10~B12 이전에 적힌 것이라 지웠다. 본딩 · central · HID 는
@@ -975,6 +975,72 @@ timezone: 36 quarter-hours, dst offset 0
   부른다. 상류에는 없는 부분이고, 없으면 아무 일도 안 일어난다
 - Local Time Information 은 **규격상 선택**이다. 없다고 실패시키면 안 된다
   (iPhone 은 준다)
+
+---
+
+## 2.9 `BLEAncs` — ✅ (2026-09-12)
+
+iPhone 의 알림을 받는다. B13b 중 가장 큰 작업이었다. 예제는
+`examples/Peripheral/ancs`, 상류 원본 `ancs.ino` 는 include 3줄 삭제만으로 컴파일된다.
+
+**실기 (XIAO + iPhone):** 알림 이벤트 -> 앱 이름·제목·본문 조회 -> 조각 응답 재조립까지
+전부 동작한다. 한국어 본문 정상.
+
+```
+added   [other] 지갑: Tmoney
+         사용자의 새로운 잔액은 ₩82,900입니다.
+added   [social] 메시지: +82 1544-7200
+```
+
+응답은 조각으로 온다 — 한 건에 `DS hvx len=26 / 29 / 14 / 108` 처럼 네 번 나뉜다.
+
+#### 콜백 컨텍스트가 **정반대로 두 개** 필요하다
+
+이 서비스의 핵심 구조다. 잘못 놓으면 교착한다.
+
+| 콜백 | 어디서 | 왜 |
+|---|---|---|
+| Notification Source | **콜백 태스크** | 이 안에서 스케치가 제목·본문을 가져오는데 그게 블로킹이다 |
+| Data Source | **이벤트 태스크** | 위가 기다리는 동안 이쪽이 채워 줘야 한다. 같은 태스크면 막힌다 |
+
+⚠ 우리 `BLEClientCharacteristic::setNotifyCallback()` 은 상류의
+`use_ada_callback` 인자를 **받기만 하고 무시한다** — 항상 이벤트 태스크에서 직접 부른다.
+그래서 범용 `Bluefruit._deferCallback()` 을 만들어 알림 쪽만 콜백 태스크로 넘겼다
+(§2.8 의 보안 콜백과 같은 큐). **`use_ada_callback` 을 믿는 상류 코드를 옮길 때
+이 점을 먼저 확인하라.**
+
+상류의 `AdaMsg` 유틸리티는 우리 저장소에 없어, 필요한 만큼(버퍼 + 세마포어)만 직접 뒀다.
+조각마다 깨우고 "머리에 적힌 길이만큼 다 왔는지" 는 부르는 쪽이 판단한다.
+
+#### ⚠ `Serial` 은 태스크 안전하지 않다 — 여기서 드러났다
+
+계측 중 출력이 이렇게 깨졌다:
+
+```
+a  e=3ans  v n11added   [other] 롯데O
+```
+
+`[ancs] NS hvx len=11` 과 `added [other] …` 가 **글자 단위로 섞였다.** 이벤트 태스크와
+콜백 태스크가 동시에 `Serial` 에 쓴 결과다. 우리 `Serial` 에는 잠금이 없다.
+
+**사용자도 겪는다** — `Scheduler.startLoop()` + BLE 콜백 조합이 흔하기 때문이다.
+뮤텍스를 넣을지는 별도 판단이다 (모든 쓰기에 비용이 붙고, Adafruit 도 안 한다).
+당장은 알아 두고 쓰는 쪽이 맞다.
+
+#### ⚠ UTF-8 경계 — ASCII 로만 시험했으면 못 잡는다
+
+폰은 버퍼 크기만큼 보내고 끊으므로 **한글 중간에서 잘린다**(글자당 3바이트).
+예제에 문자 경계로 되돌리는 처리를 넣었는데, **첫 판이 틀렸다** — 끝의 continuation
+바이트를 무조건 벗겨서 **온전한 마지막 글자까지 지웠다** (`메시지` -> `메시`).
+온전한 다바이트 글자도 continuation 으로 끝난다. **바이트가 실제로 모자랄 때만**
+버려야 한다.
+
+#### 실기 시험 요령
+
+- 연결하는 순간 **폰에 쌓여 있던 알림이 한꺼번에 쏟아진다.** 새 알림을 기다릴 필요가 없다
+- **타이머 알람은 안 온다.** 알림 센터에 남지 않는 종류라서다. 문자·카드 결제처럼
+  센터에 쌓이는 것으로 시험하라
+- 캡처 창을 넉넉히 잡아라. 이번에 세 번을 창이 어긋나 "안 온다" 로 오판했다
 
 ---
 

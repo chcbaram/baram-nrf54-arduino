@@ -13,7 +13,7 @@
 `blemidi` 는 라이브러리 문제가 아니라 **우리에게 `BLEMidi` 가 없는 것**이었고,
 `neopixel` 은 **우리 코어에 `interrupts()`/`noInterrupts()` 가 없던 것**이었다.
 
-최종 측정: 2026-09-12 · XIAO nRF54L15 기준 (`blemidi` · `client_cts` 추가)
+최종 측정: 2026-09-12 · XIAO nRF54L15 기준 (`blemidi` · `client_cts` · `ancs` 추가)
 
 ---
 
@@ -40,7 +40,7 @@ Arduino 는 "스케치가 include 한 라이브러리만 링크" 하므로 Adafr
 > 무관한 기본 예제들이 거기 묶여 있었다. R10(USB 하드웨어 없음)은 사실이지만
 > 그게 이 예제들을 막는 이유는 아니었다.
 
-## 우리가 제공하는 예제 (26개)
+## 우리가 제공하는 예제 (27개)
 
 **상류 예제를 쓰려고 nRF52 코어를 따로 설치하게 만들지 않는다.** Adafruit 호환을
 내세우면서 예제를 안 넣으면 사용자가 다른 코어를 설치해 예제만 꺼내 오는 셈이 된다.
@@ -95,11 +95,10 @@ central_throughput
 전부 측정 잡음 안이라는 것까지 확인했다. `central_throughput` 은 상류 원본이
 컴파일은 되지만 아직 우리 이름으로 내지 않았다 — 보드 2대가 필요하다.
 
-### B. 우리 BLE API 가 아직 없다 — 5개
+### B. 우리 BLE API 가 아직 없다 — 4개
 
 | 예제 | 상태 | 필요한 것 |
 |---|---|---|
-| `ancs` | 📅 **지원 예정** | `BLEAncs` (iPhone 알림). 클라이언트 기반(B9)이 있어 얹기 쉽다 |
 | `central_hid` | 📅 **지원 예정** | `BLEClientHidAdafruit` |
 | `dfu_ota` | 📅 M4 | 실제 DFU. 지금 `BLEDfu` 는 서비스만 올리고 명확히 거절한다 |
 | `dfu_serial` | 📅 M4 | 부트로더가 있어야 한다 |
@@ -214,8 +213,8 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 | | 개수 |
 |---|---|
-| **컴파일 통과** | **30** |
-| 우리 BLE API 부족 | 약 7 |
+| **컴파일 통과** | **31** |
+| 우리 BLE API 부족 | 약 6 |
 | 우리 M2(Arduino API) 부족 | 약 20 |
 | 외부 라이브러리·외부 기기 | 약 14 |
 | 계 | 71 |
@@ -225,7 +224,7 @@ NFC1/NFC2 = P1.02/P1.03 (`docs/PERIPHERAL-PINMAP.md`). nrfx 에 NFCT 드라이�
 
 **⚠ 컴파일 통과가 동작을 뜻하지 않는다.** 별표(*)가 실기까지 확인한 것이다.
 
-### 통과 (30)
+### 통과 (31)
 
 ```
 bleuart*  bleuart_multi*  beacon*  eddystone_url*
@@ -235,11 +234,11 @@ adv_advanced*  rssi_callback*
 blinky_ota  temp_measure_non_blocking  adv_AdafruitColor  rssi_poll
 pairing_pin  pairing_passkey  clearbonds  central_pairing
 blehid_keyboard  blehid_mouse  blehid_gamepad*  blehid_camerashutter  blehid_keyscan
-throughput  central_throughput  blemidi*  client_cts*
+throughput  central_throughput  blemidi*  client_cts*  ancs*
 neopixel(컴파일만 — bit-banging 이라 동작 불가)
 ```
 
-**실기 확인 14개** (별표). 우리 예제 `blehid_button` 도 실기 확인했다 —
+**실기 확인 15개** (별표). 우리 예제 `blehid_button` 도 실기 확인했다 —
 호스트에서 페어링하고 버튼을 누르면 키가 입력된다 (상류 예제가 아니라 별도로 센다).
 
 실기 확인 방법과 내용:
