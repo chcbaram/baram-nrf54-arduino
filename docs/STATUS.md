@@ -94,7 +94,7 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | ~~`SPI`(SPIM00)~~ | ✅ **끝났다 (§2.12).** SPI 플래시·SD 카드로 실기 확인 |
 | ~~`attachInterrupt`(GPIOTE)~~ | ✅ **끝났다 (§2.13).** NU54-DK 버튼으로 P1·P0 양쪽 확인 |
 | ~~`analogWrite`(PWM)~~ | ✅ **끝났다 (§2.15).** 듀티를 되읽어 확인. **P1 전용** |
-| **`analogRead`(SAADC)** | ⭐ **다음.** **AIN0~7 = P1.04~07 / P1.11~14 고정** |
+| ~~`analogRead`(SAADC)~~ | ✅ **끝났다 (§2.16).** 0V/3.3V 절대값으로 확인 |
 | 전류 측정 | M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8) |
 
 ⚠ **M2 DoD 의 "I2C 센서 라이브러리 1종 동작" 이 아직 안 끝났다.** SPI 가 생겨
@@ -1496,6 +1496,58 @@ PinMap 표가 미리 알려 준 덕에 시험 스케치를 처음부터 맞게 �
 핸들러를 NULL 로 등록하지만 **nrfx 가 NVIC 라인을 무조건 켠다**
 (`nrfy_pwm_int_init` 안의 `NRFX_IRQ_ENABLE` 은 `enable` 인자와 무관하다).
 "인터럽트를 안 쓰니 벡터를 비워도 된다" 는 판단은 틀렸다.
+
+## 2.16 `analogRead` (SAADC) — ✅ (2026-09-12)
+
+`cores/nrf54l/wiring_analog.c` 뒷부분. 실기 기록은 `docs/HIL/M2-adc.md`.
+
+NU54-DK 는 **A7 이 LED4(P1.14)** 라 외부 계측기 없이 절대 정확도를 잴 수 있다 —
+출력으로 몰면 핀이 곧 0 V / VDD 다. 측정 **0 mV / 3304 mV**.
+해상도 8·10·12·14비트가 전부 ~3300 mV 로 일치했다 (raw 만 스케일이 바뀐다).
+
+#### ⚠ nRF52 와 전압 구성이 다르다 — README 에 반드시 적을 것
+
+| | nRF52 | **nRF54L** |
+|---|---|---|
+| 내부 기준전압 | 600 mV | **900 mV** |
+| 게인 | 1/6 부터 | **1/4 부터** |
+| VDD/4 기준 | 있음 | **없음** |
+
+그래서 Adafruit 이름이 **같은 전압을 주지 못하는 것이 있다**:
+`AR_INTERNAL_3_0` → 실제 3.15 V, `AR_INTERNAL_2_4` → 2.25 V,
+`AR_INTERNAL_1_2` → 1.35 V, `AR_VDD4` → 3.6 V.
+`AR_DEFAULT`(3.6 V)와 `AR_INTERNAL_1_8`만 정확히 맞는다.
+
+→ **`analogReadMillivolts()` 를 제공한다.** 어떤 기준을 골랐든 올바른 mV 를
+돌려주므로 이 차이에 걸리지 않는다. `analogReferenceMillivolts()` 로 현재
+풀스케일도 확인할 수 있다.
+
+#### AIN 매핑을 손으로 안 적었다
+
+`nrf54l_pinmap.h` 에 생성돼 있는 `NRF54L_SIG_SAADC_AINn()` 을 순서대로 물어본다.
+**LM20A 는 AIN 배정이 전혀 다른데**(AIN0=P1.00, AIN1=P1.31 …) 생성기만 다시
+돌리면 코어 코드를 안 고쳐도 맞는다.
+
+#### 벡터 — 이번엔 **직접 이으면 안 된다**
+
+GPIOTE/PWM 과 반대다. SAADC 는 단일 인스턴스라 nrfx 가
+`#define nrfx_saadc_irq_handler SAADC_IRQHandler` 로 이름을 바꾼다.
+또 정의하면 무한 재귀다 (§7 F10 ③).
+
+부작용: **`nrfx_saadc.c` 가 모든 스케치에 링크된다.** 벡터 엔트리가 곧 드라이버
+함수라 트램폴린으로 끊을 수 없다. 다만 `analogRead` 를 넣기 전부터 그랬으므로
+이번 추가의 크기 증가는 **0 B** 다.
+
+### ⭐ 같은 이유로 1.5 KB 가 새고 있다 — M5 전에 판단할 것
+
+blink 의 벡터를 전수 조사하니 **쓰지도 않는 단일 인스턴스 드라이버**가 여럿
+링크돼 있다: `COMP_LPCOMP`, `NFCT`, `TEMP`, `QDEC`, `I2S`, `PDM`, `WDT`.
+
+**실측: 그 7개의 `.c` 를 치우면 23,784 → 22,284 B (−1,500 B).**
+
+지금은 되돌려 두었다. 지우면 나중에 쓸 때 다시 가져와야 하므로 판단이 필요하다 —
+`nrfx_pdm.c` 는 XIAO 마이크에, `nrfx_i2s.c`/`nrfx_qdec.c` 는 언젠가 쓸 수 있다.
+`nordic/nrfx/VENDORING.md` 에 21개를 지운 전례가 있다.
 
 ## 3. 아직 검증 못 한 가정
 

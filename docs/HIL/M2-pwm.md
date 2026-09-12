@@ -17,6 +17,7 @@
 | `digitalWrite()` 가 PWM 을 놓는다 | ✅ 0 % |
 | P2 핀 거부 | ✅ `analogWriteOk(PIN_LED1)` = false |
 | 안 쓰는 스케치의 크기 증가 | ✅ **+88 B** (GPIOTE 와 합쳐서) |
+| LED 밝기가 실제로 변한다 (육안) | ✅ LED4(D10) 숨쉬기 확인 |
 
 ---
 

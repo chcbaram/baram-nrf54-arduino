@@ -1114,7 +1114,10 @@ tickless는 **틱이 안정된 뒤에 켠다.** 둘을 동시에 켜면 틱 버�
 ### M2 — Arduino API
 
 - [x] `analogWrite` (PWM) — 듀티·극성·해상도 실기 확인 (`docs/HIL/M2-pwm.md`)
-- [ ] `analogRead` (SAADC)
+- [x] `analogRead` (SAADC) — 0V/3.3V 절대값·해상도·기준전압 실기 확인 (`docs/HIL/M2-adc.md`)
+      ⚠ **nRF52 와 전압 구성이 다르다** — 내부 기준 **900 mV**(nRF52 는 600),
+      게인 1/6 없음, **VDD/4 기준 없음**. Adafruit 의 `AR_INTERNAL_3_0` 등
+      일부 별칭이 **같은 전압이 아니다.** `analogReadMillivolts()` 를 쓰면 걸리지 않는다
       ⚠ **둘 다 P1 전용이다** (Pin Planner 로 확인, `docs/PERIPHERAL-PINMAP.md` §4):
       `PWM20/21/22` 는 `P1*` 만, `SAADC` 는 `AIN0~7` = `P1.04~P1.07 / P1.11~P1.14` 고정.
       P0·P2 핀에는 `analogWrite`/`analogRead` 를 걸 수 없다 — variant 핀 배정 전에 볼 것

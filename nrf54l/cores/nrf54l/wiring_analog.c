@@ -267,3 +267,151 @@ static void dispatch2(void) { nrfx_pwm_irq_handler(&m_pwm[2].drv); }
 void PWM20_IRQHandler(void) { if (s_isr[0]) s_isr[0](); }
 void PWM21_IRQHandler(void) { if (s_isr[1]) s_isr[1](); }
 void PWM22_IRQHandler(void) { if (s_isr[2]) s_isr[2](); }
+
+/*═══════════════════════════════════════════════════════════════════════
+ * analogRead (SAADC)
+ *═══════════════════════════════════════════════════════════════════════
+ *
+ * ⚠ SAADC 는 **단일 인스턴스**라 벡터를 직접 이으면 안 된다 (§7 F10 ③).
+ *   `bsp/soc/irqs/nrfx_irqs_nrf54l15_application.h` 가
+ *   `#define nrfx_saadc_irq_handler SAADC_IRQHandler` 로 이름을 바꿔 두어
+ *   nrfx 의 핸들러가 곧 벡터다. 우리가 또 정의하면 무한 재귀다.
+ *
+ *   부작용이 하나 있다 — 그래서 **`nrfx_saadc.c` 는 모든 스케치에 링크된다.**
+ *   벡터 테이블이 KEEP 되는데 그 엔트리가 곧 드라이버 함수이기 때문이다.
+ *   PWM/GPIOTE 처럼 트램폴린으로 끊을 수가 없다. analogRead 를 넣기 전부터
+ *   이미 그랬다 (실측으로 확인).
+ */
+#include "nrfx_saadc.h"
+#include "nrf54l_pinmap.h"
+
+#define SAADC_CH   (0)     /* 한 번에 한 핀만 읽으므로 채널 하나면 된다 */
+
+static uint8_t           m_adc_bits = 10;
+static eAnalogReference  m_adc_ref  = AR_INTERNAL_3_6;
+static bool              m_adc_inited;
+
+/** 기준전압(900 mV)에 게인을 적용한 풀스케일. 헤더의 이름과 맞아야 한다. */
+static uint32_t ref_millivolts(eAnalogReference r)
+{
+  switch (r) {
+    case AR_INTERNAL_3_15: return 3150;
+    case AR_INTERNAL_2_7:  return 2700;
+    case AR_INTERNAL_2_25: return 2250;
+    case AR_INTERNAL_1_8:  return 1800;
+    case AR_INTERNAL_1_35: return 1350;
+    case AR_INTERNAL_0_9:  return  900;
+    case AR_INTERNAL_0_45: return  450;
+    default:               return 3600;
+  }
+}
+
+static nrf_saadc_gain_t ref_gain(eAnalogReference r)
+{
+  switch (r) {
+    case AR_INTERNAL_3_15: return NRF_SAADC_GAIN2_7;
+    case AR_INTERNAL_2_7:  return NRF_SAADC_GAIN1_3;
+    case AR_INTERNAL_2_25: return NRF_SAADC_GAIN2_5;
+    case AR_INTERNAL_1_8:  return NRF_SAADC_GAIN1_2;
+    case AR_INTERNAL_1_35: return NRF_SAADC_GAIN2_3;
+    case AR_INTERNAL_0_9:  return NRF_SAADC_GAIN1;
+    case AR_INTERNAL_0_45: return NRF_SAADC_GAIN2;
+    default:               return NRF_SAADC_GAIN1_4;
+  }
+}
+
+static nrf_saadc_resolution_t res_enum(void)
+{
+  switch (m_adc_bits) {
+    case 8:  return NRF_SAADC_RESOLUTION_8BIT;
+    case 12: return NRF_SAADC_RESOLUTION_12BIT;
+    case 14: return NRF_SAADC_RESOLUTION_14BIT;
+    default: return NRF_SAADC_RESOLUTION_10BIT;
+  }
+}
+
+/**
+ * 절대 GPIO 번호 → AIN 번호. 없으면 -1.
+ *
+ * 표를 손으로 적지 않는다 — `nrf54l_pinmap.h` 가 Pin Planner 에서 생성된
+ * 것이고, 거기 `NRF54L_SIG_SAADC_AINn()` 이 이미 들어 있다. SoC 가 바뀌면
+ * 생성기만 다시 돌리면 된다 (LM20A 는 AIN 배정이 전혀 다르다).
+ */
+static int ain_of(uint32_t abs_pin)
+{
+  if (NRF54L_SIG_SAADC_AIN0(abs_pin)) return 0;
+  if (NRF54L_SIG_SAADC_AIN1(abs_pin)) return 1;
+  if (NRF54L_SIG_SAADC_AIN2(abs_pin)) return 2;
+  if (NRF54L_SIG_SAADC_AIN3(abs_pin)) return 3;
+  if (NRF54L_SIG_SAADC_AIN4(abs_pin)) return 4;
+  if (NRF54L_SIG_SAADC_AIN5(abs_pin)) return 5;
+  if (NRF54L_SIG_SAADC_AIN6(abs_pin)) return 6;
+  if (NRF54L_SIG_SAADC_AIN7(abs_pin)) return 7;
+  return -1;
+}
+
+bool analogReadOk(uint32_t arduino_pin, int *out_value)
+{
+  uint32_t abs;
+  if (!nrf54lPinResolve(arduino_pin, &abs)) return false;
+
+  int ain = ain_of(abs);
+  if (ain < 0) return false;
+
+  if (!m_adc_inited) {
+    /* 핸들러 없이 블로킹으로 쓴다. 한 번 읽는 데 수십 µs 라 태스크를
+     * 재우는 것이 오히려 손해다 (Wire/SPI 와 판단이 다른 이유). */
+    int err = nrfx_saadc_init(NRFX_SAADC_DEFAULT_CONFIG_IRQ_PRIORITY);
+    if (err != 0 && err != -EALREADY) return false;
+    m_adc_inited = true;
+  }
+
+  nrfx_saadc_channel_t ch = NRFX_SAADC_DEFAULT_CHANNEL_SE(
+      (nrfx_analog_input_t)(NRFX_ANALOG_EXTERNAL_AIN0 + ain), SAADC_CH);
+  ch.channel_config.gain      = ref_gain(m_adc_ref);
+  ch.channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL;
+
+  if (nrfx_saadc_channel_config(&ch) != 0) return false;
+  if (nrfx_saadc_simple_mode_set(1u << SAADC_CH, res_enum(),
+                                 NRF_SAADC_OVERSAMPLE_DISABLED, NULL) != 0) return false;
+
+  nrf_saadc_value_t sample = 0;
+  if (nrfx_saadc_buffer_set(&sample, 1) != 0) return false;
+  if (nrfx_saadc_mode_trigger() != 0) return false;
+
+  /* 단극(single-ended)이라 음수는 나오지 않아야 하지만, 오프셋 때문에
+   * 0 근처에서 −1 같은 값이 나온다. Arduino 규약대로 0 으로 자른다. */
+  *out_value = (sample < 0) ? 0 : (int) sample;
+  return true;
+}
+
+int analogRead(uint32_t pin)
+{
+  int v = 0;
+  (void) analogReadOk(pin, &v);
+  return v;
+}
+
+int analogReadMillivolts(uint32_t pin)
+{
+  int raw = 0;
+  if (!analogReadOk(pin, &raw)) return 0;
+
+  uint32_t full = (1u << m_adc_bits) - 1u;
+  return (int) (((uint32_t) raw * ref_millivolts(m_adc_ref)) / full);
+}
+
+void analogReadResolution(uint8_t bits)
+{
+  if (bits == 8 || bits == 10 || bits == 12 || bits == 14) m_adc_bits = bits;
+}
+
+void analogReference(eAnalogReference ref)
+{
+  m_adc_ref = ref;
+}
+
+uint32_t analogReferenceMillivolts(void)
+{
+  return ref_millivolts(m_adc_ref);
+}

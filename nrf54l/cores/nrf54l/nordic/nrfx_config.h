@@ -113,9 +113,15 @@
 #define NRFX_PWM22_ENABLED                       1
 #define NRFX_PWM_DEFAULT_CONFIG_IRQ_PRIORITY     NRFX_DEFAULT_IRQ_PRIORITY
 
-/* ── M2 에서 아직 안 켠 것 ────────────────────────────────────────────
- * NRFX_SAADC_ENABLED                        (analogRead)
+/*
+ * SAADC — analogRead (cores/nrf54l/wiring_analog.c)
+ *
+ * 단일 인스턴스라 인스턴스별 매크로가 없다.
+ * ⚠ 벡터를 직접 잇지 마라 — nrfx 가 `nrfx_saadc_irq_handler` 를
+ *   `SAADC_IRQHandler` 로 치환한다 (§7 F10 ③). 정의하면 무한 재귀다.
  */
+#define NRFX_SAADC_ENABLED                       1
+#define NRFX_SAADC_DEFAULT_CONFIG_IRQ_PRIORITY   NRFX_DEFAULT_IRQ_PRIORITY
 
 /* ── 나머지 기본값은 SoC 템플릿에서 (#ifndef 이므로 위 설정이 우선) ── */
 #include <templates/nrfx_config_common.h>
