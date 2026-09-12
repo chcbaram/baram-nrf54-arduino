@@ -10,24 +10,28 @@
 
 #include "Arduino.h"
 #include "WVariant.h"
+#include "wiring_private.h"
 
 #include <hal/nrf_gpio.h>
 
-/* ─────────────────────────────────────────────────────────────────────
- * 핀 번호 → 절대 GPIO 번호
- * 매핑에 없거나 NC 로 표시된 핀은 무시한다(잘못된 레지스터 접근 방지).
- * ───────────────────────────────────────────────────────────────────── */
-static inline bool pin_resolve(uint32_t arduino_pin, uint32_t *out_abs)
+/*
+ * 핀 해석은 wiring_private.h 로 옮겼다 — attachInterrupt 와 analogWrite 도
+ * 같은 NC 가드를 거쳐야 하기 때문이다 (한동안 인터럽트 쪽이 안 거쳤다).
+ */
+#define pin_resolve  nrf54lPinResolve
+
+/*
+ * analogWrite() 가 잡은 핀을 놓는 훅. 기본은 NULL 이고, analogWrite() 를
+ * 처음 부를 때 그쪽이 채운다. 자세한 이유는 wiring_private.h 참조 —
+ * 요약하면 **PWM 드라이버를 모든 스케치에 링크시키지 않기 위해서**다.
+ */
+pwm_release_fn_t g_pwmRelease = NULL;
+
+static inline void release_pwm(uint32_t dwPin)
 {
-    if (arduino_pin >= PINS_COUNT) {
-        return false;
+    if (g_pwmRelease) {
+        g_pwmRelease(dwPin);
     }
-    uint32_t abs = g_ADigitalPinMap[arduino_pin];
-    if (abs == NRF54L_PIN_NC) {
-        return false;
-    }
-    *out_abs = abs;
-    return true;
 }
 
 void pinMode(uint32_t dwPin, uint32_t dwMode)
@@ -36,6 +40,9 @@ void pinMode(uint32_t dwPin, uint32_t dwMode)
     if (!pin_resolve(dwPin, &pin)) {
         return;
     }
+
+    /* Arduino 관례: 핀 모드를 다시 잡으면 PWM 이 풀린다. */
+    release_pwm(dwPin);
 
     switch (dwMode)
     {
@@ -127,6 +134,10 @@ void digitalWrite(uint32_t dwPin, uint32_t dwVal)
     if (!pin_resolve(dwPin, &pin)) {
         return;
     }
+
+    /* PWM 이 물려 있으면 먼저 놓는다. 안 그러면 PWM 이 계속 토글해서
+     * digitalWrite 가 먹지 않은 것처럼 보인다. */
+    release_pwm(dwPin);
 
     if (dwVal) {
         nrf_gpio_pin_set(pin);

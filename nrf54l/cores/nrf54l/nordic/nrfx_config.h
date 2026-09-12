@@ -100,8 +100,20 @@
 #define NRFX_GPIOTE_ENABLED                      1
 #define NRFX_GPIOTE_DEFAULT_CONFIG_IRQ_PRIORITY  NRFX_DEFAULT_IRQ_PRIORITY
 
+/*
+ * PWM — analogWrite (cores/nrf54l/wiring_analog.c)
+ *
+ * 셋 다 켠다. 인스턴스마다 4채널이라 합쳐 12핀이고, 전부 도메인 20 이므로
+ * **P1 핀만** 몰 수 있다 (docs/PERIPHERAL-PINMAP.md §4).
+ * 우선순위는 §7 F2 대로 5~7 이어야 한다 — NRFX_DEFAULT_IRQ_PRIORITY = 6.
+ */
+#define NRFX_PWM_ENABLED                         1
+#define NRFX_PWM20_ENABLED                       1
+#define NRFX_PWM21_ENABLED                       1
+#define NRFX_PWM22_ENABLED                       1
+#define NRFX_PWM_DEFAULT_CONFIG_IRQ_PRIORITY     NRFX_DEFAULT_IRQ_PRIORITY
+
 /* ── M2 에서 아직 안 켠 것 ────────────────────────────────────────────
- * NRFX_PWM_ENABLED  / NRFX_PWM20_ENABLED    (analogWrite)
  * NRFX_SAADC_ENABLED                        (analogRead)
  */
 

@@ -47,6 +47,7 @@ void initVariant(void);
 #include "wiring.h"
 #include "wiring_digital.h"
 #include "wiring_interrupt.h"
+#include "wiring_analog.h"
 #include "wiring_shift.h"
 #include "delay.h"
 

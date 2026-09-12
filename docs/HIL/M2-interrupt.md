@@ -19,7 +19,7 @@
 | `FALLING` / `CHANGE` 모드 구분 | ✅ 아래 §2 |
 | P2 핀 거부 (`attachInterruptOk` → false) | ✅ 음성 시험 |
 | 벡터 4개 `T` 로 링크 | ✅ §3 |
-| 안 쓰는 스케치의 크기 증가 | ✅ **0 B** §4 |
+| 안 쓰는 스케치의 크기 증가 | ✅ **+88 B** (처음엔 0 B 로 **잘못 쟀다**) §4 |
 
 ---
 
@@ -75,35 +75,68 @@ $ arm-none-eabi-nm blink_base.ino.elf | grep -i gpiote
 
 ---
 
-## 4. 크기 — 코어에 넣어도 공짜다
+## 4. 크기 — 처음 잰 값이 틀렸다
+
+> ⚠ **이 절은 2026-09-12 에 통째로 고쳤다.** 처음에는 "증가 0 B" 라고 적었고
+> 커밋 메시지에도 그렇게 썼는데, **기준선을 잘못 잡은 것이었다.**
 
 `attachInterrupt` 는 스케치가 `#include` 없이 부르므로 **코어에 있어야 한다.**
-그런데 `core.a` 는 `-Wl,--whole-archive` 로 링크되므로(§7 F13 ①) 안 쓰는 스케치까지
-무거워질 수 있다 — `Wire` 를 코어에서 라이브러리로 옮긴 이유가 그것이었다.
+그런데 `core.a` 는 `-Wl,--whole-archive` 로 링크되므로(§7 F13 ①) 안 쓰는
+스케치까지 무거워질 수 있다 — `Wire` 를 코어에서 라이브러리로 옮긴 이유가 그것이었다.
 
-실측했다. blink (`pinMode` + `digitalToggle` + `Serial`):
+### 오측정의 원인
 
-| | flash |
-|---|---|
-| GPIOTE 붙이기 전 | 25,264 B |
-| 붙인 후 | **25,264 B** |
+`cores/` 아래 소스는 **무조건 컴파일된다**(§7 F13 ②). `wiring_interrupt.c` 를
+만들어 둔 뒤에 "붙이기 전" 을 쟀으니, 그 기준선에 이미 GPIOTE 가 들어 있었다.
+그 뒤 `nrfx_config.h` 와 `Arduino.h` 만 고쳤는데 둘 다 링크에 영향이 없어
+**앞뒤가 똑같이 25,264 B 로 나왔다.**
 
-**차이 0.** `--gc-sections` 가 미사용 `attachInterrupt` 를 걷어낸다. 벡터 핸들러
-넷은 남지만(벡터 테이블이 참조하므로) 본문이 `nrfx_gpiote_irq_handler` 호출 한 줄뿐이고,
-정렬 패딩에 흡수됐다.
+→ **파일을 실제로 치우고 다시 재야 한다.** 그렇게 얻은 진짜 기준선은 **23,696 B** 다.
 
-`Wire` 때와 결과가 갈린 이유는 **전역 객체의 유무다.** `Wire` 는 전역 인스턴스라
-생성자가 `.init_array` 에 들어가는데, 링커 스크립트가 그 섹션을 `KEEP` 한다
-(`nordic/bsp/mdk/common/nrf_common.ld` 의 `KEEP (*(.init_array))`). KEEP 된 섹션은
-`--gc-sections` 의 루트라서 생성자가 살고, 생성자가 살면 클래스 본문이 딸려 온다.
-GPIOTE 쪽은 전역 객체 없이 함수뿐이라 안 부르면 통째로 사라진다.
+### 실측 (blink: `pinMode` + `digitalToggle` + `Serial`)
 
-→ **코어에 두는 것이 맞다.** 일반화하면 이렇다: *코어에 전역 객체를 두면 모든
-스케치가 비용을 치르고, 함수만 두면 부르는 스케치만 치른다.*
+| | flash | 증가 |
+|---|---|---|
+| 기준선 (GPIOTE·PWM 없음) | 23,696 B | — |
+| 벡터가 `nrfx_gpiote_irq_handler` 를 직접 호출 | 25,264 B | **+1,568** |
+| 거기에 PWM 까지 직접 호출 | 25,840 B | **+2,144** |
+| **함수 포인터 트램폴린 (현재)** | **23,784 B** | **+88** |
 
-`attachInterrupt` 를 실제로 쓰는 스케치(위 시험 스케치)는 27,540 B 였다.
+### 왜 직접 부르면 안 되나
 
----
+**벡터 테이블은 링커 스크립트가 `KEEP` 한다.** 그래서 벡터가 드라이버 핸들러를
+직접 부르면 `--gc-sections` 이 그 드라이버를 **절대** 못 걷어낸다. 스케치가
+`attachInterrupt` 를 한 번도 안 써도 `nrfx_gpiote_irq_handler`(484 B)와
+인스턴스 데이터(256 B)와 nrfy 헬퍼가 전부 남는다.
+
+→ 포인터를 한 겹 둔다. 벡터는 트램폴린만 붙잡고, 진짜 핸들러는 그것을
+**설정하는 코드**(`ensure_init()`) 에서만 참조된다. 안 쓰면 통째로 사라진다.
+
+```c
+static irq_vector_fn_t s_isr20;
+static void dispatch20(void) { nrfx_gpiote_irq_handler(&m_gpiote20); }
+void GPIOTE20_0_IRQHandler(void) { if (s_isr20) s_isr20(); }
+/* ensure_init() 안에서:  s_isr20 = dispatch20; */
+```
+
+확인:
+
+```
+$ nm blink.elf | grep -E "GPIOTE.*IRQHandler|nrfx_gpiote_irq_handler"
+00005294 T GPIOTE20_0_IRQHandler      <- 벡터는 살아 있다
+...                                   <- nrfx_gpiote_irq_handler 는 없다
+```
+
+### 앞서 적었던 일반화도 틀렸다
+
+처음에 *"코어에 전역 객체를 두면 모든 스케치가 비용을 치르고, 함수만 두면 부르는
+스케치만 치른다"* 고 적었다. 전반부는 맞지만 **후반부가 틀렸다** —
+벡터 테이블이 참조하면 함수도 살아남는다.
+
+> **맞는 규칙**: `--gc-sections` 의 루트는 **`KEEP` 된 섹션**이다. 우리 경우
+> 벡터 테이블과 `.init_array` 다. 거기서 도달할 수 있는 것은 무엇이든 모든
+> 스케치에 들어간다. **코어에 페리페럴을 붙일 때는 벡터에서 드라이버까지의
+> 경로를 반드시 끊어라.**
 
 ## 5. 재현
 

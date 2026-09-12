@@ -5,6 +5,7 @@
 #include "Arduino.h"
 #include "wiring_interrupt.h"
 #include "nrf54l_domains.h"
+#include "wiring_private.h"
 
 #include "nrfx_gpiote.h"
 
@@ -72,6 +73,10 @@ static void gpiote_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t trigger,
   if (s && s->cb) s->cb();
 }
 
+static void dispatch20(void);
+static void dispatch30(void);
+static irq_vector_fn_t s_isr20, s_isr30;
+
 static bool ensure_init(nrfx_gpiote_t *inst)
 {
   bool *flag = (inst == &m_gpiote20) ? &m_inited20 : &m_inited30;
@@ -85,13 +90,24 @@ static bool ensure_init(nrfx_gpiote_t *inst)
   int err = nrfx_gpiote_init(inst, NRFX_GPIOTE_DEFAULT_CONFIG_IRQ_PRIORITY);
   if (err != 0 && err != -EALREADY) return false;
 
+  /* 여기서 벡터를 실제 핸들러에 잇는다. 이 대입이 유일한 참조라서,
+   * attachInterrupt 를 안 부르면 드라이버가 통째로 GC 된다. */
+  if (inst == &m_gpiote20) s_isr20 = dispatch20;
+  else                     s_isr30 = dispatch30;
+
   *flag = true;
   return true;
 }
 
-bool attachInterruptOk(uint32_t pin, voidFuncPtr callback, uint32_t mode)
+bool attachInterruptOk(uint32_t arduino_pin, voidFuncPtr callback, uint32_t mode)
 {
   if (callback == NULL) return false;
+
+  /* ⚠ 반드시 매핑을 거친다. 한동안 절대 번호를 그대로 썼는데, 그러면
+   *   `NRF54L_PIN_NC` 로 막아 둔 핀 — 모듈이 안 뽑은 핀이나 LFXO 의
+   *   XL1/XL2 같은 것 — 에도 GPIOTE 가 붙는다. */
+  uint32_t pin;
+  if (!nrf54lPinResolve(arduino_pin, &pin)) return false;
 
   nrfx_gpiote_t *inst = instance_of(pin);
   if (inst == NULL) return false;            /* P2 */
@@ -151,8 +167,11 @@ void attachInterrupt(uint32_t pin, voidFuncPtr callback, uint32_t mode)
   (void) attachInterruptOk(pin, callback, mode);
 }
 
-void detachInterrupt(uint32_t pin)
+void detachInterrupt(uint32_t arduino_pin)
 {
+  uint32_t pin;
+  if (!nrf54lPinResolve(arduino_pin, &pin)) return;
+
   nrfx_gpiote_t *inst = instance_of(pin);
   if (inst == NULL) return;
 
@@ -166,15 +185,25 @@ void detachInterrupt(uint32_t pin)
 }
 
 /*
- * ⚠ 벡터를 직접 잇는다 (CLAUDE.md §7 F10 ③). nrfx 가 주는 것은 인스턴스를 받는
- *   `nrfx_gpiote_irq_handler()` 하나뿐이라 어느 벡터가 어느 인스턴스인지 알려 줘야
- *   한다. 안 이으면 MDK 의 weak Default_Handler 가 남아 인터럽트가 뜨는 순간
- *   무한루프다. 링크 후 `nm <elf> | grep GPIOTE` 로 `T` 인지 확인하라.
+ * ⚠ 벡터는 **반드시 정의해 두어야 한다** (CLAUDE.md §7 F10 ③). nrfx 가
+ *   NVIC 라인을 무조건 켜므로, 안 이으면 MDK 의 weak Default_Handler 가
+ *   남아 인터럽트가 뜨는 순간 무한루프다.
  *
- * ⚠ **인스턴스마다 벡터가 둘이다** (`_0` / `_1`). 둘 다 같은 핸들러로 보낸다 —
- *   하나만 이으면 그쪽으로 오는 이벤트만 처리되고 나머지는 조용히 사라진다.
+ * ⚠ **인스턴스마다 벡터가 둘이다** (`_0` / `_1`). 하나만 이으면 그쪽으로
+ *   오는 이벤트만 처리되고 나머지는 조용히 사라진다.
+ *
+ * ⭐ 그런데 벡터가 `nrfx_gpiote_irq_handler` 를 **직접** 부르면 안 된다.
+ *   벡터 테이블은 링커가 KEEP 하므로 GPIOTE 드라이버가 모든 스케치에
+ *   링크된다 — 실측 **+1,568 B**. 그래서 함수 포인터를 한 겹 둔다
+ *   (wiring_private.h 의 설명 참조). attachInterrupt 를 안 부르는 스케치는
+ *   아래 트램폴린 넷과 포인터 둘만 남는다.
+ *
+ *   링크 후 `nm <elf> | grep GPIOTE` 로 `T` 인지 확인하라.
  */
-void GPIOTE20_0_IRQHandler(void) { nrfx_gpiote_irq_handler(&m_gpiote20); }
-void GPIOTE20_1_IRQHandler(void) { nrfx_gpiote_irq_handler(&m_gpiote20); }
-void GPIOTE30_0_IRQHandler(void) { nrfx_gpiote_irq_handler(&m_gpiote30); }
-void GPIOTE30_1_IRQHandler(void) { nrfx_gpiote_irq_handler(&m_gpiote30); }
+static void dispatch20(void) { nrfx_gpiote_irq_handler(&m_gpiote20); }
+static void dispatch30(void) { nrfx_gpiote_irq_handler(&m_gpiote30); }
+
+void GPIOTE20_0_IRQHandler(void) { if (s_isr20) s_isr20(); }
+void GPIOTE20_1_IRQHandler(void) { if (s_isr20) s_isr20(); }
+void GPIOTE30_0_IRQHandler(void) { if (s_isr30) s_isr30(); }
+void GPIOTE30_1_IRQHandler(void) { if (s_isr30) s_isr30(); }

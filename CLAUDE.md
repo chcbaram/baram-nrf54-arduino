@@ -766,6 +766,32 @@ MDK 스타트업은 벡터 테이블과 **weak 기본 핸들러를 같은 오브
 **진단법**: 링크 후 `nm <elf> | grep <핸들러>`.
 없거나 `W` 면 미링크다. `T` 여야 한다.
 
+#### ①b 벡터 테이블이 GC 를 막는다 — **코어에 페리페럴을 붙일 때마다 물린다**
+
+`--whole-archive` 로 다 넣고 `--gc-sections` 으로 걷어내는 구조라, **무엇이
+GC 의 루트인지**가 크기를 정한다. 루트는 링커 스크립트가 `KEEP` 하는 섹션이다:
+**벡터 테이블**(`.isr_vector` / `.vectors`)과 **`.init_array`**(전역 생성자).
+
+거기서 도달 가능한 것은 **안 쓰는 스케치에도 전부 들어간다.**
+
+| 벡터가 이렇게 하면 | blink 증가 |
+|---|---|
+| `nrfx_gpiote_irq_handler` 를 직접 호출 | **+1,568 B** |
+| `nrfx_pwm_irq_handler` 까지 직접 호출 | **+2,144 B** |
+| **함수 포인터 트램폴린** | **+88 B** |
+
+→ **벡터에서 드라이버까지의 경로를 끊어라.** 벡터는 포인터만 보고, 진짜 핸들러는
+초기화 경로(`attachInterrupt`/`analogWrite`)에서만 참조되게 한다.
+패턴은 `cores/nrf54l/wiring_private.h` 에 적어 두었다.
+
+⚠ 그렇다고 **벡터를 비워 두지는 마라.** nrfx 는 핸들러가 NULL 이어도
+NVIC 라인을 켠다 (`nrfy_xxx_int_init` 안의 `NRFX_IRQ_ENABLE` 은 `enable`
+인자와 무관하다). 비워 두면 F10 ③ 의 무한루프다.
+
+⚠ **크기를 잴 때 기준선을 조심하라.** `cores/` 는 무조건 컴파일되므로(아래 ②),
+파일을 만들어 둔 채 "붙이기 전" 을 재면 이미 들어가 있다. 실제로 그렇게
+"증가 0 B" 라는 틀린 값을 얻어 커밋까지 했다. **파일을 치우고 다시 재라.**
+
 #### ② `cores/` 아래 모든 소스가 무조건 컴파일된다
 
 파일을 빌드에서 빼는 방법이 없다. 그래서:
@@ -1087,7 +1113,8 @@ tickless는 **틱이 안정된 뒤에 켠다.** 둘을 동시에 켜면 틱 버�
 
 ### M2 — Arduino API
 
-- [ ] `analogRead` (SAADC), `analogWrite` (PWM)
+- [x] `analogWrite` (PWM) — 듀티·극성·해상도 실기 확인 (`docs/HIL/M2-pwm.md`)
+- [ ] `analogRead` (SAADC)
       ⚠ **둘 다 P1 전용이다** (Pin Planner 로 확인, `docs/PERIPHERAL-PINMAP.md` §4):
       `PWM20/21/22` 는 `P1*` 만, `SAADC` 는 `AIN0~7` = `P1.04~P1.07 / P1.11~P1.14` 고정.
       P0·P2 핀에는 `analogWrite`/`analogRead` 를 걸 수 없다 — variant 핀 배정 전에 볼 것
