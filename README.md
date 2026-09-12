@@ -99,11 +99,12 @@ the install, and where the project is going — not radio quality.
 |---|---|---|---|---|
 | **Seeed XIAO nRF54L15** / Sense | nRF54L15 | 1.5 MB / 256 KB | **onboard CMSIS-DAP** | [docs](docs/boards/XIAO-nRF54L15.md) |
 | **NU54-DK** | nRF54L05 | 500 KB / 96 KB | external probe | [docs](docs/boards/NU54-DK.md) |
-| **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | external probe | [docs](docs/boards/NU54-DK.md) |
+| **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | **onboard CMSIS-DAP** | [docs](docs/boards/NU54V-DK.md) |
 
-All are 128 MHz Cortex-M33. **The XIAO needs nothing but a USB-C cable** — its onboard
-debugger handles both flashing and the serial console, so it is the easiest board to
-start with.
+All are 128 MHz Cortex-M33. **The XIAO and the NU54V-DK need nothing but a USB-C
+cable** — their onboard debuggers handle both flashing and the serial console. The
+NU54V-DK also carries a battery charger and a Qwiic connector, and shows up as two
+serial ports rather than one.
 
 Memory layout is per chip rather than per board: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
 
@@ -186,7 +187,7 @@ your sketch lands.
 ### From the Arduino IDE
 
 1. Connect the debug probe. XIAO nRF54L15 has one on board, so USB-C is enough;
-   NU54-DK and NU54V-DK need an external CMSIS-DAP probe on the J3 header
+   NU54-DK needs an external CMSIS-DAP probe on the J3 header; NU54V-DK has one on board
 2. **Tools → Board** — pick your board **first**. The correct hex is chosen from it:
    nRF54L05 and nRF54L15 take different SoftDevice builds
 3. **Tools → Programmer → `Burn SoftDevice (probe-rs)`**

@@ -93,10 +93,11 @@ FreeRTOS 위에서 같은 의미로 도는 `delay()`.
 |---|---|---|---|---|
 | **Seeed XIAO nRF54L15** / Sense | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54L15.md) |
 | **NU54-DK** | nRF54L05 | 500 KB / 96 KB | 외부 프로브 | [문서](docs/boards/NU54-DK.md) |
-| **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | 외부 프로브 | [문서](docs/boards/NU54-DK.md) |
+| **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/NU54V-DK.md) |
 
-전부 128 MHz Cortex-M33 이다. **XIAO 는 USB-C 케이블 하나면 된다** — 온보드
-디버거가 플래시와 시리얼을 모두 처리하므로 시작하기에 가장 편하다.
+전부 128 MHz Cortex-M33 이다. **XIAO 와 NU54V-DK 는 USB-C 케이블 하나면 된다** —
+온보드 디버거가 플래시와 시리얼을 모두 처리한다. NU54V-DK 에는 배터리 충전기와
+Qwiic 커넥터도 있고, 시리얼 포트가 **두 개** 잡힌다.
 
 메모리 배치는 보드가 아니라 칩 단위다: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
 
@@ -176,7 +177,7 @@ SoftDevice 는 Nordic 의 Bluetooth 스택이고, 스케치와는 **별개의 �
 ### Arduino IDE 에서
 
 1. 디버그 프로브를 연결한다. XIAO nRF54L15 는 온보드라 USB-C 하나면 되고,
-   NU54-DK / NU54V-DK 는 J3 헤더에 외부 CMSIS-DAP 프로브가 필요하다
+   NU54-DK 는 J3 헤더에 외부 CMSIS-DAP 프로브가 필요하다. NU54V-DK 는 온보드에 있다
 2. **툴 → 보드** 에서 보드를 **먼저** 고른다. 어떤 hex 를 쓸지가 여기서 정해진다 —
    nRF54L05 와 nRF54L15 는 SoftDevice 빌드가 서로 다르다
 3. **툴 → 프로그래머 → `Burn SoftDevice (probe-rs)`**
