@@ -78,8 +78,8 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 
 **우선순위 — B13b 를 순서대로**
 
-1. **`BLEMidi`** — 단일 서비스라 작고, **Mac 의 Audio MIDI Setup 으로 검증된다.**
-   HID 와 달리 CoreBluetooth 가 막지 않는 영역이라 게임패드보다 수월하다
+~~1. **`BLEMidi`**~~ — ✅ **끝났다 (§2.7).** 양방향 실기 확인.
+   상류 원본 `blemidi.ino` 가 include 3줄 삭제만으로 컴파일된다
 2. **`BLEClientCts`** — B9 클라이언트 위에 얹는다. iPhone 이 CTS 서버다
 3. **`BLEAncs`** — B13b 중 가장 크다. 본딩 + iPhone 필요
 4. **`BLEClientHidAdafruit`** — 상대 HID 기기가 필요하다. BLE 키보드 실물이 없으면
@@ -234,7 +234,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B12**~~ ✅ | **HID** — 키보드/마우스/미디어 키 | **완료.** 호스트 페어링 후 버튼 -> 키 입력 확인 |
 | ~~**B13a**~~ ✅ | `BLEHidGamepad` | **완료.** Mac 에서 리포트 수신 확인 (§B13a) |
 | ~~**B13c**~~ ✅ | **처리량 API** — `requestPHY` / DLE / MTU 협상 + 실측 | **완료.** 맥 상대 26~28 KB/s (§2.6) |
-| B13b (남음) | `BLEClientHidAdafruit`, `BLEMidi`, `BLEAncs`/`BLEClientCts` | |
+| ~~**B13b-1**~~ ✅ | **`BLEMidi`** — BLE-MIDI 1.0 | **완료.** 양방향 실기 확인 (§2.7) |
+| B13b (남음) | `BLEClientHidAdafruit`, `BLEAncs`/`BLEClientCts` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -245,7 +246,6 @@ DoD 문구를 그렇게 바꾼 근거(예제 71개 전수 조사)는 CLAUDE.md �
 **아직 없는 것 (B13b):**
 
 - `BLEClientHidAdafruit` — 키보드·마우스·미디어 키는 B12, 게임패드는 B13a 에서 됐다
-- `BLEMidi`
 - `BLEAncs` / `BLEClientCts` — iOS 알림·시각. 실기 검증에 iPhone 이 필요하다
 - **실제 DFU** — `BLEDfu` 는 서비스만 등록하고 명확히 거절한다. M4 에서 연결
 
@@ -856,6 +856,58 @@ Adafruit 이 그렇게 정의했고 상류 예제가 그 전제로 돈다 (R12).
 ⚠ **호스트 GATT 캐시에 걸리면 측정이 통째로 틀린다** (§4 의 7번).
 처음 시도에서 PHY 1M / MTU 23 으로 붙어 "스택이 느리다" 로 오독할 뻔했다.
 측정용 빌드에서 `setAddr()` 로 주소를 흔들어야 뚫렸다.
+
+---
+
+## 2.7 `BLEMidi` — ✅ (2026-09-12)
+
+BLE-MIDI 1.0. 상류 원본 `blemidi.ino` 가 **include 3줄 삭제만으로 컴파일**되고,
+우리 예제는 `examples/Peripheral/blemidi` 다. MIDI 라이브러리(Francois Best,
+Library Manager 의 "MIDI Library" 5.0.2)가 메시지 인코딩을 하고 `BLEMidi` 는
+그 라이브러리가 쓰는 `Stream` 이 된다.
+
+**실기 (XIAO + Mac, bleak):**
+
+| | |
+|---|---|
+| 서비스 | ✅ `03b80e5a-…` + IO characteristic 하나 (read/write/wwr/notify) |
+| MTU | ✅ 247 |
+| 보드 -> 호스트 | ✅ 5초에 20패킷. `88 8B 90 3C 64` = Note On 60 vel 100 |
+| 타임스탬프 | ✅ 250 ms 간격이 13비트 필드에 정확히 실린다 |
+| 호스트 -> 보드 | ✅ 보낸 `90 45 7F` 가 `note on ch=1 pitch=69 vel=127` 로 디코드 |
+
+#### ⚠ 값 쓰기는 암호화된 링크가 필요하다 — 미페어링이면 조용히 안 온다
+
+IO characteristic 의 권한이 `SECMODE_ENC_NO_MITM` 이라 **호스트 -> 보드 쓰기는
+페어링 전에는 거부된다.** 그런데 **알림은 그대로 나간다** — CCCD 쓰기 권한은
+열려 있고 notify 자체는 권한 검사를 받지 않기 때문이다.
+
+그래서 증상이 "보내는 건 되는데 받는 게 안 된다" 로 나타나고, 파서를 의심하게 된다.
+실제로 그렇게 한 번 헛짚었다. bleak 으로 시험할 때는 **암호화가 필요한
+characteristic 을 먼저 읽어** CoreBluetooth 가 페어링을 걸게 하면 된다
+(B10 에서 쓴 것과 같은 방법).
+
+#### 상류와 다르게 한 것 셋
+
+| | 왜 |
+|---|---|
+| `Adafruit_FIFO` 대신 자체 링버퍼 | 그 유틸리티가 우리 저장소에 없다. `BLEUart` 과 같은 구조로 맞췄다. 힙은 `begin()` 에서 잡는다 — 전역 객체 생성자가 힙보다 먼저 돌 수 있다 |
+| 송신 조립 버퍼를 멤버로 | 상류는 `write()` 안의 `static` 이라 인스턴스가 여럿이면 섞인다 |
+| 수신 파서의 범위 검사 | 상류는 `data[1]` 을 조건에 넣는데 두 분기가 하는 일이 같고, `len == 1` 이면 **버퍼 밖을 읽는다.** 조건을 하나로 줄이고 길이를 먼저 본다 |
+
+#### 덤 — GATT 지문이 실전에서 걸렸다
+
+게임패드에서 MIDI 로 스케치를 바꾸자 재연결에서 이렇게 떴다:
+
+```
+bond: stored CCCD is for a different GATT layout (71C1E6B5 != 8AA54C59).
+Dropped - re-pair to get notifications back.
+```
+
+**이게 정확히 `f1c6fe0` 을 넣은 이유다.** B13a 때는 같은 상황을 만나고도 원인을
+찾는 데 오래 걸렸다. 해결은 양쪽을 지우는 것이다 — 보드는 `clearbonds`,
+호스트는 Bluetooth 설정에서 기기 삭제. **한쪽만 지우면**
+`Peer removed pairing information` 으로 연결 자체가 거부된다 (실제로 겪었다).
 
 ---
 
