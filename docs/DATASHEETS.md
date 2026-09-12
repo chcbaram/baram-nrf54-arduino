@@ -38,9 +38,20 @@ NU54-DK(L05) / NU54V-DK(L15) / XIAO(L15) 를 모두 이걸로 본다.
 | SPIM / UARTE / TWIM 레지스터 | PS → 해당 페리페럴 장 |
 | FICR 레이아웃 | PS → FICR. 단 **MDK 헤더가 더 빠르고 정확하다** (`nrf54l15_types.h` 의 `NRF_FICR_INFO_Type`) |
 
-> **핀 배정은 Pin Planner 웹 도구가 더 편하다.** Nordic 이 nRF54L 시리즈용으로
-> 제공하며, 페리페럴을 고르면 쓸 수 있는 핀을 보여 준다.
-> 검색: "nRF54L Pin Planner".
+> **핀 배정은 Pin Planner 가 답이다 — 그리고 GitHub 에 있어 스크립트로 받을 수 있다.**
+>
+> **https://github.com/NordicPlayground/PinPlanner**
+>
+> 웹 앱이지만 중요한 것은 **`mcus/<soc>/<package>.json` 안의 제약 데이터**다.
+> `socPeripherals[].signals[].allowedGpio` 에 페리페럴별로 쓸 수 있는 핀이 그대로
+> 적혀 있다. 403 에 막히는 PDF 를 뒤지는 것보다 훨씬 빠르고, 기계로 비교할 수 있다.
+>
+> ```sh
+> curl -sL https://raw.githubusercontent.com/NordicPlayground/PinPlanner/main/mcus/nrf54l15/qfn48-6x6-qfaa.json
+> ```
+>
+> 실제로 이것으로 `docs/PERIPHERAL-PINMAP.md` §1 의 "selected pins" 미확정 항목을
+> 확정했다 (2026-09-12). L05/L15 제약이 동일하다는 것도 두 JSON 비교로 확인했다.
 
 ## 3. 문서 대신 쓸 수 있는 것 (더 빠른 경우가 많다)
 

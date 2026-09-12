@@ -1232,6 +1232,10 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 - Nordic-5-Clause 전문: https://github.com/nrfconnect/sdk-nrf/blob/main/LICENSE
 - 라이선스 스킴 설명: https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/introducing-nordics-new-software-licensing-schemes
 - nRF54L 개발 옵션 비교: https://academy.nordicsemi.com/courses/nrf54l-series-express-course/lessons/lesson-5-development-choices-and-demo/topic/nrf54l-development-options/
+- **Pin Planner (핀 제약의 정본): https://github.com/NordicPlayground/PinPlanner**
+  - `mcus/<soc>/<package>.json` 에 페리페럴별 허용 핀이 들어 있다. **문서 사이트와
+    DevZone 은 스크립트 접근이 403 이지만 여기는 GitHub 이라 받을 수 있다.**
+    핀 제약을 확인할 일이 생기면 PDF 보다 먼저 여기를 봐라 (`docs/PERIPHERAL-PINMAP.md` §4)
 
 **참조 구현**
 - Adafruit nRF52 코어: https://github.com/adafruit/Adafruit_nRF52_Arduino

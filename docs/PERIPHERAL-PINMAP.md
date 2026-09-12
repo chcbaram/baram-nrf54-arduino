@@ -51,9 +51,9 @@ MDK 의 베이스 주소가 그대로 말해 준다 (`nrf54l15_global.h`):
 
 외우기 쉽다: `UARTE30` → P0, `TWIM20` → P1, `SPIM00` → P2.
 
-### ⚠ 예외가 하나 있다 — PERI 의 UARTE/SPIS 는 P2 도 쓸 수 있다
+### ⚠ 예외 — SPIM/SPIS 20·21 과 UARTE 20·21 은 **P2 의 특정 핀**을 쓸 수 있다
 
-위 표가 기본 규칙이지만 **전부는 아니다.** Nordic 이 직접 쓴 핀 계획 가이드의 원문:
+위 표가 기본 규칙이지만 전부는 아니다. Nordic 핀 계획 가이드의 원문:
 
 > Rule 1: "Generally, peripherals must use pins in their own power domain."
 >
@@ -61,18 +61,41 @@ MDK 의 베이스 주소가 그대로 말해 준다 (`nrf54l15_global.h`):
 > (SPIS, UARTE) located in PERI**, although this configuration is less
 > power-efficient."
 
-즉 **도메인 20 의 UARTE/SPIS 는 P2 의 일부 핀을 쓸 수 있고, 대신 전력이 불리하다.**
-upstream Zephyr 의 XIAO 보드가 `uart21` 을 P2.08/P2.07 에 배정하는 것이 이 예외다
-(`boards/seeed/xiao_nrf54l15/xiao_nrf54l15-pinctrl.dtsi`) — 회로도 표기가 틀린 게
-아니었다.
+**"selected pins" 가 어느 핀인지 확정했다 (2026-09-12).** 근거는 Nordic 이 공개한
+Pin Planner 앱의 SoC 정의 JSON 이다 (§4). 문서 사이트는 스크립트 접근을 막지만
+이 저장소는 GitHub 이라 그대로 읽을 수 있다.
 
-**"selected pins" 가 정확히 어느 핀인지는 아직 확인하지 못했다.** PS 의 핀 배정표를
-봐야 하는데 문서 사이트가 스크립트 접근을 막는다 (`docs/DATASHEETS.md`).
-브라우저나 Pin Planner 로 확인해서 아래 §3 에 채울 것.
+| 인스턴스 | 신호 | 쓸 수 있는 P2 핀 |
+|---|---|---|
+| **SPIM/SPIS20** | SCK / SDO / SDI / CS / DCX | P2.01 / P2.02 / P2.04 / P2.05 / P2.00 |
+| **SPIM/SPIS21** | SCK / SDO / SDI / CS / DCX | P2.06 / P2.08 / P2.09 / P2.10 / P2.07 |
+| **UARTE20** | TXD / RXD / CTS / RTS | P2.02 / P2.00 / P2.04 / P2.05 |
+| **UARTE21** | TXD / RXD / CTS / RTS | P2.08 / P2.06 / P2.09 / P2.10 |
 
-그 전까지 `nrf54l_domains.h` 는 기본 규칙을 강제하고, 예외를 쓰는 보드는
-**전용 매크로로 명시**한다 (`NRF54L_ASSERT_PERI_SERIAL_PIN`). 그래야 예외가
-어디서 쓰이는지 코드에서 바로 보인다.
+**밝혀진 것 셋:**
+
+1. **가이드 원문의 "SPIS" 는 좁다 — SPIM 도 된다.** JSON 이 `SPIM/SPIS20` 을 한
+   묶음으로 정의하고 P2 핀을 허용한다. `chcbaram/nu54dk` 펌웨어가 SD 를
+   `&spi20`(마스터)으로 P2 에서 쓰는 것이 **규격에 맞는 구성**이었다
+2. **22 번은 예외가 아니다.** SPIM/SPIS22·UARTE22 는 P1 전용이다
+3. **I2C 에는 예외가 없다.** TWIM/TWIS 는 20·21·22·30 전부 자기 도메인 포트만
+   쓴다. TWIM00 이 없다는 사실과 합치면 **P2 에 I2C 는 어떤 방법으로도 불가능**하다
+
+고속 도메인 SPIM00 의 P2 핀은 이렇다 (전부 `driveStrengthRequirement: extra high`):
+
+| 신호 | 핀 |
+|---|---|
+| SCK / SDO / SDI / CS / DCX | P2.01·P2.06 / P2.02·P2.08 / P2.04·P2.09 / P2.05·P2.10 / P2.00·P2.07 |
+
+우리 variant 의 SPI 배정(SCK P2.01 / MOSI P2.02 / MISO P2.04)이 여기 들어맞고
+실기에서도 동작한다 (`docs/STATUS.md` §2.12).
+
+⚠ **L05 와 L15 의 제약은 완전히 동일하다** — Pin Planner 의 두 정의를 프로그램으로
+비교해 확인했다 (페리페럴 31개, 차이 없음). 같은 다이의 비닝이라는 것과 일치한다.
+
+`nrf54l_domains.h` 는 기본 규칙을 강제하고, 예외를 쓰는 보드는 **전용 매크로로
+명시**한다 (`NRF54L_ASSERT_PERI_SERIAL_PIN`). 그래야 예외가 어디서 쓰이는지
+코드에서 바로 보인다.
 
 이 규칙의 다른 조항도 함께 적어 둔다:
 
@@ -269,3 +292,30 @@ NRF54L_ASSERT_ANALOG_PIN(PIN_A0,          "A0");
 ```
 error: static assertion failed: SPI SCK : SPIM00/UARTE00 은 P2 도메인만 쓸 수 있다
 ```
+
+---
+
+## 4. 이 표의 출처 — Pin Planner 앱의 SoC 정의
+
+**https://github.com/NordicPlayground/PinPlanner**
+
+Nordic 이 공개한 핀 계획 웹 앱인데, **핀↔페리페럴 제약이 JSON 으로 들어 있다.**
+문서 사이트(`docs.nordicsemi.com`)와 DevZone 은 스크립트 접근을 403 으로 막지만
+(`docs/DATASHEETS.md`), 이 저장소는 GitHub 이라 그냥 받을 수 있다.
+**핀 제약을 확인할 일이 생기면 PDF 를 찾기 전에 여기부터 봐라.**
+
+```sh
+curl -sL https://raw.githubusercontent.com/NordicPlayground/PinPlanner/main/mcus/nrf54l15/qfn48-6x6-qfaa.json
+```
+
+| 경로 | 내용 |
+|---|---|
+| `mcus/<soc>/<package>.json` | 핀 목록(`pins`)과 페리페럴별 허용 핀(`socPeripherals`) |
+| `mcus/<soc>/devicetree-templates.json` | Zephyr DTS 조각 |
+| `devkits/*.json` | Nordic DK 보드 정의 |
+
+`socPeripherals[].signals[].allowedGpio` 가 핵심이다. `P1*` 는 그 포트 전체,
+`P2.01` 처럼 적힌 것은 그 핀만 가능하다는 뜻이다.
+`driveStrengthRequirement` 도 함께 들어 있다 (SPIM00 은 `extra high`).
+
+지원 SoC: nRF54L05 / L10 / L15 / LM20A / LS05A·B / LV10A — **M6 의 LM20A 까지 덮는다.**
