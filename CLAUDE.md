@@ -974,7 +974,9 @@ baram-nrf54-arduino/                 # 저장소 루트
     │   ├── freertos/                # MIT, 원본 고지 유지
     │   ├── nordic/                  # nrfx + MDK + CMSIS + softdevice_handler 이식본
     │   └── linker/
-    ├── libraries/                   # Bluefruit54Lib / Wire / (M2) SPI ...
+    ├── libraries/                   # Bluefruit54Lib / Wire / SPI / PinMap ...
+    │   #  PinMap 은 코드가 없다. 예제 주석이 본체이고, 그 표를
+    │   #  extras/gen_pinmap.py 가 Pin Planner JSON 에서 굽는다 (§13).
     │   #  ⚠ Wire·SPI 를 cores/ 에 넣지 마라. core.a 를 --whole-archive 로
     │   #    링크하므로(§7 F13 ①) 안 쓰는 스케치까지 무거워진다 (실측 +1 KB).
     │   #    라이브러리면 예제도 함께 배포된다.
@@ -1236,6 +1238,9 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 - 라이선스 스킴 설명: https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/introducing-nordics-new-software-licensing-schemes
 - nRF54L 개발 옵션 비교: https://academy.nordicsemi.com/courses/nrf54l-series-express-course/lessons/lesson-5-development-choices-and-demo/topic/nrf54l-development-options/
 - **Pin Planner (핀 제약의 정본): https://github.com/NordicPlayground/PinPlanner**
+  - ⚙ `extras/gen_pinmap.py` 가 이 JSON 에서 `libraries/PinMap/examples/` 의
+    칩별·보드별 표를 굽는다. **표를 손으로 고치지 마라** — 생성기나 출처를 고쳐라.
+    보드 표의 헤더 핀은 `docs/boards/<보드>.md` 에서 읽으므로 정본이 하나로 유지된다
   - `mcus/<soc>/<package>.json` 에 페리페럴별 허용 핀이 들어 있다. **문서 사이트와
     DevZone 은 스크립트 접근이 403 이지만 여기는 GitHub 이라 받을 수 있다.**
     핀 제약을 확인할 일이 생기면 PDF 보다 먼저 여기를 봐라 (`docs/PERIPHERAL-PINMAP.md` §4)

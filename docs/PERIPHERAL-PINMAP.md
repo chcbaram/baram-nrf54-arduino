@@ -195,7 +195,7 @@ MDK 의 페리페럴 베이스 주소가 도메인별로 뭉쳐 있다
 | `SPI` | SPIM00 | P2.01 SCK / P2.02 MOSI / P2.04 MISO / P2.05 SS | 00 → P2 ✅ |
 | `analogRead` | SAADC | A0~A7 = P1.04~07, P1.11~14 | 20 → P1 ✅ |
 | `analogWrite` | PWM20~22 | P1.xx (M2 에서 배정) | 20 → P1 |
-| `attachInterrupt` | GPIOTE20 / GPIOTE30 | P1·P2 / P0 | — |
+| `attachInterrupt` | GPIOTE20 / GPIOTE30 | P1 / P0 — **P2 는 불가** | — |
 
 ### XIAO nRF54L15 / Sense
 
@@ -209,7 +209,7 @@ MDK 의 페리페럴 베이스 주소가 도메인별로 뭉쳐 있다
 | `SPI` (헤더 D8/D9/D10) | SPIM00 | P2.01 SCK / P2.02 MOSI / P2.04 MISO | 00 → P2 ✅ |
 | `analogRead` | SAADC | A0~A3 = P1.04~07 | 20 → P1 ✅ |
 | PDM 마이크 | PDM20 | P1.12 CLK / P1.13 DIN | 20 → P1 ✅ |
-| (미배정) `Serial1` 후보 | UARTE21 | P2.08 TX / P2.07 RX | **21 → P2 ⚠ 위 반례** |
+| (미배정) `Serial1` 후보 | UARTE21 | P2.08 TX / P2.07 RX | 21 → P2 ✅ **예외로 합법** (§1) |
 
 ### NU54-DK 의 `Wire` 는 왜 P1 인가
 
@@ -233,21 +233,46 @@ P2 는 대안이 못 된다 — **TWIM00 이 아예 없다.**
 
 ---
 
-## 4. 아직 확인 안 된 것
+## 4. P2 의 정확한 핀 배정 — ✅ 확정 (2026-09-12)
 
-**(a) P2 예외가 적용되는 핀 목록이 미확인이다.** §1 참조. PERI 의 UARTE/SPIS 가
-P2 의 **일부** 핀을 쓸 수 있다는 것까지는 Nordic 문서로 확인했지만, 그 "일부"가
-어디인지는 PS 핀 배정표를 봐야 한다 (`docs/DATASHEETS.md`).
-실기 검증은 XIAO 의 D6-D7 을 점퍼로 잇고 UARTE21 루프백으로 한다.
+오래 열려 있던 두 질문 **(a) P2 예외가 적용되는 핀이 어디인가**,
+**(b) 도메인 안에서 어느 핀이 어느 신호로 갈 수 있는가** 가 Pin Planner 의
+SoC 정의(§7)로 **둘 다 닫혔다.** PS PDF 를 뒤질 필요가 없었다.
 
-**(b)** 도메인 안에서 **어느 핀이 어느 신호로 갈 수 있는지**도 미확정이다. 예: SPIM00 의 SCK 가 P2 중 아무 핀이나 되는지, 아니면 정해진 핀만 되는지.
+### P0 · P1 은 포트 전체다
 
-→ **M2 착수 시 nRF54L15 Product Specification 의 GPIO 배치표로 확정하고 실기 검증할 것.**
-   결과를 이 문서 §3 에 반영한다.
+`allowedGpio` 가 `P0*` / `P1*` 로 적혀 있다. **그 포트면 어느 핀이든 된다.**
+핀별 제약이 없다. 그래서 variant 의 P1 핀 배정은 도메인만 맞으면 자유다.
 
-`variant.h` 의 SPI/PWM 핀은 그때까지 잠정값이다 (도메인은 맞다).
+### P2 는 신호마다 후보가 **두 개씩**이다
 
----
+전체 표는 §1 에 있다. 여기서는 형태만 말한다 — **"P2 아무 핀이나" 가 아니다.**
+`SPIM00.SCK` 는 P2.01 과 P2.06 **둘뿐**이고, 다른 P2 핀을 주면 조용히 동작하지 않는다.
+
+⚠ **P2.03 은 `sQSPI.D2` 전용이라 우리에겐 GPIO 전용 핀이다.** SPIM 도 UARTE 도
+닿지 않는다. P2 가 연속이라고 넘겨짚기 쉬운 자리다.
+
+### 인터럽트·PWM·ADC 는 P2 에 아예 없다
+
+| | 되는 포트 |
+|---|---|
+| `GPIOTE20` | **P1 전용** (채널 8) |
+| `GPIOTE30` | **P0 전용** (채널 4) |
+| `PWM20/21/22` | **P1 전용** |
+| `SAADC` `AIN0~7` | **P1.04~P1.07 / P1.11~P1.14 고정** |
+
+**P2 를 담당하는 GPIOTE 도 PWM 도 없다.** 그래서 P2 핀에는
+`attachInterrupt()` 도 `analogWrite()` 도 걸 수 없다. 하드웨어가 없는 것이지
+소프트웨어가 안 해 준 것이 아니다.
+
+⚠ **NU54-DK 의 `LED_BUILTIN`(`PIN_LED1` = P2.09)과 `PIN_LED3`(P2.07)가 여기 걸린다.**
+그 보드에서 PWM 이나 핀 인터럽트를 시험하려면 LED2(P1.10) 나 LED4(P1.14) 를 써라.
+
+### 표를 다시 볼 때
+
+`libraries/PinMap/` 의 예제 주석에 칩별·보드별 전체 표가 들어 있다.
+IDE 의 **파일 → 예제 → PinMap** 에서 바로 열린다. 그 표는
+`extras/gen_pinmap.py` 가 Pin Planner JSON 에서 굽는다 — 손으로 고치지 마라.
 
 ## 5. nRF54LM20A (M6 대비)
 
@@ -295,7 +320,7 @@ error: static assertion failed: SPI SCK : SPIM00/UARTE00 은 P2 도메인만 쓸
 
 ---
 
-## 4. 이 표의 출처 — Pin Planner 앱의 SoC 정의
+## 7. 이 표의 출처 — Pin Planner 앱의 SoC 정의
 
 **https://github.com/NordicPlayground/PinPlanner**
 

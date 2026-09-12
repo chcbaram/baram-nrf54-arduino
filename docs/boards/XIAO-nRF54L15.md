@@ -131,10 +131,11 @@ P1 이 도메인 20 이기 때문이다 ([PERIPHERAL-PINMAP.md](../PERIPHERAL-PI
 
 > ⚠ **D7(P2.07)은 SWO 겸용이다.** SWO 트레이스를 켜면 이 핀을 쓸 수 없다.
 
-> ⚠ **D6 / D7 의 `Serial1` 은 아직 배정하지 않았다.** 회로도와 Zephyr 이 모두
-> UARTE21 로 잡는데, 그러면 인스턴스 21 이 P2 를 쓰는 셈이라
-> [PERIPHERAL-PINMAP.md](../PERIPHERAL-PINMAP.md) 의 도메인 규칙과 어긋난다.
-> 규칙을 바로잡은 뒤 붙인다 (M2). 지금은 일반 GPIO 다.
+> **D6 / D7 의 `Serial1`(UARTE21)은 규격에 맞는다** — 2026-09-12 확인.
+> 한동안 "도메인 규칙과 어긋난다" 고 적어 두었는데, **덜 적힌 쪽은 규칙이었다.**
+> Pin Planner 의 SoC 정의가 `UARTE21.TXD → P2.08`, `UARTE21.RXD → P2.07` 을
+> 명시한다 ([PERIPHERAL-PINMAP.md](../PERIPHERAL-PINMAP.md) §1·§4).
+> 회로도와 Zephyr 가 맞았다. 아직 배정만 안 했을 뿐이다 (M2).
 
 ### 클럭 — 크리스털 2개, **외부 로드 캡 없음**
 

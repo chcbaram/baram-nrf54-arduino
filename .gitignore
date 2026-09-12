@@ -34,3 +34,6 @@ docs/datasheets/
 
 # 개발용으로 직접 놓아 둔 툴 (동봉하지 않는다 — platform.local.txt.example 참조)
 nrf54l/tools/
+
+# Pin Planner JSON 캐시 — extras/gen_pinmap.py 가 받아 둔다
+.pinplanner-cache/
