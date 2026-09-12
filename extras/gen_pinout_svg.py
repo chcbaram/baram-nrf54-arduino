@@ -31,7 +31,7 @@ C = {
     'uart':   ('#ef6c00', '#ffffff'),   # UART
     'led':    ('#00838f', '#ffffff'),   # 온보드 LED / 버튼
     'taken':  ('#9e9e9e', '#ffffff'),   # 보드가 이미 쓰는 핀
-    'nc':     ('#ffffff', '#b0bec5'),   # 패드는 있으나 연결되지 않음
+    'nc':     ('#ffffff', '#90a4ae'),   # 헤더에 이름은 있으나 미연결
     'unk':    ('#cfd8dc', '#546e7a'),   # 도면에서 확정 못 한 것
 }
 
@@ -81,7 +81,7 @@ def render(board, chip_name, md_path, power, note,
     nc = nc or {}
     order = order or {}
     """power: {헤더이름: {핀번호: 넷}} — 표에 없는 전원 핀을 채운다.
-    nc:    {헤더이름: {핀번호: 사유}} — 패드는 있으나 미연결인 자리.
+    nc:    {헤더이름: {핀번호: (표기, 사유)}} — 헤더에 이름은 있으나 미연결.
     order: {헤더이름: [위에서 아래로 그릴 핀 번호]} — 실물 배치를 따른다.
     sides: (왼쪽 헤더, 오른쪽 헤더) — 보드를 놓고 보는 방향에 맞춘다."""
     hdrs = board_headers(md_path)
@@ -141,8 +141,11 @@ def render(board, chip_name, md_path, power, note,
             if not gpio:
                 gpio, label, kind = '', 'GND / 전원', 'unk'
             if n in nc.get(key, ()):
-                # 패드는 있지만 솔더 브리지가 없어 MCU 에 닿지 않는다.
-                gpio, label, kind = '', nc[key][n], 'nc'
+                # 헤더에는 이름이 찍혀 있지만 솔더 브리지가 없어 MCU 에
+                # 닿지 않는다. 이름을 지우면 헤더와 안 맞으므로 남기고,
+                # 사유를 옆에 적고 흰 칸으로 구분한다.
+                gpio, label = nc[key][n]
+                kind = 'nc'
             if side == 'L':
                 x = hx
                 s.append(chip(x, y, NUM_W, str(n), 'gpio'))
@@ -179,7 +182,8 @@ if __name__ == '__main__':
     POWER['P4'].update({30: 'VBUS', 29: 'VEXT', 27: 'VBAT',
                         26: 'VDD_3V3_SYS', 25: 'VDD_MOD', 3: 'MOD_RST'})
     POWER['P2'].update({27: 'SWDCLK', 28: 'SWDIO', 29: 'VDD_MOD'})
-    NC = {'P4': {14: '미연결 — SB20 미실장', 15: '미연결 — SB21 미실장'}}
+    NC = {'P4': {14: ('P1.00', 'SB20 미실장 — 미연결'),
+                 15: ('P1.01', 'SB21 미실장 — 미연결')}}
     # 실물을 놓고 본 방향 그대로 그린다:
     #   왼쪽 P4 — 1번이 위,  오른쪽 P2 — 30번이 위
     ORDER = {'P4': list(range(1, 31)), 'P2': list(range(30, 0, -1))}
