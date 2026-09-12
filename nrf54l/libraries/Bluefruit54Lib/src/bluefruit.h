@@ -557,6 +557,7 @@ extern AdafruitBluefruit Bluefruit;
 #include "BLEHidGeneric.h"
 #include "BLEHidAdafruit.h"
 #include "BLEHidGamepad.h"
+#include "BLEMidi.h"
 #include "BLEDfu.h"
 
 #endif
