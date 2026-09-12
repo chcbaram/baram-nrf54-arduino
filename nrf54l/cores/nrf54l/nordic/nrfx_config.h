@@ -59,9 +59,23 @@
 #endif
 #define NRFX_UARTE_DEFAULT_CONFIG_IRQ_PRIORITY   NRFX_DEFAULT_IRQ_PRIORITY
 
-/* ── M2에서 켠다 ──────────────────────────────────────────────────────
+/* ── I2C (Wire) ───────────────────────────────────────────────────────
+ * ⚠ variant 가 고르는 인스턴스를 **여기서 미리 다 켜 둔다.** 보드마다 다른데
+ *   (`WIRE_TWIM_INSTANCE`), nrfx 는 컴파일 시점에 인스턴스별로 코드를 넣는다.
+ *   켜지 않은 인스턴스를 variant 가 고르면 링크에서 드라이버가 없다고 나온다.
+ *
+ * ⚠ TWIM00 은 존재하지 않는다 = P2 에 I2C 불가 (docs/PERIPHERAL-PINMAP.md §0).
+ *   TWIM20/21/22 는 P1, TWIM30 은 P0 다.
+ */
+#define NRFX_TWIM_ENABLED                        1
+#define NRFX_TWIM20_ENABLED                      1
+#define NRFX_TWIM21_ENABLED                      1
+#define NRFX_TWIM22_ENABLED                      1
+#define NRFX_TWIM30_ENABLED                      1
+#define NRFX_TWIM_DEFAULT_CONFIG_IRQ_PRIORITY    NRFX_DEFAULT_IRQ_PRIORITY
+
+/* ── M2 에서 아직 안 켠 것 ────────────────────────────────────────────
  * NRFX_SPIM_ENABLED / NRFX_SPIM00_ENABLED   (SPI, P2 고속 도메인)
- * NRFX_TWIM_ENABLED / NRFX_TWIM20_ENABLED   (Wire)
  * NRFX_PWM_ENABLED  / NRFX_PWM20_ENABLED    (analogWrite)
  * NRFX_SAADC_ENABLED                        (analogRead)
  * NRFX_GPIOTE_ENABLED / 20 / 30             (attachInterrupt)

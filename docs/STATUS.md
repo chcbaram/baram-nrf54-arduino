@@ -84,9 +84,22 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 ~~3. **`BLEAncs`**~~ — ✅ **끝났다 (§2.9).** iPhone 알림을 앱 이름·제목·본문까지 수신
 ~~4. **`BLEClientHidAdafruit`**~~ — ✅ **끝났다 (§2.10).** 보드 2대로 실기 확인
 
-**→ B13b 가 끝났다. M4(부트로더)를 뺀 BLE 는 여기서 닫힌다.**
-다음은 M2 다 — `Wire`(TWIM) -> `attachInterrupt`/`analogWrite` -> `SPI`/`analogRead`,
-그리고 전류 측정으로 M1 을 닫는다.
+**→ B13b 가 끝났다. M4(부트로더)를 뺀 BLE 는 여기서 닫혔다. 지금은 M2 다.**
+
+**M2 진행 상황**
+
+| | |
+|---|---|
+| ~~`Wire`(TWIM)~~ | ✅ **끝났다 (§2.11).** XIAO 온보드 IMU 로 실기 확인 |
+| **`SPI`(SPIM00)** | ⭐ **다음.** 아래 이유로 우선순위가 올라갔다 |
+| `attachInterrupt`(GPIOTE) / `analogWrite`(PWM) | 온보드만으로 검증된다 |
+| `analogRead`(SAADC) | 외부 계측 필요 |
+| 전류 측정 | M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8) |
+
+⚠ **`SPI` 를 `attachInterrupt` 보다 먼저 해야 한다.** M2 DoD 의 "I2C 센서
+라이브러리 1종 동작" 이 **SPI.h 가 없어서 막힌다** — `Adafruit_BusIO` 도
+`Seeed_Arduino_LSM6DS3` 도 조건 없이 `#include <SPI.h>` 를 한다. I2C 만 쓰는
+라이브러리도 그렇다. 헤더가 없으면 컴파일 자체가 안 된다.
 ~~5. **처리량 실측**~~ — ✅ **끝났다 (§2.6).** 맥 상대 양방향 26~28 KB/s.
    notify 큐 깊이는 병목이 아니었다. 남은 것은 iOS 쪽 수치뿐이다
 
@@ -1093,6 +1106,55 @@ characteristic 이 없다고 나오니 상대(우리 키보드)를 의심하게 
 - 부트 모드는 **central 이 켜 줘야 한다** — `setBootMode(true)`.
   안 켜면 상대가 리포트 프로토콜로 보내고 부트 characteristic 은 조용하다
 - 미디어 키(Consumer Control)는 **부트 프로토콜에 없어 받을 수 없다.** 상류도 같다
+
+---
+
+## 2.11 `Wire` (I2C) — ✅ (2026-09-12)
+
+M2 의 첫 항목. `cores/nrf54l/Wire.{h,cpp}`, 예제는 `examples/Hardware/i2c_scanner`.
+
+**실기 (XIAO):**
+
+```
+Wire : nothing                      <- 헤더 D4/D5, 아무것도 안 붙어 있다
+Wire1: 0x6A
+       IMU WHO_AM_I = 0x6A (LSM6DS3TR-C)
+```
+
+온보드 IMU 를 주소로 찾고, 레지스터 읽기(쓰기 -> repeated start -> 읽기)까지 됐다.
+`Serial`(UARTE20)이 `Wire`(TWIM22)·`Wire1`(TWIM30)과 함께 살아 있다 — 블록 배정이
+맞다는 뜻이다.
+
+#### 체크리스트(§7 F10 ④)를 그대로 밟았고, 그래서 막힌 데가 없었다
+
+M1 에서 UARTE·GRTC 로 태운 함정들이 이번엔 하나도 재발하지 않았다. 특히:
+
+- **인스턴스 배정은 variant 가 이미 해 뒀다.** `WIRE_TWIM_INSTANCE` = TWIM22,
+  `WIRE1_TWIM_INSTANCE` = TWIM30. 블록 충돌(§0)이 검토된 상태였다
+- `nrfx_config.h` 에 `NRFX_TWIM_ENABLED` 와 인스턴스별 `NRFX_TWIMnn_ENABLED` 를
+  **다 켰다.** variant 마다 고르는 번호가 달라서, 하나만 켜면 다른 보드에서
+  링크가 깨진다
+- **벡터를 직접 이었고 `nm` 으로 확인했다** — `T SERIAL22_IRQHandler` /
+  `T SERIAL30_IRQHandler`. `W` 였으면 인터럽트가 뜨는 순간 죽는다
+- IRQ 우선순위는 6 (`NRFX_DEFAULT_IRQ_PRIORITY`) — F2 의 5~7 범위 안
+
+#### 만든 방식
+
+- **인터럽트 + 세마포어**로 기다린다. 폴링으로 돌면 tickless 가 잠들지 못하고
+  CPU 도 그만큼 태운다. 전송 중에는 다른 태스크가 돈다
+- `endTransmission()` 의 반환값을 Arduino 규약대로 구분한다
+  (0 성공 / 1 버퍼 초과 / 2 주소 NACK / 3 데이터 NACK / 4 그 밖).
+  라이브러리들이 이 숫자로 분기한다
+- 버퍼는 64바이트. Arduino 관례(32)보다 크게 잡았고, 넘치면 **조용히 자르지 않고**
+  `endTransmission()` 이 1 을 돌려준다
+- ⚠ **master 전용이다.** target(slave)은 없다 — TWIS 로 따로 만들어야 한다
+
+#### ⚠ M2 DoD 가 SPI 에 걸려 있다
+
+"I2C 센서 라이브러리 1종 동작" 을 하려 했는데 **라이브러리들이 `SPI.h` 를 조건 없이
+include 한다.** `Adafruit_BusIO`(거의 모든 Adafruit 센서가 쓴다)도,
+`Seeed_Arduino_LSM6DS3` 도 그렇다. **I2C 만 쓰는 코드여도 헤더가 없으면 컴파일이
+안 된다.** 그래서 `SPI` 를 `attachInterrupt` 보다 먼저 해야 한다.
 
 ---
 

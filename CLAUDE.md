@@ -1076,13 +1076,15 @@ tickless는 **틱이 안정된 뒤에 켠다.** 둘을 동시에 켜면 틱 버�
 ### M2 — Arduino API
 
 - [ ] `analogRead` (SAADC), `analogWrite` (PWM)
-- [ ] `Wire` / `Wire1` (TWIM)
+- [x] `Wire` / `Wire1` (TWIM) — XIAO 온보드 IMU 로 실기 확인 (`docs/STATUS.md` §2.11)
 - [ ] `SPI` (SPIM00, §4 주의사항 반영)
 - [ ] `attachInterrupt` (GPIOTE)
 - [ ] `SchedulerRTOS` — Adafruit `rtos.h`와 동일 시그니처
 - [ ] AVR 호환 셰임: `avr/pgmspace.h` (`PROGMEM` 빈 매크로, `pgm_read_byte()` 역참조)
 
 **DoD**: Adafruit `rtos_scheduler.ino`가 수정 없이 동작. I2C 센서 라이브러리 1종 동작.
+⚠ **센서 라이브러리 항목은 `SPI` 가 먼저다.** `Adafruit_BusIO` 를 비롯한 라이브러리들이
+I2C 만 쓰면서도 `SPI.h` 를 조건 없이 include 해서, 헤더가 없으면 컴파일이 안 된다.
 UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터를 실기 검증하고 결과를 `docs/HIL/`에 기록.
 
 ### M3 — BLE
