@@ -159,6 +159,12 @@ enum {
  */
 extern const uint8_t hid_ascii_to_keycode[128][2];
 
+/**
+ * 키코드 -> ASCII. `[keycode][shift]`. 0 이면 문자로 못 옮기는 키다.
+ * hid_ascii_to_keycode 를 뒤집어 생성한 것이다 (ble_hid_defs.cpp 주석).
+ */
+extern const uint8_t hid_keycode_to_ascii[128][2];
+
 /** 키보드 + 소비자 + 마우스 합본 리포트 맵. */
 extern const uint8_t hid_report_descriptor[];
 extern const uint16_t hid_report_descriptor_len;

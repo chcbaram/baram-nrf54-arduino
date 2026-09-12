@@ -199,6 +199,29 @@ bool BLEHidGeneric::inputReport(uint16_t conn_hdl, uint8_t report_id,
   return _chr_input[report_id - 1].notify(conn_hdl, data, (uint16_t) len);
 }
 
+bool BLEHidGeneric::bootKeyboardReport(uint16_t conn_hdl, const void *data, int len)
+{
+  /* enableKeyboard(false) 면 characteristic 자체가 없다. */
+  if (!_has_keyboard) return false;
+  return _chr_boot_kbd_in.notify(conn_hdl, data, (uint16_t) len);
+}
+
+bool BLEHidGeneric::bootKeyboardReport(const void *data, int len)
+{
+  return bootKeyboardReport(Bluefruit.connHandle(), data, len);
+}
+
+bool BLEHidGeneric::bootMouseReport(uint16_t conn_hdl, const void *data, int len)
+{
+  if (!_has_mouse) return false;
+  return _chr_boot_mouse_in.notify(conn_hdl, data, (uint16_t) len);
+}
+
+bool BLEHidGeneric::bootMouseReport(const void *data, int len)
+{
+  return bootMouseReport(Bluefruit.connHandle(), data, len);
+}
+
 bool BLEHidGeneric::inputReport(uint8_t report_id, const void *data, int len)
 {
   return inputReport(Bluefruit.connHandle(), report_id, data, len);

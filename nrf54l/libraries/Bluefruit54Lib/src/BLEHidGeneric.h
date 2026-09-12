@@ -45,6 +45,18 @@ class BLEHidGeneric : public BLEService
     bool inputReport(uint8_t report_id, const void *data, int len);
     bool inputReport(uint16_t conn_hdl, uint8_t report_id, const void *data, int len);
 
+    /**
+     * 부트 프로토콜 characteristic 으로 보낸다 (0x2A22 / 0x2A33).
+     *
+     * 리포트 프로토콜과 **다른 characteristic 이다.** 호스트가 부트 모드를 고르면
+     * 이쪽만 본다 — `isBootMode()` 로 판단해서 골라 보내야 한다.
+     * BIOS 나 부트로더처럼 리포트 맵을 해석하지 않는 호스트가 이 모드를 쓴다.
+     */
+    bool bootKeyboardReport(const void *data, int len);
+    bool bootKeyboardReport(uint16_t conn_hdl, const void *data, int len);
+    bool bootMouseReport(const void *data, int len);
+    bool bootMouseReport(uint16_t conn_hdl, const void *data, int len);
+
   protected:
     uint8_t _num_input, _num_output, _num_feature;
     bool    _has_keyboard, _has_mouse;
