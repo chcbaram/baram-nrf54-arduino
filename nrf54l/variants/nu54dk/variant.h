@@ -132,6 +132,8 @@ static const uint8_t A7 = PIN_A7;
 #define PIN_SPI_SCK           _PINNUM(2, 1)
 #define PIN_SPI_MOSI          _PINNUM(2, 2)
 #define PIN_SPI_MISO          _PINNUM(2, 4)
+#define SPI_SPIM_INSTANCE         NRF_SPIM00
+#define SPI_SPIM_IRQ_HANDLER      SERIAL00_IRQHandler
 static const uint8_t SS   = _PINNUM(2, 5);
 static const uint8_t SCK  = PIN_SPI_SCK;
 static const uint8_t MOSI = PIN_SPI_MOSI;

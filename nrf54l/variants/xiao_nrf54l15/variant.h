@@ -204,6 +204,8 @@ static const uint8_t A3 = PIN_A3;
 #define PIN_SPI_SCK           _PINNUM(2, 1)    /* D8  */
 #define PIN_SPI_MISO          _PINNUM(2, 4)    /* D9  */
 #define PIN_SPI_MOSI          _PINNUM(2, 2)    /* D10 */
+#define SPI_SPIM_INSTANCE         NRF_SPIM00
+#define SPI_SPIM_IRQ_HANDLER      SERIAL00_IRQHandler
 static const uint8_t SS   = _PINNUM(2, 7);     /* D7 — 관례상 자리. 전용 배선 없음 */
 static const uint8_t SCK  = PIN_SPI_SCK;
 static const uint8_t MOSI = PIN_SPI_MOSI;

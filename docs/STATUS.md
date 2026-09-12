@@ -91,15 +91,22 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | | |
 |---|---|
 | ~~`Wire`(TWIM)~~ | ✅ **끝났다 (§2.11).** XIAO 온보드 IMU 로 실기 확인 |
-| **`SPI`(SPIM00)** | ⭐ **다음.** 아래 이유로 우선순위가 올라갔다 |
-| `attachInterrupt`(GPIOTE) / `analogWrite`(PWM) | 온보드만으로 검증된다 |
+| ~~`SPI`(SPIM00)~~ | ✅ **끝났다 (§2.12).** SPI 플래시·SD 카드로 실기 확인 |
+| **`attachInterrupt`(GPIOTE) / `analogWrite`(PWM)** | ⭐ **다음.** 온보드만으로 검증된다 |
 | `analogRead`(SAADC) | 외부 계측 필요 |
 | 전류 측정 | M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8) |
 
-⚠ **`SPI` 를 `attachInterrupt` 보다 먼저 해야 한다.** M2 DoD 의 "I2C 센서
-라이브러리 1종 동작" 이 **SPI.h 가 없어서 막힌다** — `Adafruit_BusIO` 도
-`Seeed_Arduino_LSM6DS3` 도 조건 없이 `#include <SPI.h>` 를 한다. I2C 만 쓰는
-라이브러리도 그렇다. 헤더가 없으면 컴파일 자체가 안 된다.
+⚠ **M2 DoD 의 "I2C 센서 라이브러리 1종 동작" 이 아직 안 끝났다.** SPI 가 생겨
+`Seeed_Arduino_LSM6DS3` 는 컴파일되지만 **값이 0 으로만 나온다** — 그 라이브러리가
+`Wire`->`Wire1` 치환을 **특정 Seeed 보드 매크로**(`TARGET_SEEED_XIAO_NRF52840_SENSE`
+등)에만 걸어 두어서, 우리 보드에서는 헤더 쪽 `Wire` 를 쓴다. 거기엔 아무것도 없다.
+**우리 버그가 아니다** (I2C 자체는 §2.11 에서 확인됐다).
+→ 버스를 인자로 받는 라이브러리를 쓰거나, 센서를 `Wire`(헤더) 쪽에 붙여 재시험하라.
+
+⚠ **`Adafruit_BusIO` 는 아직 못 쓴다.** `digitalPinToPort` / `portOutputRegister` /
+`digitalPinToBitMask` 를 요구하는데 우리 코어에 없다. **Adafruit 센서 라이브러리
+대부분이 BusIO 를 거치므로** 이 셰임을 넣을지는 별도 판단이다 (AVR 식 고속 GPIO
+매크로라 §11 의 AVR 셰임과 같은 성격이다).
 ~~5. **처리량 실측**~~ — ✅ **끝났다 (§2.6).** 맥 상대 양방향 26~28 KB/s.
    notify 큐 깊이는 병목이 아니었다. 남은 것은 iOS 쪽 수치뿐이다
 
@@ -1173,6 +1180,76 @@ M1 에서 UARTE·GRTC 로 태운 함정들이 이번엔 하나도 재발하지 �
 include 한다.** `Adafruit_BusIO`(거의 모든 Adafruit 센서가 쓴다)도,
 `Seeed_Arduino_LSM6DS3` 도 그렇다. **I2C 만 쓰는 코드여도 헤더가 없으면 컴파일이
 안 된다.** 그래서 `SPI` 를 `attachInterrupt` 보다 먼저 해야 한다.
+
+---
+
+## 2.12 `SPI` — ✅ (2026-09-12)
+
+`libraries/SPI/`. 예제 셋: `spi_flash_id`, `sd_card`, `sdfat_card`.
+
+**실기 (NU54-DK, 헤더에 직접 땜한 플래시·SD):**
+
+```
+SCK=P2.01 MOSI=P2.02 MISO=P2.04 CS=P2.03
+JEDEC: EF 40 18   Winbond, 16384 KB          <- W25Q128
+
+  TEST2.WAV      8961960                     <- 표준 SD 라이브러리로 마운트
+  DOOM           <dir> 16384
+```
+
+⚠ **이 배선은 기본 보드에 없다.** 사용자가 직접 땜한 것이라
+`docs/boards/NU54-DK.md`(기본 보드 기준)는 고치지 않았다.
+
+#### 루프백으로는 부족했을 검증이 끝났다
+
+MOSI-MISO 를 묶는 루프백은 **모드가 틀려도 통과한다** — 자기 클럭을 자기가 받기
+때문이다. 실제 슬레이브가 응답했으므로 **모드 0 의 극성·위상**이 맞고, P2 고속
+도메인 배선과 출력 드라이브도 4 MHz 에서 문제없다는 것이 확인됐다.
+variant 에 "M2 에서 실기 검증할 것" 으로 남아 있던 **P2 핀 배정이 이것으로 확정**됐다.
+
+SD 쪽이 더 센 검증이다 — 저속 시작 -> 고속 전환, 다중 바이트 명령, 512바이트 섹터
+읽기를 다 거쳐야 디렉토리가 나온다.
+
+#### 만든 방식
+
+- **라이브러리로 만들었다.** `Wire` 에서 배운 대로다 (§2.11) — 코어에 넣으면
+  `--whole-archive` 때문에 안 쓰는 스케치까지 무거워진다
+- 전송은 **인터럽트 + 세마포어**. 255바이트씩 나눠 보낸다
+- **CS 는 건드리지 않는다.** Arduino 관례대로 스케치가 소유한다 — 버스 하나에
+  장치가 여럿인 경우가 흔하다
+- **`setPins()`** 를 넣었다. 기본값은 variant 지만 배선이 다르면 스케치에서 바꾼다.
+  예제 둘 다 그 방법을 주석으로 보여 준다.
+  ⚠ 도메인을 어기면 런타임에 조용히 안 된다 (SPIM00 = P2 전용)
+- `usingInterrupt()` / `notUsingInterrupt()` 는 **빈 함수**다 (상류도 같다).
+  동작하는 것처럼 보이지 않도록 keywords 에는 넣지 않았다
+
+#### ⚠ 카드 감지(CD)는 이 보드에 배선돼 있지 않다
+
+보드의 Zephyr DTS 는 `sd_cd` 를 **P2.00 / `GPIO_ACTIVE_HIGH`** 로 선언한다.
+그런데 **카드를 꽂은 채 실측하니 플로팅이었다** — 내부 풀업/풀다운을 그대로 따라간다.
+ACTIVE_HIGH 라면 풀다운을 걸어도 1 이 나와야 하므로, 그 선이 **실제로는 안 붙어
+있다**고 본다 (손으로 땜한 소켓이라 CD 만 빠졌을 수 있다).
+`INPUT_PULLDOWN` 이 제대로 구현돼 있는지 먼저 확인했으므로 측정 방법 자체는 유효하다.
+
+⚠ DTS 에서 `sd_cd` 가 `compatible = "gpio-leds"` 아래에 있다. Zephyr 에서 그건
+**출력**이라, 카드 감지 입력으로 검증된 선언이라기보다 GPIO 핸들을 얻으려는 편의
+선언일 가능성이 있다.
+
+그래서 `sd_card` 예제는 CD 를 **선택 기능**으로 두고 기본은 꺼 두되, 주석의 기본값은
+DTS 를 따라 ACTIVE_HIGH 로 적었다.
+
+극성은 소켓마다 다르므로 예제 주석에 **재는 방법**을 적어 뒀다: INPUT_PULLUP 으로
+읽고 INPUT_PULLDOWN 으로 다시 읽어, 두 값이 다르면 플로팅(미배선), 같으면 그 레벨이
+카드 삽입 시 스위치가 구동하는 값이다.
+
+#### 외부 라이브러리 현황
+
+| | |
+|---|---|
+| `SD` (Arduino 공식) | ✅ 컴파일·실기 동작. 단 **8.3 단축 이름만** 나온다 |
+| `SdFat` 2.3.0 | ✅ 컴파일·실기 동작. **긴 이름**이 나온다 (`System Volume Information`). 약 6 KB 더 든다 |
+| `Seeed_Arduino_LSM6DS3` | 컴파일 O / 동작 X — 보드 매크로 문제 (위 §2 참조) |
+| `Adafruit_BusIO` | ❌ `digitalPinToPort` 등 AVR 식 매크로 없음 |
 
 ---
 

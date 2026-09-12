@@ -74,8 +74,20 @@
 #define NRFX_TWIM30_ENABLED                      1
 #define NRFX_TWIM_DEFAULT_CONFIG_IRQ_PRIORITY    NRFX_DEFAULT_IRQ_PRIORITY
 
+/* ── SPI ──────────────────────────────────────────────────────────────
+ * SPIM00 은 **P2 전용 고속 도메인**이다 (nrf54l_domains.h).
+ * P1 에 SPI 가 필요한 보드를 위해 SPIM20~22 도 함께 켠다 — Wire 와 같은 이유로
+ * variant 마다 고르는 번호가 다르다. 단 같은 번호의 UARTE/TWIM 과는
+ * **같은 하드웨어 블록**이라 동시에 못 쓴다 (docs/PERIPHERAL-PINMAP.md §0).
+ */
+#define NRFX_SPIM_ENABLED                        1
+#define NRFX_SPIM00_ENABLED                      1
+#define NRFX_SPIM20_ENABLED                      1
+#define NRFX_SPIM21_ENABLED                      1
+#define NRFX_SPIM22_ENABLED                      1
+#define NRFX_SPIM_DEFAULT_CONFIG_IRQ_PRIORITY    NRFX_DEFAULT_IRQ_PRIORITY
+
 /* ── M2 에서 아직 안 켠 것 ────────────────────────────────────────────
- * NRFX_SPIM_ENABLED / NRFX_SPIM00_ENABLED   (SPI, P2 고속 도메인)
  * NRFX_PWM_ENABLED  / NRFX_PWM20_ENABLED    (analogWrite)
  * NRFX_SAADC_ENABLED                        (analogRead)
  * NRFX_GPIOTE_ENABLED / 20 / 30             (attachInterrupt)
