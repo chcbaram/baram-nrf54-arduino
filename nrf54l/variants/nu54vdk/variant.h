@@ -105,7 +105,7 @@
  * ⚠ A6 는 버튼 SW2, A7 은 LED D10 과 핀을 공유한다. 동시에 못 쓴다. */
 /* ⚠ **이 보드에서는 AIN 여덟 개가 전부 다른 데 쓰인다.**
  *   A0~A3 = Serial1 → 온보드 DAP (SB9~SB12, 실기 확인)
- *   A4, A5 = PMIC 의 제어·측정 신호 (SB1, SB4 — 실물에서 붙어 있음)
+ *   A4 = PMIC_INT,  A5 = VBAT_MON (SB1, SB4 — 실물에서 붙어 있음)
  *   A6     = SW1,  A7 = LED4
  *   전부 헤더에 나와 있으므로 해당 솔더 브리지를 떼면 쓸 수 있다.
  *   Adafruit 호환을 위해 이름은 그대로 두되, 그냥 쓰면 안 된다.
@@ -114,8 +114,8 @@
 #define PIN_A1                _PINNUM(1,  5)   /* AIN1 — ⚠ Serial1 RX 겸용 */
 #define PIN_A2                _PINNUM(1,  6)   /* AIN2 — ⚠ Serial1 RTS 겸용 */
 #define PIN_A3                _PINNUM(1,  7)   /* AIN3 — ⚠ Serial1 CTS 겸용 */
-#define PIN_A4                _PINNUM(1, 11)   /* AIN4 — ⚠ PMIC SB1 겸용 */
-#define PIN_A5                _PINNUM(1, 12)   /* AIN5 — ⚠ PMIC SB4 겸용 */
+#define PIN_A4                _PINNUM(1, 11)   /* AIN4 — ⚠ PMIC_INT 겸용 */
+#define PIN_A5                _PINNUM(1, 12)   /* AIN5 — ⚠ VBAT_MON 겸용 */
 #define PIN_A6                _PINNUM(1, 13)   /* AIN6 — SW1 겸용 */
 #define PIN_A7                _PINNUM(1, 14)   /* AIN7 — LED4 겸용 */
 
@@ -176,22 +176,38 @@ static const uint8_t SCL = PIN_WIRE_SCL;
  *
  * ⚠ **PMIC — BQ25186 배터리 충전기.**
  *
- *   **I2C 는 `Wire` 와 같은 버스다** — P1.02 / P1.03 에 0x6A 로 붙어 있다.
- *   실기 스캔에서 Qwiic 의 센서와 **나란히 잡혔다** (0x6A, 0x70).
+ *   **I2C 는 `Wire` 와 같은 버스다** — `SB16` / `SB17` 이 PMIC 의 SDA/SCL 을
+ *   P1.02 / P1.03 에 붙인다. Qwiic 과 같은 넷이고 주소는 0x6A 다.
+ *   실기 스캔에서 Qwiic 센서와 나란히 잡혔다 (`Wire : 0x6A 0x70`).
  *
- *   ⚠ 한동안 PMIC I2C 가 P1.11 / P1.12 에 있다고 적어 두었는데 **틀렸다.**
- *      `SB1`~`SB4` 가 그 핀들을 잡는 것은 맞지만 I2C 가 아니라 제어·측정
- *      신호다 (nINT / nPG / nCE / VBAT_MON). 회로도에서 포트 이름을 못 읽어
- *      추론했다가 실기에서 뒤집혔다.
+ *   나머지 네 신호는 `SB1`~`SB4` 로 나온다. **실물에서 붙어 있고**,
+ *   블록도의 포트 순서와 실측이 일치한다 (2026-09-12):
  *
- *   `SB1`~`SB4` 는 **실물에서 붙어 있는 것으로 확인됐다** (2026-09-12).
- *   따라서 아래 네 핀은 자유 GPIO 가 아니다. 어느 것이 어느 신호인지는
- *   아직 확정하지 못했다 — **VBAT_MON 은 아날로그라 A4 / A5 중 하나일
- *   가능성이 높다.** */
-#define PIN_PMIC_SB1          _PINNUM(1, 11)   /* = A4. SB1 */
-#define PIN_PMIC_SB2          _PINNUM(2,  8)   /* SB2 */
-#define PIN_PMIC_SB3          _PINNUM(2, 10)   /* SB3 */
-#define PIN_PMIC_SB4          _PINNUM(1, 12)   /* = A5. SB4 */
+ *     SB1  P1.11  PMIC_INT    오픈드레인 + 10K 풀업 → 평시 HIGH (실측 3300 mV)
+ *     SB2  P2.08  PMIC_PG     입력 전원 유효
+ *     SB3  P2.10  PMIC_CE     충전 enable — **출력으로 몰 수 있다**
+ *     SB4  P1.12  VBAT_MON    배터리 전압 분압 (아래)
+ */
+#define PIN_PMIC_INT          _PINNUM(1, 11)   /* = A4. SB1 */
+#define PIN_PMIC_PG           _PINNUM(2,  8)   /* SB2 */
+#define PIN_PMIC_CE           _PINNUM(2, 10)   /* SB3 */
+
+/* ── 배터리 전압 ──────────────────────────────────────────────────────
+ * VBAT ─ R8 470K ─┬─ P1.12 (AIN5)
+ *                 └─ R11 1M ─ GND
+ *
+ * 분압비 1M / (470K + 1M) = 0.680 → 배터리 전압 = 읽은 값 × 1.470.
+ * XIAO 와 같은 이름을 쓰므로 스케치를 그대로 옮길 수 있다.
+ *
+ * ⚠ **분압기 출력 임피던스가 320 kΩ 이다** (470K ‖ 1M). SAADC 의 기본
+ *   획득시간(10 µs)으로는 샘플 커패시터가 다 차지 않아 값이 낮게, 그리고
+ *   읽을 때마다 수십 mV 씩 흔들리게 나온다 — 실측 ±40 mV.
+ *   **여러 번 읽어 평균 내라.** 대신 상시 누설이 4.1 V 에서 2.8 µA 뿐이라
+ *   배터리 구동에 유리한 값이다 (XIAO 는 로드 스위치로 끊는 방식).
+ *
+ * ⚠ 전원 스위치가 없다. 항상 읽을 수 있다 — PIN_VBAT_ENABLE 은 없다. */
+#define PIN_VBAT              _PINNUM(1, 12)   /* = A5. SB4 */
+#define VBAT_DIVIDER          (1.470f)
 
 /** PMIC 의 I2C 주소. `Wire` 에 붙어 있다. */
 #define PMIC_I2C_ADDRESS      (0x6A)

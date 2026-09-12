@@ -1,5 +1,5 @@
 /*********************************************************************
- Read the NU54V-DK's battery charger over I2C.
+ Read the NU54V-DK's battery charger in detail.
 
  The board carries a TI BQ25186 single-cell linear charger with power
  path, and it sits on the same I2C bus as the Qwiic connector - so the
@@ -9,14 +9,21 @@
      SCL   P1.03
      BQ25186 at 0x6A,  Qwiic device at whatever address it uses
 
- ⚠ These two pins are the chip's NFC antenna pins, and they come out of
-   reset as NFC pads - not GPIO. The variant turns that off in
-   initVariant(); without it Wire finds nothing at all and there is no
-   error to see. Keep that in mind if you port this to your own board.
+ The charger also brings four signals out to GPIO through solder
+ bridges, all of them fitted on this board:
 
- This example only reads. It does not change any charger setting -
- writing the wrong value here can stop the board charging, or worse.
- The register map is in TI's BQ25186 datasheet.
+     PMIC_INT   P1.11 = A4   open drain, 10K pull-up
+     PMIC_PG    P2.08        input power good
+     PMIC_CE    P2.10        charge enable
+     VBAT_MON   P1.12 = A5   battery voltage, divided 470K / 1M
+
+ ⚠ P1.02 / P1.03 are the chip's NFC antenna pins and leave reset as NFC
+   pads, not GPIO. initVariant() turns that off for this board; without
+   it Wire finds nothing at all and there is no error to see.
+
+ This example only reads. Writing the wrong value here can stop the
+ board charging, or worse. Register details are in TI's datasheet - the
+ decode below covers the fields you normally want.
 
  baram-nrf54l-arduino - MIT license
 *********************************************************************/
@@ -24,23 +31,19 @@
 
 #define BQ25186_ADDR    0x6A
 
-#define REG_STAT0       0x00     /* charge status, power good */
-#define REG_STAT1       0x01     /* faults */
-#define REG_VBAT_CTRL   0x03     /* battery regulation voltage */
-#define REG_ICHG_CTRL   0x04     /* charge current */
-#define REG_MASK_ID     0x0C     /* device ID */
-#define REG_COUNT       0x0D
+#define REG_STAT0       0x00     /* charge state, power good          */
+#define REG_STAT1       0x01     /* live faults                       */
+#define REG_FLAG0       0x02     /* latched faults - cleared on read   */
+#define REG_VBAT_CTRL   0x03     /* battery regulation voltage        */
+#define REG_ICHG_CTRL   0x04     /* charge current, charge enable     */
+#define REG_TMR_ILIM    0x08     /* input current limit               */
+#define REG_MASK_ID     0x0C     /* device ID                         */
 
 void setup()
 {
   Serial.begin(115200);
   delay(300);
   Serial.println("NU54V-DK battery charger (BQ25186)");
-
-#if !defined(ARDUINO_NU54VDK)
-  Serial.println("This example is for the NU54V-DK - other boards have no PMIC.");
-  Serial.println("Nothing below will find anything.");
-#endif
 
   Wire.begin();
 
@@ -52,41 +55,93 @@ void setup()
   } else {
     Serial.printf("MASK_ID 0x%02X\n", id);
   }
+  Serial.println();
 }
 
 void loop()
 {
   int stat0 = readRegister(REG_STAT0);
+  if ( stat0 < 0 ) { Serial.println("read failed"); delay(2000); return; }
 
-  if ( stat0 < 0 ) {
-    Serial.println("read failed");
-  } else {
-    Serial.print("charge: ");
-    switch ( stat0 & 0x60 ) {            /* CHG_STAT, bits 6:5 */
-      case 0x00: Serial.print("idle (enabled, not charging)"); break;
-      case 0x20: Serial.print("constant current");             break;
-      case 0x40: Serial.print("constant voltage");             break;
-      default:   Serial.print("done or disabled");             break;
-    }
+  int stat1 = readRegister(REG_STAT1);
+  int flag0 = readRegister(REG_FLAG0);
+  int vbatc = readRegister(REG_VBAT_CTRL);
+  int ichgc = readRegister(REG_ICHG_CTRL);
+  int ilimc = readRegister(REG_TMR_ILIM);
 
-    /* Bit 0 says whether the input supply is usable at all, which is
-     * the first thing to check when nothing seems to be charging. */
-    Serial.print(stat0 & 0x01 ? "   VIN good" : "   VIN not good");
-
-    if ( stat0 & 0x10 ) Serial.print("   [input current limited]");
-    if ( stat0 & 0x02 ) Serial.print("   [thermal regulation]");
-    Serial.println();
-
-    float vbatreg = 3.5f + 0.01f * (readRegister(REG_VBAT_CTRL) & 0x7F);
-    Serial.printf("  target %.2f V   STAT0 0x%02X  STAT1 0x%02X  ICHG 0x%02X\n",
-                  vbatreg, stat0, readRegister(REG_STAT1),
-                  readRegister(REG_ICHG_CTRL));
+  /* ── what it is doing ───────────────────────────────────────────── */
+  Serial.print("state    ");
+  switch ( stat0 & 0x60 ) {                    /* CHG_STAT, bits 6:5 */
+    case 0x00: Serial.print("idle (enabled, not charging)"); break;
+    case 0x20: Serial.print("charging - constant current"); break;
+    case 0x40: Serial.print("charging - constant voltage"); break;
+    default:   Serial.print("charge done, or charging disabled"); break;
   }
+  if ( ichgc >= 0 && (ichgc & 0x80) ) Serial.print("   [CHG_DISABLE set]");
+  Serial.println();
+
+  /* ── input ──────────────────────────────────────────────────────── */
+  Serial.print("input    ");
+  Serial.print(stat0 & 0x01 ? "VIN good" : "no usable input");
+  if ( stat0 & 0x10 ) Serial.print("   at input current limit");
+  if ( stat0 & 0x04 ) Serial.print("   VINDPM (input sagging)");
+  if ( stat0 & 0x08 ) Serial.print("   VDPPM");
+  if ( ilimc >= 0 )   Serial.printf("   limit %s", ilimText(ilimc & 0x07));
+  Serial.println();
+
+  /* ── settings ───────────────────────────────────────────────────── */
+  if ( vbatc >= 0 && ichgc >= 0 ) {
+    Serial.printf("setting  target %.2f V   charge %u mA\n",
+                  3.5f + 0.01f * (vbatc & 0x7F), ichgCurrent(ichgc & 0x7F));
+  }
+
+  /* ── anything wrong ─────────────────────────────────────────────── */
+  Serial.print("health   ");
+  bool bad = false;
+  if ( stat0 & 0x02 ) { Serial.print("[thermal regulation] "); bad = true; }
+  if ( stat0 & 0x80 ) { Serial.print("[TS open] ");            bad = true; }
+
+  if ( stat1 >= 0 ) {
+    if ( stat1 & 0x80 ) { Serial.print("[VIN over-voltage] ");   bad = true; }
+    if ( stat1 & 0x40 ) { Serial.print("[battery under-volt] "); bad = true; }
+    if ( stat1 & 0x04 ) { Serial.print("[safety timer] ");       bad = true; }
+
+    /* The thermistor field is two bits, and "normal" is the common case
+     * worth not printing. A board with no thermistor reads TS open above. */
+    switch ( stat1 & 0x18 ) {
+      case 0x08: Serial.print("[battery too hot or cold] "); bad = true; break;
+      case 0x10: Serial.print("[battery cool] ");            bad = true; break;
+      case 0x18: Serial.print("[battery warm] ");            bad = true; break;
+      default: break;
+    }
+  }
+  Serial.println(bad ? "" : "ok");
+
+  /* FLAG0 latches faults that have happened since the last read, so a
+   * glitch that has already cleared still shows up exactly once here. */
+  if ( flag0 > 0 ) Serial.printf("latched  FLAG0 0x%02X (since last read)\n", flag0);
+
+  Serial.printf("raw      STAT0 %02X  STAT1 %02X  VBAT %02X  ICHG %02X  ILIM %02X\n\n",
+                stat0, stat1, vbatc, ichgc, ilimc);
 
   delay(2000);
 }
 
 /*───────────────────────────────────────────────────────────────────*/
+
+/** ICHG_CTRL bits 6:0 to milliamps. Two slopes, per the datasheet. */
+uint16_t ichgCurrent(uint8_t code)
+{
+  return (code > 31) ? (uint16_t) (40 + (code - 31) * 10)
+                     : (uint16_t) (code + 5);
+}
+
+const char *ilimText(uint8_t code)
+{
+  static const char *t[] = { "50 mA", "100 mA", "200 mA", "300 mA",
+                             "400 mA", "500 mA", "700 mA", "1100 mA" };
+  return t[code & 0x07];
+}
 
 /** One register. Returns -1 rather than a byte so a failure is visible. */
 int readRegister(uint8_t reg)
