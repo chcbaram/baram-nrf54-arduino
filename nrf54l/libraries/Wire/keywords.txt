@@ -1,6 +1,16 @@
-Wire	KEYWORD1
-Wire1	KEYWORD1
+#######################################
+# Syntax Coloring Map For Wire
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
 TwoWire	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
 
 begin	KEYWORD2
 end	KEYWORD2
@@ -8,10 +18,23 @@ setClock	KEYWORD2
 beginTransmission	KEYWORD2
 endTransmission	KEYWORD2
 requestFrom	KEYWORD2
-write	KEYWORD2
-available	KEYWORD2
-read	KEYWORD2
-peek	KEYWORD2
-flush	KEYWORD2
+
+# write / read / available / peek / flush 는 IDE 내장 키워드다 (Stream·Print).
+# 여기 다시 적지 않는다.
+#
+# onReceive / onRequest 는 상류에 있지만 **우리에겐 없다** — master 전용이라
+# target(slave) 콜백이 없다. 색을 칠하면 있는 것처럼 보이므로 넣지 않는다.
+# TWIS 로 구현하게 되면 그때 추가하라.
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+Wire	KEYWORD2
+Wire1	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
 
 WIRE_BUFFER_SIZE	LITERAL1
