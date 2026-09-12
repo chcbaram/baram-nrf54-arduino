@@ -87,10 +87,22 @@
 #define NRFX_SPIM22_ENABLED                      1
 #define NRFX_SPIM_DEFAULT_CONFIG_IRQ_PRIORITY    NRFX_DEFAULT_IRQ_PRIORITY
 
+/*
+ * GPIOTE — attachInterrupt (cores/nrf54l/wiring_interrupt.c)
+ *
+ * ⚠ 인스턴스별 `NRFX_GPIOTE20_ENABLED` 같은 매크로는 **없다.** 다른 드라이버와
+ *   달리 인스턴스 표가 SoC 헤더의 `NRFX_FOREACH_INDEXED_PRESENT` 로 자동 생성돼
+ *   존재하는 GPIOTE 가 전부 들어간다. 켤 것은 이 하나뿐이다.
+ *
+ * 우선순위는 FreeRTOS 규칙상 5~7 이어야 한다 (§7 F2) — 콜백에서 `...FromISR`
+ * 을 부를 수 있어야 하기 때문이다. `NRFX_DEFAULT_IRQ_PRIORITY` = 6.
+ */
+#define NRFX_GPIOTE_ENABLED                      1
+#define NRFX_GPIOTE_DEFAULT_CONFIG_IRQ_PRIORITY  NRFX_DEFAULT_IRQ_PRIORITY
+
 /* ── M2 에서 아직 안 켠 것 ────────────────────────────────────────────
  * NRFX_PWM_ENABLED  / NRFX_PWM20_ENABLED    (analogWrite)
  * NRFX_SAADC_ENABLED                        (analogRead)
- * NRFX_GPIOTE_ENABLED / 20 / 30             (attachInterrupt)
  */
 
 /* ── 나머지 기본값은 SoC 템플릿에서 (#ifndef 이므로 위 설정이 우선) ── */

@@ -92,8 +92,9 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 |---|---|
 | ~~`Wire`(TWIM)~~ | ✅ **끝났다 (§2.11).** XIAO 온보드 IMU 로 실기 확인 |
 | ~~`SPI`(SPIM00)~~ | ✅ **끝났다 (§2.12).** SPI 플래시·SD 카드로 실기 확인 |
-| **`attachInterrupt`(GPIOTE) / `analogWrite`(PWM)** | ⭐ **다음.** 온보드만으로 검증된다 |
-| `analogRead`(SAADC) | 외부 계측 필요 |
+| ~~`attachInterrupt`(GPIOTE)~~ | ✅ **끝났다 (§2.13).** NU54-DK 버튼으로 P1·P0 양쪽 확인 |
+| **`analogWrite`(PWM)** | ⭐ **다음.** 온보드 LED 로 검증된다. **PWM20/21/22 는 P1 전용** |
+| `analogRead`(SAADC) | 외부 계측 필요. **AIN0~7 = P1.04~07 / P1.11~14 고정** |
 | 전류 측정 | M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8) |
 
 ⚠ **M2 DoD 의 "I2C 센서 라이브러리 1종 동작" 이 아직 안 끝났다.** SPI 가 생겨
@@ -1256,6 +1257,55 @@ CD 가 없는 보드에서도 풀업 때문에 "카드 있음" 으로 읽혀 동
 | `SdFat` 2.3.0 | ✅ 컴파일·실기 동작. **긴 이름**이 나온다 (`System Volume Information`). 약 6 KB 더 든다 |
 | `Seeed_Arduino_LSM6DS3` | 컴파일 O / 동작 X — 보드 매크로 문제 (위 §2 참조) |
 | `Adafruit_BusIO` | ❌ `digitalPinToPort` 등 AVR 식 매크로 없음 |
+
+
+## 2.13 `attachInterrupt` (GPIOTE) — ✅ (2026-09-12)
+
+`cores/nrf54l/wiring_interrupt.{h,c}`. 실기 기록은 `docs/HIL/M2-interrupt.md`.
+
+**⚠ P2 핀에는 인터럽트를 걸 수 없다.** GPIOTE 는 둘뿐이고 각자 자기 도메인 포트만
+본다 — `GPIOTE20` = P1(채널 8), `GPIOTE30` = P0(채널 4), 그리고 **P2 를 담당하는
+GPIOTE 가 아예 없다.** Pin Planner 의 SoC 정의로 확인했다
+(`docs/PERIPHERAL-PINMAP.md` §4). 도메인 규칙의 예외가 아니라 **하드웨어가 없는 것**이다.
+
+그래서 `attachInterruptOk()` 를 함께 제공한다. Arduino 표준 `attachInterrupt()` 는
+반환값이 없어서 실패를 알릴 방법이 없고, P2 를 주면 조용히 아무 일도 일어나지 않는다.
+호환을 위해 표준 판도 남겼다 (R12).
+
+```c
+bool attachInterruptOk(uint32_t pin, voidFuncPtr cb, uint32_t mode);  /* 실패를 알려준다 */
+void attachInterrupt  (uint32_t pin, voidFuncPtr cb, uint32_t mode);  /* 상류 호환 */
+void detachInterrupt  (uint32_t pin);
+```
+
+모드는 `RISING` / `FALLING` / `CHANGE` / `LOW_LEVEL`.
+
+#### 구현에서 걸린 것
+
+**① 레벨 트리거에 GPIOTE 채널을 주면 안 된다.** nrfx 는 채널이 주어지면 엣지 트리거만
+쓸 수 있다. `LOW_LEVEL` 은 채널이 아니라 SENSE 로 도는 물건이라 `p_in_channel = NULL`
+로 넘긴다. 섞으면 설정이 실패한다.
+
+**② 인스턴스마다 벡터가 둘이다** (`GPIOTE20_0` / `GPIOTE20_1`). §7 F10 ③ 의 다중
+인스턴스 경우라 직접 이어야 하는데, **하나만 이으면 절반이 조용히 사라진다.** 넷 다 잇고
+`nm` 으로 `T` 확인했다.
+
+**③ 인스턴스별 `NRFX_GPIOTE20_ENABLED` 같은 매크로가 없다.** 다른 드라이버와 달리
+인스턴스 표가 SoC 헤더에서 자동 생성돼 존재하는 GPIOTE 가 전부 들어간다.
+`NRFX_GPIOTE_ENABLED` 하나만 켜면 된다 — 없는 매크로를 찾느라 헤매기 쉽다.
+
+#### 코어에 두어도 크기가 늘지 않는다
+
+`attachInterrupt` 는 스케치가 `#include` 없이 부르므로 코어에 있어야 하는데,
+`core.a` 가 `--whole-archive` 로 링크되므로(§7 F13 ①) `Wire` 때처럼 모든 스케치가
+무거워질 위험이 있었다. **실측 결과 blink 가 25,264 B 로 전후 동일하다.**
+
+`Wire` 와 갈린 이유는 **전역 객체의 유무**다. 전역 인스턴스의 생성자는 `.init_array` 에
+들어가고 링커 스크립트가 그 섹션을 `KEEP` 하므로 GC 의 루트가 된다. GPIOTE 쪽은
+함수뿐이라 안 부르면 통째로 사라진다.
+
+> **일반화**: 코어에 **전역 객체**를 두면 모든 스케치가 비용을 치르고,
+> **함수만** 두면 부르는 스케치만 치른다. 다음에 코어냐 라이브러리냐를 고를 때 이 기준을 쓴다.
 
 ---
 

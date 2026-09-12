@@ -1081,9 +1081,12 @@ tickless는 **틱이 안정된 뒤에 켠다.** 둘을 동시에 켜면 틱 버�
 ### M2 — Arduino API
 
 - [ ] `analogRead` (SAADC), `analogWrite` (PWM)
+      ⚠ **둘 다 P1 전용이다** (Pin Planner 로 확인, `docs/PERIPHERAL-PINMAP.md` §4):
+      `PWM20/21/22` 는 `P1*` 만, `SAADC` 는 `AIN0~7` = `P1.04~P1.07 / P1.11~P1.14` 고정.
+      P0·P2 핀에는 `analogWrite`/`analogRead` 를 걸 수 없다 — variant 핀 배정 전에 볼 것
 - [x] `Wire` / `Wire1` (TWIM) — XIAO 온보드 IMU 로 실기 확인 (`docs/STATUS.md` §2.11)
-- [ ] `SPI` (SPIM00, §4 주의사항 반영)
-- [ ] `attachInterrupt` (GPIOTE)
+- [x] `SPI` (SPIM00) — SPI 플래시 JEDEC ID + SD 카드로 실기 확인 (`docs/STATUS.md` §2.12)
+- [x] `attachInterrupt` (GPIOTE) — GPIOTE20(P1)/GPIOTE30(P0) 양쪽 실기 확인 (`docs/HIL/M2-interrupt.md`). **P2 는 담당 GPIOTE 가 없어 불가**
 - [ ] `SchedulerRTOS` — Adafruit `rtos.h`와 동일 시그니처
 - [ ] AVR 호환 셰임: `avr/pgmspace.h` (`PROGMEM` 빈 매크로, `pgm_read_byte()` 역참조)
 
