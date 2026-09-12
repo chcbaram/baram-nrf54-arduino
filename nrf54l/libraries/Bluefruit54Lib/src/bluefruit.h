@@ -577,6 +577,7 @@ extern AdafruitBluefruit Bluefruit;
 #include "BLEClientDis.h"
 #include "BLEClientCts.h"
 #include "BLEAncs.h"
+#include "BLEClientHidAdafruit.h"
 #include "BLEBeacon.h"
 #include "BLEDis.h"
 #include "BLEBas.h"
