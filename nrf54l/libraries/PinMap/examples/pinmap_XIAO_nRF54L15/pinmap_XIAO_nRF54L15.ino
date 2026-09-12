@@ -55,6 +55,29 @@
     10 P2.04  D9 / MISO  PIN_SPI_MISO, D9, MISO  x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS20.SDI, UARTE20.CTS, sQSPI.D1
     11 P2.02  D10 / MOSI PIN_SPI_MOSI, D10, MOSI x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS20.SDO, UARTE20.TXD, sQSPI.D0
 
+ 헤더 밖 — 온보드 부품이 쓰는 핀
+       GPIO   Name in sketch                                     PWM IRQ ADC  Only this pin
+       ------ -------------------------------------------------- --- --- ---- ----------------------------------
+       P0.00  PIN_BUTTON1                                        x   o   x
+       P0.01  PIN_SENSOR_POWER                                   x   o   x
+       P0.02  PIN_IMU_INT1                                       x   o   x
+       P0.03  PIN_IMU_SCL, D11, PIN_WIRE1_SCL                    x   o   x    GRTC.PWM
+       P0.04  PIN_IMU_SDA, D12, PIN_WIRE1_SDA                    x   o   x    GRTC.LFCLKOUT
+       P1.02  PIN_NFC1                                           o   o   x    NFCT.NFC1
+       P1.03  PIN_NFC2                                           o   o   x    NFCT.NFC2
+       P1.08  PIN_SERIAL_RX                                      o   o   x    SAADC.EXTREF, GRTC.CLK16M
+       P1.09  PIN_SERIAL_TX                                      o   o   x    RADIO.RADIO[0], TAMPC.ASO[2]
+       P1.12  PIN_PDM_CLK                                        o   o   AIN5 RADIO.RADIO[3], SAADC.AIN5, TAMPC.ASI[3]
+       P1.13  PIN_PDM_DATA                                       o   o   AIN6 RADIO.RADIO[4], SAADC.AIN6
+       P1.14  PIN_VBAT                                           o   o   AIN7 RADIO.RADIO[5], SAADC.AIN7
+       P1.15  PIN_VBAT_ENABLE                                    o   o   x
+       P2.00  PIN_LED1, LED_BUILTIN, LED_CONN, LED_RED, LED_BLUE x   x   x    SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS20.DCX, UARTE20.RXD, sQSPI.D3
+       P2.03  PIN_RF_SW_POWER                                    x   x   x    sQSPI.D2
+       P2.05  PIN_RF_SW_SELECT                                   x   x   x    SPIM/SPIS00.CS, UARTE00.RTS, SPIM/SPIS20.CS, UARTE20.RTS, sQSPI.CSN
+       P2.06  D15                                                x   x   x    SPIM/SPIS00.SCK, SPIM/SPIS21.SCK
+       P2.09  D14                                                x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS21.SDI, UARTE21.CTS
+       P2.10  D13                                                x   x   x    SPIM/SPIS00.CS, UARTE00.RTS, SPIM/SPIS21.CS, UARTE21.RTS
+
 
  baram-nrf54l-arduino - MIT license
 *********************************************************************/

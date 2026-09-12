@@ -274,6 +274,7 @@ def render_board(board, chip, soc, package, md_path, variant_h):
     L.extend(CAPS_LEGEND)
     L.append("")
 
+    seen = set()
     for hdr, entries in board_headers(md_path):
         has_alias = any(a for _, _, a in entries)
         aw = max([len(a) for _, _, a in entries] + [4]) if has_alias else 0
@@ -295,16 +296,39 @@ def render_board(board, chip, soc, package, md_path, variant_h):
             if not re.fullmatch(r'P\d+\.\d+', sig):
                 L.append(f"   {num:3d} {sig}")
                 continue
-            row = f"   {num:3d} {sig:6s} "
-            if has_alias:
-                row += f"{alias:{aw}s} "
-            pwm, irq, ain = arduino_caps(sig, table, wildcard)
-            row += f"{(', '.join(used.get(sig, [])) or ''):{nw}s} "
-            row += f"{'o' if pwm else 'x':3s} {'o' if irq else 'x':3s} {(ain or 'x'):4s} "
-            row += shorten(table.get(sig, []))
-            L.append(row.rstrip())
+            L.append(pin_row(f"{num:3d}", sig, alias if has_alias else None,
+                             aw, nw, table, wildcard, used))
         L.append("")
+        seen.update(sig for _, sig, _ in entries)
+
+    # ── 헤더에 안 나오는데 variant 가 쓰는 핀 ────────────────────────────
+    #
+    # 온보드 LED·버튼·센서가 여기 들어간다. 빼 두면 정작 가장 많이 묻는 것
+    # ("LED 에 analogWrite 되나")에 표가 답을 못 한다. XIAO 가 그랬다 —
+    # 사용자 LED 가 헤더 밖 P2.00 이라 표에 아예 나오지 않았다.
+    rest = [pin for pin in used if pin not in seen]
+    if rest:
+        nw2 = max([len(', '.join(used[pin])) for pin in rest] + [14])
+        L.append(" 헤더 밖 — 온보드 부품이 쓰는 핀")
+        L.append(f"       {'GPIO':6s} {'Name in sketch':{nw2}s} {'PWM':3s} {'IRQ':3s} {'ADC':4s} Only this pin")
+        L.append(f"       {'-' * 6} {'-' * nw2} {'-' * 3} {'-' * 3} {'-' * 4} {'-' * 34}")
+        for pin in sorted(rest, key=_pin_key):
+            L.append(pin_row("   ", pin, None, 0, nw2, table, wildcard, used))
+        L.append("")
+
     return '\n'.join(L)
+
+
+def pin_row(lead, pin, alias, aw, nw, table, wildcard, used):
+    """표 한 줄. 헤더 안팎에서 같은 모양이라야 눈이 안 헷갈린다."""
+    row = f"   {lead} {pin:6s} "
+    if alias is not None:
+        row += f"{alias:{aw}s} "
+    pwm, irq, ain = arduino_caps(pin, table, wildcard)
+    row += f"{(', '.join(used.get(pin, [])) or ''):{nw}s} "
+    row += f"{'o' if pwm else 'x':3s} {'o' if irq else 'x':3s} {(ain or 'x'):4s} "
+    row += shorten(table.get(pin, []))
+    return row.rstrip()
 
 
 def render_chip(chip, soc, package):
