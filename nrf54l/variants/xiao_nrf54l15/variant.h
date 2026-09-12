@@ -18,7 +18,7 @@
 
 #include <stdint.h>
 
-#include "nrf54l_domains.h"
+#include "nrf54l_pinmap.h"
 
 #define _PINNUM(port, pin)    ( ( (port) * 32 ) + (pin) )
 
@@ -125,12 +125,13 @@ static const uint8_t D15 = _PINNUM(2,  6);
  *   (zephyr boards/seeed/xiao_nrf54l15 의 uart21_default:
  *    UART_TX = P2.08, UART_RX = P2.07).
  *
- *   그런데 docs/PERIPHERAL-PINMAP.md 의 도메인 규칙("인스턴스 2x 는 P1")
- *   대로면 P2 를 쓸 수 없다. 즉 **그 규칙에 반례가 있다.** 규칙을
- *   Product Specification 으로 바로잡기 전에는 배정하지 않는다 (M2).
- *   지금 이 두 핀은 일반 GPIO 로 쓸 수 있다.
+ *   한동안 이것이 도메인 규칙("인스턴스 2x 는 P1")의 반례로 보여 배정을
+ *   미뤄 두었다. **2026-09-12 에 규칙 쪽이 덜 적혀 있었던 것으로 확인됐다** —
+ *   Pin Planner 의 SoC 정의가 `UARTE21.TXD -> P2.08`, `UARTE21.RXD -> P2.07`
+ *   을 명시한다 (docs/PERIPHERAL-PINMAP.md §1·§4). 회로도와 Zephyr 가 맞았다.
+ *   아래 검증 블록의 NRF54L_ASSERT_SIG 가 이를 컴파일 타임에 못박아 둔다.
  *
- *   바로잡히면 아래 네 줄만 추가하면 된다:
+ *   막는 것은 이제 없다. 배정하려면 아래 네 줄을 추가하면 된다:
  *     #define PIN_SERIAL1_TX            D6
  *     #define PIN_SERIAL1_RX            D7
  *     #define SERIAL1_UARTE_INSTANCE    NRF_UARTE21
@@ -238,33 +239,47 @@ static const uint8_t SCL = PIN_WIRE_SCL;
  */
 
 /* ═══════════════════════════════════════════════════════════════════
- * 전원 도메인 검증 (nrf54l_domains.h)
+ * 핀 배정 검증 — **빌드에서 막는다**
  * ═══════════════════════════════════════════════════════════════════
- * nRF54L 은 페리페럴 인스턴스가 자기 도메인의 GPIO 포트만 쓸 수 있다.
- * 잘못 배정하면 런타임에 조용히 동작하지 않으므로 여기서 빌드를 막는다.
+ * nRF54L 은 페리페럴이 아무 핀에나 붙지 않는다. 잘못 배정하면 런타임에
+ * 조용히 동작하지 않아 원인이 보이지 않으므로 여기서 컴파일을 멈춘다.
+ *
+ * `nrf54l_pinmap.h` 의 신호 단위 검사를 쓴다 (`nrf54l_domains.h` 의
+ * 포트 단위보다 촘촘하다 — 예: P2.03 은 P2 지만 SPIM00.SCK 로는 못 쓴다).
+ * 표는 Nordic Pin Planner 에서 생성되며 신호 이름은
+ * `libraries/PinMap` 예제 주석의 표와 같다.
  */
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_SERIAL_TX,  "Serial(UARTE20) TX");
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_SERIAL_RX,  "Serial(UARTE20) RX");
+NRF54L_ASSERT_SIG(PIN_SERIAL_TX,  UARTE20_TXD, "Serial(UARTE20) TX");
+NRF54L_ASSERT_SIG(PIN_SERIAL_RX,  UARTE20_RXD, "Serial(UARTE20) RX");
 
-NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_SCK,      "SPI SCK");
-NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MOSI,     "SPI MOSI");
-NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MISO,     "SPI MISO");
+NRF54L_ASSERT_SIG(PIN_SPI_SCK,    SPIM00_SCK,  "SPI SCK");
+NRF54L_ASSERT_SIG(PIN_SPI_MOSI,   SPIM00_SDO,  "SPI MOSI");
+NRF54L_ASSERT_SIG(PIN_SPI_MISO,   SPIM00_SDI,  "SPI MISO");
 
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_WIRE_SDA,   "Wire(TWIM22) SDA");
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_WIRE_SCL,   "Wire(TWIM22) SCL");
+NRF54L_ASSERT_SIG(PIN_WIRE_SDA,   TWIM22_SDA,  "Wire(TWIM22) SDA");
+NRF54L_ASSERT_SIG(PIN_WIRE_SCL,   TWIM22_SCL,  "Wire(TWIM22) SCL");
 
-NRF54L_ASSERT_DOMAIN30_PIN(PIN_WIRE1_SDA,  "Wire1(TWIM30) SDA — 온보드 IMU");
-NRF54L_ASSERT_DOMAIN30_PIN(PIN_WIRE1_SCL,  "Wire1(TWIM30) SCL — 온보드 IMU");
+NRF54L_ASSERT_SIG(PIN_WIRE1_SDA,  TWIM30_SDA,  "Wire1(TWIM30) SDA — 온보드 IMU");
+NRF54L_ASSERT_SIG(PIN_WIRE1_SCL,  TWIM30_SCL,  "Wire1(TWIM30) SCL — 온보드 IMU");
 
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_PDM_CLK,    "PDM(PDM20) CLK");
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_PDM_DATA,   "PDM(PDM20) DATA");
+NRF54L_ASSERT_SIG(PIN_PDM_CLK,    PDM20_CLK,   "PDM(PDM20) CLK");
+NRF54L_ASSERT_SIG(PIN_PDM_DATA,   PDM20_DIN,   "PDM(PDM20) DATA");
 
-NRF54L_ASSERT_ANALOG_PIN(PIN_A0, "A0"); NRF54L_ASSERT_ANALOG_PIN(PIN_A1, "A1");
-NRF54L_ASSERT_ANALOG_PIN(PIN_A2, "A2"); NRF54L_ASSERT_ANALOG_PIN(PIN_A3, "A3");
-NRF54L_ASSERT_ANALOG_PIN(PIN_VBAT, "VBAT (AIN7)");
+/* AIN 번호까지 맞는지 본다. 포트 검사만으로는 A3 가 진짜 AIN3 인지 알 수 없다. */
+NRF54L_ASSERT_SIG(PIN_A0, SAADC_AIN0, "A0");  NRF54L_ASSERT_SIG(PIN_A1, SAADC_AIN1, "A1");
+NRF54L_ASSERT_SIG(PIN_A2, SAADC_AIN2, "A2");  NRF54L_ASSERT_SIG(PIN_A3, SAADC_AIN3, "A3");
+NRF54L_ASSERT_SIG(PIN_VBAT, SAADC_AIN7, "VBAT (AIN7)");
 
-/* NFC 는 NFCT(P1 도메인) 전용 핀이다. */
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_NFC1, "NFC1");
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_NFC2, "NFC2");
+NRF54L_ASSERT_SIG(PIN_NFC1, NFCT_NFC1, "NFC1");
+NRF54L_ASSERT_SIG(PIN_NFC2, NFCT_NFC2, "NFC2");
+
+/* D6/D7 을 Serial1(UARTE21)로 쓸 수 있다는 것을 못박아 둔다. 한때 도메인
+ * 규칙의 반례로 보였던 자리다 — 위 주석 참조. 아직 배정하지는 않았으므로
+ * 지금은 이 두 줄이 "가능하다" 는 사실만 지킨다. */
+/* ⚠ D6 / D7 이 아니라 _PINNUM 을 쓴다. 저 둘은 `static const uint8_t` 이고
+ *   **C 에서는 상수식이 아니라** _Static_assert 에 넣을 수 없다. variant.h 는
+ *   C 에서도 include 되므로(코어의 .c 들) 여기서는 반드시 매크로여야 한다. */
+NRF54L_ASSERT_SIG(_PINNUM(2, 8), UARTE21_TXD, "D6 를 Serial1 TX 로");
+NRF54L_ASSERT_SIG(_PINNUM(2, 7), UARTE21_RXD, "D7 를 Serial1 RX 로");
 
 #endif /* _VARIANT_XIAO_NRF54L15_H_ */

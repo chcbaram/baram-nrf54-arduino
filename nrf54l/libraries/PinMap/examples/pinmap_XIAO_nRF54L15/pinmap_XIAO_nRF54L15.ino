@@ -26,22 +26,34 @@
            PWM20, PWM21, PWM22, GPIOTE20, I2S20, QDEC20, QDEC21
    P2*     없다 — 이 포트는 핀마다 다르다. 아래 표를 봐라
 
+ Arduino 함수 — 되는 곳
+
+   analogWrite      PWM20/21/22    P1 전체 (15핀)
+   attachInterrupt  GPIOTE20/30    P0 전체 (5핀), P1 전체 (15핀)
+   analogRead       SAADC AIN0~7   P1.04(AIN0), P1.05(AIN1), P1.06(AIN2), P1.07(AIN3)
+                                  P1.11(AIN4), P1.12(AIN5), P1.13(AIN6), P1.14(AIN7)
+
+   ⚠ P2 에는 셋 다 없다 — 하드웨어가 없는 것이라 코어가 해 줄 수 있는 일이 아니다
+
  아래 표의 '이 핀만' 은 위 공통에 **더해지는** 것이다.
+ PWM = analogWrite   IRQ = attachInterrupt   ADC = analogRead
+ 'x' 는 **그 핀에서 그 함수를 쓸 수 없다** 는 뜻이다. 하드웨어가 없는 것이라
+ 코어가 나중에 지원해 주는 종류의 것이 아니다.
 
  XIAO 헤더 (14핀)
-    핀  GPIO   보드 이름      variant              이 핀만
-   --- ------ ---------- -------------------- ----------------------------------------
-     1 P1.04  D0 / A0    PIN_A0               SAADC.AIN0, TAMPC.ASO[0]
-     2 P1.05  D1 / A1    PIN_A1               RADIO.RADIO[6], SAADC.AIN1, TAMPC.ASI[0]
-     3 P1.06  D2 / A2    PIN_A2               SAADC.AIN2, TAMPC.ASO[1]
-     4 P1.07  D3 / A3    PIN_A3               SAADC.AIN3, TAMPC.ASI[1]
-     5 P1.10  D4 / SDA   PIN_WIRE_SDA         RADIO.RADIO[1], TAMPC.ASI[2]
-     6 P1.11  D5 / SCL   PIN_WIRE_SCL         RADIO.RADIO[2], SAADC.AIN4, TAMPC.ASO[3]
-     7 P2.08  D6 / TX                         SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS21.SDO, UARTE21.TXD
-     8 P2.07  D7 / RX                         SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS21.DCX, UARTE21.RXD
-     9 P2.01  D8 / SCK   PIN_SPI_SCK          SPIM/SPIS00.SCK, SPIM/SPIS20.SCK, sQSPI.SCK
-    10 P2.04  D9 / MISO  PIN_SPI_MISO         SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS20.SDI, UARTE20.CTS, sQSPI.D1
-    11 P2.02  D10 / MOSI PIN_SPI_MOSI         SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS20.SDO, UARTE20.TXD, sQSPI.D0
+   Pin GPIO   Board      Name in sketch          PWM IRQ ADC  Only this pin
+   --- ------ ---------- ----------------------- --- --- ---- ----------------------------------
+     1 P1.04  D0 / A0    PIN_A0, D0, A0          o   o   AIN0 SAADC.AIN0, TAMPC.ASO[0]
+     2 P1.05  D1 / A1    PIN_A1, D1, A1          o   o   AIN1 RADIO.RADIO[6], SAADC.AIN1, TAMPC.ASI[0]
+     3 P1.06  D2 / A2    PIN_A2, D2, A2          o   o   AIN2 SAADC.AIN2, TAMPC.ASO[1]
+     4 P1.07  D3 / A3    PIN_A3, D3, A3          o   o   AIN3 SAADC.AIN3, TAMPC.ASI[1]
+     5 P1.10  D4 / SDA   PIN_WIRE_SDA, D4, SDA   o   o   x    RADIO.RADIO[1], TAMPC.ASI[2]
+     6 P1.11  D5 / SCL   PIN_WIRE_SCL, D5, SCL   o   o   AIN4 RADIO.RADIO[2], SAADC.AIN4, TAMPC.ASO[3]
+     7 P2.08  D6 / TX    D6                      x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS21.SDO, UARTE21.TXD
+     8 P2.07  D7 / RX    D7, SS                  x   x   x    SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS21.DCX, UARTE21.RXD
+     9 P2.01  D8 / SCK   PIN_SPI_SCK, D8, SCK    x   x   x    SPIM/SPIS00.SCK, SPIM/SPIS20.SCK, sQSPI.SCK
+    10 P2.04  D9 / MISO  PIN_SPI_MISO, D9, MISO  x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS20.SDI, UARTE20.CTS, sQSPI.D1
+    11 P2.02  D10 / MOSI PIN_SPI_MOSI, D10, MOSI x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS20.SDO, UARTE20.TXD, sQSPI.D0
 
 
  baram-nrf54l-arduino - MIT license

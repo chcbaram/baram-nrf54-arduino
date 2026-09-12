@@ -1359,6 +1359,53 @@ nRF54L 은 페리페럴이 전원 도메인에 묶여 있어 아무 핀에나 �
 3. **P2.03 은 `sQSPI.D2` 전용**이라 SPIM 도 UARTE 도 닿지 않는다
 4. `docs/PERIPHERAL-PINMAP.md` §3 이 `attachInterrupt` 를 "P1·P2" 로 적고 있었다 — 틀렸다
 
+### 표를 읽어 주기를 기대하지 않는다 — 빌드에서 막는다
+
+`cores/nrf54l/nrf54l_pinmap.h` 가 같은 JSON 에서 생성된 **매크로판**이다
+(498줄, 전부 전처리기라 flash 0 B). variant 가 배정을 여기에 걸어 둔다.
+
+```c
+NRF54L_ASSERT_SIG(PIN_SPI_SCK, SPIM00_SCK, "SPI SCK");
+```
+
+```
+error: static assertion failed: SPI SCK : SPIM/SPIS00.SCK 는 P2.01, P2.06 만 된다
+```
+
+기존 `nrf54l_domains.h` 는 **포트까지만** 봤다. P2.03 은 P2 가 맞으니 통과했지만
+SPIM00.SCK 로는 동작하지 않는다 — 그 틈을 막은 것이다.
+
+두 variant 를 신호 단위로 올렸고 **전부 통과했다.** 잠복 버그는 없었지만, 이제
+`A4` 가 진짜 `AIN4` 인지까지 검증된다 (전에는 "P1 이다" 까지만 봤다).
+
+#### 걸린 것
+
+**핀을 매크로로 넘겨야 한다.** `NRF54L_ASSERT_SIG(D6, ...)` 가 컴파일되지 않는다 —
+`D6` 는 `static const uint8_t` 이고 **C 에서는 상수식이 아니다.** variant.h 는
+코어의 `.c` 들에서도 include 되므로 C 로도 컴파일된다. `_PINNUM(2, 8)` 을 쓴다.
+
+**생성기가 주석 속 `#define` 을 읽었다.** XIAO variant 가 "바로잡히면 이 네 줄을
+추가하면 된다" 며 주석 안에 `#define PIN_SERIAL1_TX D6` 를 적어 두었는데, 그게
+표에 **실재하는 핀 이름처럼** 나왔다. 파서가 주석을 먼저 걷어내게 고쳤다.
+
+### 표가 보여 주는 것 — 부정형이 더 중요하다
+
+처음에는 "이 핀에 무엇이 되나" 만 적었다. 그러면 **"이 핀은 PWM 이 안 된다"** 는
+없는 것을 눈치채야 알 수 있다. 그래서 `PWM` / `IRQ` / `ADC` 열을 따로 냈다:
+
+```
+   Pin GPIO   Name in sketch                PWM IRQ ADC  Only this pin
+     9 P2.09  PIN_LED1, LED_BUILTIN, LED_RED x   x   x    SPIM/SPIS00.SDI, ...
+```
+
+`LED_BUILTIN` 이 바로 보이고 그 옆이 `x x x` 다. `analogWrite(LED_BUILTIN, …)` 을
+쓰기 전에 알 수 있다.
+
+이름 열은 **스케치에서 실제로 치는 것**이라야 쓸모가 있어서, 별칭을 끝까지
+따라간다 (`PIN_LED1` → `LED_BUILTIN` → `LED_RED`, `static const uint8_t A0 = PIN_A0`).
+
+⚠ **표 머리글은 ASCII 로 쓴다.** 한글은 폭이 2라 `%-Ns` 패딩이 어긋난다.
+
 ### 한계
 
 `architectures=nrf54l` 이지만 **번들 라이브러리라 Library Manager 에는 뜨지 않는다.**

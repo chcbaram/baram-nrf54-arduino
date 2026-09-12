@@ -26,6 +26,15 @@
            PWM20, PWM21, PWM22, GPIOTE20, I2S20, QDEC20, QDEC21
    P2*     없다 — 이 포트는 핀마다 다르다
 
+ Arduino 함수 — 되는 곳
+
+   analogWrite      PWM20/21/22    P1 전체 (15핀)
+   attachInterrupt  GPIOTE20/30    P0 전체 (5핀), P1 전체 (15핀)
+   analogRead       SAADC AIN0~7   P1.04(AIN0), P1.05(AIN1), P1.06(AIN2), P1.07(AIN3)
+                                  P1.11(AIN4), P1.12(AIN5), P1.13(AIN6), P1.14(AIN7)
+
+   ⚠ P2 에는 셋 다 없다 — 하드웨어가 없는 것이라 코어가 해 줄 수 있는 일이 아니다
+
  핀마다 추가로 되는 것 (위 공통에 **더해진다**)
 
    P0.03  GRTC.PWM

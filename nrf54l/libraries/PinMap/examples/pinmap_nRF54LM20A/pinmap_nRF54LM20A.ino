@@ -32,6 +32,15 @@
            SPIM/SPIS24, TWIM/TWIS24, UARTE24
    P2*     없다 — 이 포트는 핀마다 다르다
 
+ Arduino 함수 — 되는 곳
+
+   analogWrite      PWM20/21/22    P1 전체 (20핀)
+   attachInterrupt  GPIOTE20/30    P0 전체 (6핀), P1 전체 (20핀)
+   analogRead       SAADC AIN0~7   P1.00(AIN0), P1.03(AIN7), P1.04(AIN6), P1.05(AIN5)
+                                  P1.06(AIN4), P1.29(AIN3), P1.30(AIN2), P1.31(AIN1)
+
+   ⚠ P2 에는 셋 다 없다 — 하드웨어가 없는 것이라 코어가 해 줄 수 있는 일이 아니다
+
  핀마다 추가로 되는 것 (위 공통에 **더해진다**)
 
    P0.03  GRTC.PWM

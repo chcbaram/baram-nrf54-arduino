@@ -20,7 +20,7 @@
 /* 아래 도메인 검증 매크로(NRF54L_ASSERT_*)를 제공한다.
  * variant.h 는 Arduino.h 를 거치지 않고 직접 include 되기도 하므로
  * 여기서 스스로 챙긴다. */
-#include "nrf54l_domains.h"
+#include "nrf54l_pinmap.h"
 
 #define _PINNUM(port, pin)    ( ( (port) * 32 ) + (pin) )
 
@@ -158,29 +158,43 @@ static const uint8_t SDA = PIN_WIRE_SDA;
 static const uint8_t SCL = PIN_WIRE_SCL;
 
 /* ═══════════════════════════════════════════════════════════════════
- * 전원 도메인 검증 (nrf54l_domains.h)
+ * 핀 배정 검증 — **빌드에서 막는다**
  * ═══════════════════════════════════════════════════════════════════
- * nRF54L 은 페리페럴 인스턴스가 자기 도메인의 GPIO 포트만 쓸 수 있다.
- * 잘못 배정하면 런타임에 조용히 동작하지 않으므로 여기서 빌드를 막는다.
+ * nRF54L 은 페리페럴이 아무 핀에나 붙지 않는다. 잘못 배정하면 런타임에
+ * 조용히 동작하지 않아 원인이 보이지 않으므로 여기서 컴파일을 멈춘다.
+ *
+ * `nrf54l_pinmap.h` 의 신호 단위 검사를 쓴다 (`nrf54l_domains.h` 의
+ * 포트 단위보다 촘촘하다 — 예: P2.03 은 P2 지만 SPIM00.SCK 로는 못 쓴다).
+ * 표는 Nordic Pin Planner 에서 생성되며 신호 이름은
+ * `libraries/PinMap` 예제 주석의 표와 같다.
+ *
  * 새 보드 variant 를 만들 때 이 블록을 반드시 복사해 오라.
  */
-NRF54L_ASSERT_DOMAIN30_PIN(PIN_SERIAL_TX,  "Serial(UARTE30) TX");
-NRF54L_ASSERT_DOMAIN30_PIN(PIN_SERIAL_RX,  "Serial(UARTE30) RX");
+NRF54L_ASSERT_SIG(PIN_SERIAL_TX,  UARTE30_TXD, "Serial(UARTE30) TX");
+NRF54L_ASSERT_SIG(PIN_SERIAL_RX,  UARTE30_RXD, "Serial(UARTE30) RX");
+NRF54L_ASSERT_SIG(PIN_SERIAL_CTS, UARTE30_CTS, "Serial(UARTE30) CTS");
+NRF54L_ASSERT_SIG(PIN_SERIAL_RTS, UARTE30_RTS, "Serial(UARTE30) RTS");
 
-NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_SCK,      "SPI SCK");
-NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MOSI,     "SPI MOSI");
-NRF54L_ASSERT_SPIM00_PIN(PIN_SPI_MISO,     "SPI MISO");
+NRF54L_ASSERT_SIG(PIN_SPI_SCK,    SPIM00_SCK,  "SPI SCK");
+NRF54L_ASSERT_SIG(PIN_SPI_MOSI,   SPIM00_SDO,  "SPI MOSI");
+NRF54L_ASSERT_SIG(PIN_SPI_MISO,   SPIM00_SDI,  "SPI MISO");
 
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_WIRE_SDA,   "Wire(TWIM22) SDA");
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_WIRE_SCL,   "Wire(TWIM22) SCL");
+NRF54L_ASSERT_SIG(PIN_WIRE_SDA,   TWIM22_SDA,  "Wire(TWIM22) SDA");
+NRF54L_ASSERT_SIG(PIN_WIRE_SCL,   TWIM22_SCL,  "Wire(TWIM22) SCL");
 
-NRF54L_ASSERT_ANALOG_PIN(PIN_A0, "A0"); NRF54L_ASSERT_ANALOG_PIN(PIN_A1, "A1");
-NRF54L_ASSERT_ANALOG_PIN(PIN_A2, "A2"); NRF54L_ASSERT_ANALOG_PIN(PIN_A3, "A3");
-NRF54L_ASSERT_ANALOG_PIN(PIN_A4, "A4"); NRF54L_ASSERT_ANALOG_PIN(PIN_A5, "A5");
-NRF54L_ASSERT_ANALOG_PIN(PIN_A6, "A6"); NRF54L_ASSERT_ANALOG_PIN(PIN_A7, "A7");
+/* AIN 번호까지 맞는지 본다. 포트 검사만으로는 A4 가 진짜 AIN4 인지 알 수 없다. */
+NRF54L_ASSERT_SIG(PIN_A0, SAADC_AIN0, "A0");  NRF54L_ASSERT_SIG(PIN_A1, SAADC_AIN1, "A1");
+NRF54L_ASSERT_SIG(PIN_A2, SAADC_AIN2, "A2");  NRF54L_ASSERT_SIG(PIN_A3, SAADC_AIN3, "A3");
+NRF54L_ASSERT_SIG(PIN_A4, SAADC_AIN4, "A4");  NRF54L_ASSERT_SIG(PIN_A5, SAADC_AIN5, "A5");
+NRF54L_ASSERT_SIG(PIN_A6, SAADC_AIN6, "A6");  NRF54L_ASSERT_SIG(PIN_A7, SAADC_AIN7, "A7");
 
-/* NFC 는 NFCT(P1 도메인) 전용 핀이다. */
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_NFC1, "NFC1");
-NRF54L_ASSERT_DOMAIN20_PIN(PIN_NFC2, "NFC2");
+NRF54L_ASSERT_SIG(PIN_NFC1, NFCT_NFC1, "NFC1");
+NRF54L_ASSERT_SIG(PIN_NFC2, NFCT_NFC2, "NFC2");
+
+/* ⚠ LED1(P2.09)·LED3(P2.07)은 P2 다. P2 를 담당하는 GPIOTE 도 PWM 도 없으므로
+ *   그 두 핀에는 attachInterrupt 도 analogWrite 도 걸리지 않는다.
+ *   LED_BUILTIN 이 LED1 이라는 점에 주의하라 — PWM 시험은 LED2/LED4 로 한다. */
+NRF54L_ASSERT_SIG(PIN_BUTTON1, GPIOTE20_CHAN_0, "SW2 (인터럽트 가능해야 한다)");
+NRF54L_ASSERT_SIG(PIN_BUTTON4, GPIOTE30_CHAN_0, "SW5 (인터럽트 가능해야 한다)");
 
 #endif /* _VARIANT_NU54DK_H_ */

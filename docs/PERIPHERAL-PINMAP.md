@@ -268,6 +268,27 @@ SoC 정의(§7)로 **둘 다 닫혔다.** PS PDF 를 뒤질 필요가 없었다.
 ⚠ **NU54-DK 의 `LED_BUILTIN`(`PIN_LED1` = P2.09)과 `PIN_LED3`(P2.07)가 여기 걸린다.**
 그 보드에서 PWM 이나 핀 인터럽트를 시험하려면 LED2(P1.10) 나 LED4(P1.14) 를 써라.
 
+### 빌드에서 막는다
+
+표를 읽어 주기를 기대하지 않는다. `cores/nrf54l/nrf54l_pinmap.h` 가 같은 제약을
+매크로로 갖고 있고, variant 가 배정을 거기에 걸어 둔다.
+
+```c
+NRF54L_ASSERT_SIG(PIN_SPI_SCK, SPIM00_SCK, "SPI SCK");
+```
+
+P2.03 을 주면 이렇게 멈춘다:
+
+```
+error: static assertion failed: SPI SCK : SPIM/SPIS00.SCK 는 P2.01, P2.06 만 된다
+```
+
+`nrf54l_domains.h` 의 포트 단위 검사보다 촘촘하다. 포트만 보면 P2.03 이 통과한다.
+
+⚠ **핀은 매크로로 넘겨야 한다.** `static const uint8_t D6` 같은 Arduino 관용
+별칭은 **C 에서 상수식이 아니라** `_Static_assert` 에 못 들어간다. variant.h 는
+코어의 `.c` 에서도 include 되므로 C 로도 컴파일된다.
+
 ### 표를 다시 볼 때
 
 `libraries/PinMap/` 의 예제 주석에 칩별·보드별 전체 표가 들어 있다.
