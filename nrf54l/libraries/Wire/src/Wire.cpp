@@ -69,6 +69,15 @@ void TwoWire::end(void)
   _begun = false;
 }
 
+void TwoWire::setPins(uint32_t pin_sda, uint32_t pin_scl)
+{
+  _pin_sda = pin_sda;
+  _pin_scl = pin_scl;
+
+  /* 돌고 있으면 핀만 갈아끼울 수 없다 — 내렸다가 다시 올린다. */
+  if (_begun) { end(); begin(); }
+}
+
 void TwoWire::setClock(uint32_t freq)
 {
   _freq = freq;

@@ -24,7 +24,7 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | GRTC 인터럽트 그룹 | 앱 = **`GRTC_2_IRQn`**, SoftDevice = `GRTC_3_IRQn`. 앱 CC 는 0~6 |
 | 리셋 원인 레지스터 | **`NRF_RESET`** (nRF54H 계열의 `NRF_RESETINFO` 아님) |
 | WFI 기상과 마스크(F9) | **BASEPRI 는 기상을 막는다. PRIMASK 는 막지 않는다.** 슬립 창에서 BASEPRI 를 걸어 두면 안 된다 (§7 F9) |
-| 지원 보드 | `nu54dk` = NU54-DK / **nRF54L05**(500KB/96KB), `nu54vdk` = NU54V-DK / nRF54L15(1.5MB/256KB). 핀맵 동일, variant 공유 |
+| 지원 보드 | `nu54dk` = NU54-DK / **nRF54L05**(500KB/96KB), `nu54vdk` = NU54V-DK / nRF54L15(1.5MB/256KB). ⚠ **PCB 가 다르다 — variant 를 분리했다** (2026-09-12). NU54V 는 온보드 CMSIS-DAP·PMIC·Qwiic·30핀 헤더 |
 | 실장 칩 판별 | `FICR INFO.PART` @ `0x00FFC31C` — `0x00054B05` = L05, `0x00054B15` = L15 |
 
 시간이 지나면 위 값도 바뀔 수 있다. 재확인이 필요하면 §10 M0의 절차를 다시 밟고 이 표를 갱신하라.
@@ -231,7 +231,8 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 
 | 보드 | 칩 | variant | 문서 |
 |---|---|---|---|
-| NU54-DK / NU54V-DK | nRF54L05 / nRF54L15 | `nu54dk` (공유) | `docs/boards/NU54-DK.md` |
+| NU54-DK | nRF54L05 | `nu54dk` | `docs/boards/NU54-DK.md` |
+| NU54V-DK | nRF54L15 | **`nu54vdk`** | `docs/boards/NU54V-DK.md` |
 | XIAO nRF54L15 / Sense | nRF54L15 | `xiao_nrf54l15` | `docs/boards/XIAO-nRF54L15.md` |
 | XIAO nRF54LM20A / Sense | nRF54LM20A (FCCSP98) | **없음 — M6** | `docs/boards/XIAO-nRF54LM20A.md` |
 

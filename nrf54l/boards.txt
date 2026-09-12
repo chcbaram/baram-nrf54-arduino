@@ -15,7 +15,7 @@ nu54vdk.name=NU54V-DK (nRF54L15)
 nu54vdk.build.arch=NRF54L
 nu54vdk.build.board=NU54VDK
 nu54vdk.build.core=nrf54l
-nu54vdk.build.variant=nu54dk
+nu54vdk.build.variant=nu54vdk
 nu54vdk.build.chip=NRF54L15_XXAA
 # 인자 없는 Bluefruit.begin() 의 **기본값**이다. 상한이 아니다 —
 # 실제 상한은 링커가 떼어 준 SoftDevice RAM 이고, 배분은 스케치가

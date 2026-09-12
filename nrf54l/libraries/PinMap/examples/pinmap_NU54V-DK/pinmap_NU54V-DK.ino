@@ -40,63 +40,42 @@
  'x' 는 **그 핀에서 그 함수를 쓸 수 없다** 는 뜻이다. 하드웨어가 없는 것이라
  코어가 나중에 지원해 주는 종류의 것이 아니다.
 
- P1 헤더
-   Pin GPIO   Name in sketch                PWM IRQ ADC  Only this pin
-   --- ------ ----------------------------- --- --- ---- ----------------------------------
-     1 P0.00  PIN_SERIAL_TX                 x   o   x
-     2 P0.01  PIN_SERIAL_RX                 x   o   x
-     3 GND
-     4 P0.02  PIN_SERIAL_CTS                x   o   x
-     5 P0.03  PIN_SERIAL_RTS                x   o   x    GRTC.PWM
-     6 P0.04  PIN_BUTTON4                   x   o   x    GRTC.LFCLKOUT
-     7 P1.00                                o   o   x    LFXO.XL1
-     8 GND
-     9 P1.01                                o   o   x    LFXO.XL2
-    10 P1.02  PIN_NFC1                      o   o   x    NFCT.NFC1
-    11 P1.03  PIN_NFC2                      o   o   x    NFCT.NFC2
-    12 P1.04  PIN_A0, A0                    o   o   AIN0 SAADC.AIN0, TAMPC.ASO[0]
-    13 GND
-    14 P1.05  PIN_A1, A1                    o   o   AIN1 RADIO.RADIO[6], SAADC.AIN1, TAMPC.ASI[0]
-    15 P1.06  PIN_A2, A2                    o   o   AIN2 SAADC.AIN2, TAMPC.ASO[1]
-    16 P1.07  PIN_A3, A3                    o   o   AIN3 SAADC.AIN3, TAMPC.ASI[1]
-    17 P1.08  PIN_BUTTON3                   o   o   x    SAADC.EXTREF, GRTC.CLK16M
-    18 GND
-    19 P1.09  PIN_BUTTON2                   o   o   x    RADIO.RADIO[0], TAMPC.ASO[2]
-    20 P1.10  PIN_LED2, LED_CONN, LED_BLUE  o   o   x    RADIO.RADIO[1], TAMPC.ASI[2]
-    21 P1.11  PIN_A4, PIN_WIRE_SDA, A4, SDA o   o   AIN4 RADIO.RADIO[2], SAADC.AIN4, TAMPC.ASO[3]
-    22 SWDCLK
-    23 SWDIO
-    24 GND
-    25 GND
+ P2 헤더 (30핀)
+   Pin GPIO   Board          Name in sketch                 PWM IRQ ADC  Only this pin
+   --- ------ -------------- ------------------------------ --- --- ---- ----------------------------------
+     9 P1.07  A3 / UART2 CTS PIN_A3, PIN_SERIAL1_CTS, A3    o   o   AIN3 SAADC.AIN3, TAMPC.ASI[1]
+    10 P1.06  A2 / UART2 RTS PIN_A2, PIN_SERIAL1_RTS, A2    o   o   AIN2 SAADC.AIN2, TAMPC.ASO[1]
+    11 P1.05  A1 / UART2 RX  PIN_A1, PIN_SERIAL1_RX, A1     o   o   AIN1 RADIO.RADIO[6], SAADC.AIN1, TAMPC.ASI[0]
+    12 P1.04  A0 / UART2 TX  PIN_A0, PIN_SERIAL1_TX, A0     o   o   AIN0 SAADC.AIN0, TAMPC.ASO[0]
+    16 P1.08  SW3            PIN_BUTTON3                    o   o   x    SAADC.EXTREF, GRTC.CLK16M
+    17 P2.04  —              PIN_SPI_MISO, MISO             x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS20.SDI, UARTE20.CTS, sQSPI.D1
+    19 P2.05  —              SS                             x   x   x    SPIM/SPIS00.CS, UARTE00.RTS, SPIM/SPIS20.CS, UARTE20.RTS, sQSPI.CSN
+    20 P2.06  —                                             x   x   x    SPIM/SPIS00.SCK, SPIM/SPIS21.SCK
+    21 P2.07  LED3 / SWO     PIN_LED3                       x   x   x    SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS21.DCX, UARTE21.RXD
+    22 P2.08  PMIC           PIN_PMIC_SB2                   x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS21.SDO, UARTE21.TXD
+    23 P2.09  LED1           PIN_LED1, LED_BUILTIN, LED_RED x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS21.SDI, UARTE21.CTS
+    24 P2.10  PMIC           PIN_PMIC_SB3                   x   x   x    SPIM/SPIS00.CS, UARTE00.RTS, SPIM/SPIS21.CS, UARTE21.RTS
+    25 P0.00  Serial TX      PIN_SERIAL_TX                  x   o   x
+    26 P0.01  Serial RX      PIN_SERIAL_RX                  x   o   x
 
- P3 헤더
-   Pin GPIO   Name in sketch                 PWM IRQ ADC  Only this pin
-   --- ------ ------------------------------ --- --- ---- ----------------------------------
-     1 GND
-     2 GND
-     3 RESET
-     4 P1.12  PIN_A5, PIN_WIRE_SCL, A5, SCL  o   o   AIN5 RADIO.RADIO[3], SAADC.AIN5, TAMPC.ASI[3]
-     5 P1.13  PIN_BUTTON1, PIN_A6, A6        o   o   AIN6 RADIO.RADIO[4], SAADC.AIN6
-     6 P1.14  PIN_LED4, PIN_A7, A7           o   o   AIN7 RADIO.RADIO[5], SAADC.AIN7
-     7 P2.10                                 x   x   x    SPIM/SPIS00.CS, UARTE00.RTS, SPIM/SPIS21.CS, UARTE21.RTS
-     8 GND
-     9 P2.09  PIN_LED1, LED_BUILTIN, LED_RED x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS21.SDI, UARTE21.CTS
-    10 P2.08                                 x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS21.SDO, UARTE21.TXD
-    11 P2.07  PIN_LED3                       x   x   x    SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS21.DCX, UARTE21.RXD
-    12 P2.06                                 x   x   x    SPIM/SPIS00.SCK, SPIM/SPIS21.SCK
-    13 GND
-    14 P2.05  SS                             x   x   x    SPIM/SPIS00.CS, UARTE00.RTS, SPIM/SPIS20.CS, UARTE20.RTS, sQSPI.CSN
-    15 P2.04  PIN_SPI_MISO, MISO             x   x   x    SPIM/SPIS00.SDI, UARTE00.CTS, SPIM/SPIS20.SDI, UARTE20.CTS, sQSPI.D1
-    16 P2.03                                 x   x   x    sQSPI.D2
-    17 P2.02  PIN_SPI_MOSI, MOSI             x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS20.SDO, UARTE20.TXD, sQSPI.D0
-    18 GND
-    19 P2.01  PIN_SPI_SCK, SCK               x   x   x    SPIM/SPIS00.SCK, SPIM/SPIS20.SCK, sQSPI.SCK
-    20 P2.00                                 x   x   x    SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS20.DCX, UARTE20.RXD, sQSPI.D3
-    21 VMCU
-    22 3V3
-    23 GND
-    24 GND
-    25 VIN
+ P4 헤더 (30핀)
+   Pin GPIO   Board      Name in sketch               PWM IRQ ADC  Only this pin
+   --- ------ ---------- ---------------------------- --- --- ---- ----------------------------------
+     4 P0.02  Serial CTS PIN_SERIAL_CTS               x   o   x
+     5 P0.03  Serial RTS PIN_SERIAL_RTS               x   o   x    GRTC.PWM
+     6 P0.04  SW4        PIN_BUTTON4                  x   o   x    GRTC.LFCLKOUT
+     7 P1.09  SW2        PIN_BUTTON2                  o   o   x    RADIO.RADIO[0], TAMPC.ASO[2]
+     8 P1.10  LED2       PIN_LED2, LED_CONN, LED_BLUE o   o   x    RADIO.RADIO[1], TAMPC.ASI[2]
+     9 P1.11  A4 / PMIC  PIN_A4, PIN_PMIC_SB1, A4     o   o   AIN4 RADIO.RADIO[2], SAADC.AIN4, TAMPC.ASO[3]
+    10 P1.12  A5 / PMIC  PIN_A5, PIN_PMIC_SB4, A5     o   o   AIN5 RADIO.RADIO[3], SAADC.AIN5, TAMPC.ASI[3]
+    11 P1.13  SW1 / A6   PIN_BUTTON1, PIN_A6, A6      o   o   AIN6 RADIO.RADIO[4], SAADC.AIN6
+    12 P1.14  LED4 / A7  PIN_LED4, PIN_A7, A7         o   o   AIN7 RADIO.RADIO[5], SAADC.AIN7
+    16 P1.02  Qwiic SDA  PIN_WIRE_SDA, SDA            o   o   x    NFCT.NFC1
+    17 P1.03  Qwiic SCL  PIN_WIRE_SCL, SCL            o   o   x    NFCT.NFC2
+    19 P2.00  —                                       x   x   x    SPIM/SPIS00.DCX, UARTE00.RXD, SPIM/SPIS20.DCX, UARTE20.RXD, sQSPI.D3
+    20 P2.01  —          PIN_SPI_SCK, SCK             x   x   x    SPIM/SPIS00.SCK, SPIM/SPIS20.SCK, sQSPI.SCK
+    21 P2.02  —          PIN_SPI_MOSI, MOSI           x   x   x    SPIM/SPIS00.SDO, UARTE00.TXD, SPIM/SPIS20.SDO, UARTE20.TXD, sQSPI.D0
+    22 P2.03  —                                       x   x   x    sQSPI.D2
 
 
  baram-nrf54l-arduino - MIT license

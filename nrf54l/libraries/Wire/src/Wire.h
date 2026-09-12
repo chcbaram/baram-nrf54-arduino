@@ -42,6 +42,16 @@ class TwoWire : public Stream
     TwoWire(NRF_TWIM_Type *twim, uint32_t pin_sda, uint32_t pin_scl);
 
     void begin(void);
+
+    /**
+     * 핀을 바꾼다. `begin()` 전에 부르는 것이 보통이지만, 이미 돌고 있으면
+     * 내렸다가 다시 올린다 (SPIClass::setPins 와 같은 동작).
+     *
+     * ⚠ 인스턴스의 도메인을 벗어나면 안 된다 — TWIM20~22 는 P1,
+     *   TWIM30 은 P0 다. P2 에는 TWIM 이 아예 없다
+     *   (docs/PERIPHERAL-PINMAP.md §0).
+     */
+    void setPins(uint32_t pin_sda, uint32_t pin_scl);
     void end(void);
 
     /** 100000 / 250000 / 400000 만 의미가 있다. 그 밖의 값은 가까운 쪽으로 내린다. */

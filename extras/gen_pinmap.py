@@ -539,7 +539,7 @@ CHIPS = [
 
 BOARDS = [
     ('NU54-DK',        'nRF54L05', 'nrf54l05',  'qfn48-6x6-qfaa', 'NU54-DK.md',        'nu54dk'),
-    ('NU54V-DK',       'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'NU54-DK.md',        'nu54dk'),
+    ('NU54V-DK',       'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'NU54V-DK.md',       'nu54vdk'),
     ('XIAO_nRF54L15',  'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'XIAO-nRF54L15.md',  'xiao_nrf54l15'),
     # variant 없음 — M6 대기. 표는 docs/boards 와 Pin Planner 만으로 만들어진다.
     ('XIAO_nRF54LM20A', 'nRF54LM20A', 'nrf54lm20a', 'fccsp98-3.67x3.85-paaa',
