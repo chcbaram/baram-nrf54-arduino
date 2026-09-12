@@ -67,6 +67,75 @@ void initVariant(void);
 #include "variant.h"
 
 /*
+ * ── Arduino 표준 매크로 ──────────────────────────────────────────────
+ *
+ * 스케치와 라이브러리가 당연히 있다고 가정하는 것들이다. 하나라도 없으면
+ * 엉뚱한 곳에서 "was not declared in this scope" 가 난다 —
+ * `Adafruit_seesaw` 가 `constrain` 에서 그렇게 깨졌다.
+ *
+ * ⚠ `min`/`max` 는 C++ 에서 `<algorithm>` 과 충돌하므로 건드리지 않는다.
+ *   Arduino 는 C++ 빌드에서 이 둘을 표준 템플릿에 맡긴다.
+ */
+#ifndef abs
+  #define abs(x)         ((x) > 0 ? (x) : -(x))
+#endif
+#define constrain(amt, low, high)  ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
+#define round(x)         ((x) >= 0 ? (long)((x) + 0.5) : (long)((x) - 0.5))
+#define radians(deg)     ((deg) * DEG_TO_RAD)
+#define degrees(rad)     ((rad) * RAD_TO_DEG)
+#define sq(x)            ((x) * (x))
+
+#define lowByte(w)       ((uint8_t) ((w) & 0xff))
+#define highByte(w)      ((uint8_t) ((w) >> 8))
+
+#define bitRead(value, bit)            (((value) >> (bit)) & 0x01ul)
+#define bitSet(value, bit)             ((value) |= (1UL << (bit)))
+#define bitClear(value, bit)           ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+#ifndef bit
+  #define bit(b)         (1UL << (b))
+#endif
+
+/*
+ * ── AVR 호환 포트 셰임 ───────────────────────────────────────────────
+ *
+ * `Adafruit_BusIO` 를 비롯한 라이브러리들이 AVR 시절의 포트 매크로를 쓴다.
+ * 없으면 **I2C 만 쓰는 스케치도** 컴파일이 깨진다 — BusIO 의 SPI 쪽 소스가
+ * 조건 없이 컴파일되기 때문이다. Adafruit nRF52 코어와 같은 이름·의미로 둔다
+ * (CLAUDE.md R12).
+ *
+ * ⚠ **Adafruit 판을 그대로 쓸 수 없다.** 그쪽은 포트가 둘(P0/P1)이라
+ *   `abs < 32 ? NRF_P0 : NRF_P1` 로 끝나는데, nRF54L 은 **셋**(P0/P1/P2)이고
+ *   nRF54LM20A 는 **넷**이다 (docs/boards/NU54-DK.md 의 주의 사항).
+ */
+static inline NRF_GPIO_Type *nrf54lPortRegs(uint32_t abs_pin)
+{
+  switch (abs_pin >> 5) {
+    case 0:  return NRF_P0;
+    case 1:  return NRF_P1;
+#if defined(NRF_P3)
+    case 3:  return NRF_P3;
+#endif
+    default: return NRF_P2;
+  }
+}
+
+#define digitalPinToPort(P)      ( nrf54lPortRegs(g_ADigitalPinMap[P]) )
+#define digitalPinToBitMask(P)   ( 1UL << (g_ADigitalPinMap[P] & 31) )
+#define digitalPinToPinName(P)   ( g_ADigitalPinMap[P] )
+
+#define portOutputRegister(port) ( &((port)->OUT) )
+#define portInputRegister(port)  ( (volatile uint32_t *) &((port)->IN) )
+#define portModeRegister(port)   ( &((port)->DIR) )
+
+/*
+ * ⚠ Adafruit 은 `digitalPinHasPWM(P)` 를 `P > 1` 로 대충 정의해 두었다.
+ *   우리는 진짜로 답할 수 있다 — PWM20/21/22 가 전부 도메인 20 이라
+ *   **P1 에만** 붙는다 (LM20A 는 P3 도). 표는 Pin Planner 에서 생성된다.
+ */
+#define digitalPinHasPWM(P)      ( NRF54L_SIG_PWM20_CHAN_0(g_ADigitalPinMap[P]) )
+
+/*
  * 인터럽트 마스킹 (Arduino 표준 API).
  *
  * ⚠ **`__disable_irq()`(PRIMASK)를 쓰면 안 된다.** 그건 SoftDevice 의

@@ -303,10 +303,45 @@ nRF54L05 는 3개(기본 peripheral 2 + central 1)까지 RAM 이 잡혀 있다.
 남는다. 재연결 시 CCCD 를 복원한다.
 
 **HID** — `BLEHidAdafruit`. 키보드 / 마우스 / 컨슈머(미디어)키를 하나의 복합
-리포트 디스크립터로 제공한다.
+리포트 디스크립터로 제공한다. `BLEHidGamepad` 와, 다른 기기의 키보드·마우스를
+읽는 `BLEClientHidAdafruit` 도 있다.
 
-**예정** — `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
-부트로더와 UART / BLE OTA DFU (M4).
+**그 밖의 BLE 서비스** — `BLEMidi`(BLE-MIDI 1.0), `BLEClientCts`(페어링된 폰에서
+시각 읽기), `BLEAncs`(iPhone 알림 수신).
+
+**페리페럴** — `Wire`(I2C), `SPI`, `attachInterrupt`, `analogWrite`(PWM),
+`analogRead`(SAADC). 다섯 개 모두 실기 검증했다.
+
+⚠ **nRF54L 은 페리페럴이 GPIO 포트에 묶여 있다.** 아무 핀에나 붙던 nRF52 와 다르다.
+PWM 과 ADC 는 **P1 에만**, 핀 인터럽트는 P1·P0 에 되고 **P2 에는 안 된다**,
+`SPI` 는 P2 에서 돌고 신호마다 가능한 핀이 **두 개씩**이다.
+잘못 배정하면 **쓸 수 있는 핀을 알려주며 빌드가 멈춘다.** 칩별·보드별 전체 표는
+동봉된 **PinMap** 예제에 있다 — **파일 → 예제 → PinMap**.
+
+⚠ **`analogRead` 의 전압 구성이 nRF52 와 다르다.** 내부 기준전압이 600 mV 가 아니라
+**900 mV** 이고, 1/6 게인과 VDD/4 기준이 없다. Adafruit 의 `AR_DEFAULT`(3.6 V)와
+`AR_INTERNAL_1_8` 은 정확히 맞지만, `AR_INTERNAL_3_0` 은 실제 3.15 V,
+`AR_INTERNAL_2_4` 는 2.25 V, `AR_INTERNAL_1_2` 는 1.35 V 이고 `AR_VDD4` 는 3.6 V 로
+대체된다. **`analogReadMillivolts()` 를 쓰면 이 차이에 걸리지 않는다.**
+
+**제3자 라이브러리** — `Adafruit_BusIO` 가 동작하므로 Adafruit 센서 계열이 컴파일된다:
+`Adafruit_BME280`, `Adafruit_seesaw`, `Adafruit_GFX` 를 쓰는 `Adafruit_ST7735/ST7789`,
+그리고 `SdFat`, Arduino `SD`, `MIDI_Library`, `ArduinoJson`,
+`Seeed_Arduino_LSM6DS3`. **어디까지 컴파일만 됐고 어디까지 실기로 확인했는지**는
+[docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md) 에 구분해 적어 두었다.
+
+**부분 지원**
+
+- **`Wire` 는 master 전용**이다. target(slave) 은 구현하지 않았다.
+- **`Servo`** 는 빌드되지 않는다. 라이브러리 자신이 모르는 아키텍처를 `#error` 로
+  막는다. 서보는 `analogWrite()` 로 직접 몰 수 있고, 50 Hz 프레임은
+  `analogWriteResolution()` 으로 맞춘다.
+- **센서 라이브러리가 엉뚱한 버스를 잡을 수 있다.** `Seeed_Arduino_LSM6DS3` 는
+  특정 Seeed 보드 매크로에서만 `Wire1` 로 바꾸므로, 이 코어에서는 헤더 쪽 `Wire` 를
+  보고 0 을 읽는다. `bme.begin(0x76, &Wire1)` 처럼 **버스를 인자로 받는** 라이브러리를
+  쓰는 편이 안전하다.
+
+**예정** — 부트로더와 UART / BLE OTA DFU (M4).
 
 **미지원**
 

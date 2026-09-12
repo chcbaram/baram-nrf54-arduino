@@ -1125,12 +1125,21 @@ tickless는 **틱이 안정된 뒤에 켠다.** 둘을 동시에 켜면 틱 버�
 - [x] `SPI` (SPIM00) — SPI 플래시 JEDEC ID + SD 카드로 실기 확인 (`docs/STATUS.md` §2.12)
 - [x] `attachInterrupt` (GPIOTE) — GPIOTE20(P1)/GPIOTE30(P0) 양쪽 실기 확인 (`docs/HIL/M2-interrupt.md`). **P2 는 담당 GPIOTE 가 없어 불가**
 - [ ] `SchedulerRTOS` — Adafruit `rtos.h`와 동일 시그니처
-- [ ] AVR 호환 셰임: `avr/pgmspace.h` (`PROGMEM` 빈 매크로, `pgm_read_byte()` 역참조)
+- [x] AVR 호환 셰임 — 포트 매크로(`digitalPinToPort` 등) + Arduino 표준 매크로
+      (`constrain`/`round`/`sq`/`bitRead` …) + `pins_arduino.h`.
+      **이것이 없으면 `Adafruit_BusIO` 를 쓰는 센서가 전부 컴파일 실패한다**
+      (I2C 만 쓰는 스케치여도 — BusIO 의 SPI 소스가 함께 컴파일된다).
+      결과는 `docs/LIBRARY-COMPAT.md`
+- [ ] `avr/pgmspace.h` (`PROGMEM` 빈 매크로, `pgm_read_byte()` 역참조)
 
 **DoD**: Adafruit `rtos_scheduler.ino`가 수정 없이 동작. I2C 센서 라이브러리 1종 동작.
-⚠ **센서 라이브러리 항목은 `SPI` 가 먼저다.** `Adafruit_BusIO` 를 비롯한 라이브러리들이
-I2C 만 쓰면서도 `SPI.h` 를 조건 없이 include 해서, 헤더가 없으면 컴파일이 안 된다.
 UART/SPI/I2C는 두 보드 간 통신 또는 루프백으로 양방향 데이터를 실기 검증하고 결과를 `docs/HIL/`에 기록.
+
+DoD 의 "I2C 센서 라이브러리" 는 이렇게 정리했다 (`docs/LIBRARY-COMPAT.md`):
+**`Wire` 자체는 실기 검증됐다** — XIAO 온보드 IMU 를 `Wire1` 로 읽는다.
+제3자 센서 라이브러리는 `Adafruit_BME280` · `Adafruit_seesaw` · `Seeed_Arduino_LSM6DS3`
+등이 **컴파일된다** (셰임을 넣기 전에는 전부 실패했다). 센서 부품이 없어 실기로
+값을 읽어 본 것은 아직 온보드 IMU 뿐이다. README 에는 그 구분을 그대로 적는다.
 
 ### M3 — BLE
 
@@ -1212,7 +1221,7 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 - [ ] `boards.txt`, `platform.txt`, `package_*_index.json`
 - [ ] 라이선스 파일 정리 (§9), README
 - [ ] 예제 스케치 (Adafruit 예제 포팅)
-- [ ] 라이브러리 호환성 컴파일 테스트 결과 → `docs/LIBRARY-COMPAT.md`
+- [x] 라이브러리 호환성 컴파일 테스트 결과 → `docs/LIBRARY-COMPAT.md` (M2 에서 선행)
 - [ ] README에 **지원 범위 밖**을 명시: "이 코어는 BLE 애플리케이션용이다.
       Matter / Thread / Zigbee / LE Audio / 802.15.4는 지원 범위 밖이며 계획에도 없다."
       범위를 넓게 선언하면 나중에 요구가 들어왔을 때 방어선이 없다. NU54DK가 로드맵에

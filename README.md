@@ -313,10 +313,47 @@ Connections (P-256, via micro-ecc). Keys live in an RRAM partition outside the
 application, so they survive a firmware update. CCCDs are restored on reconnect.
 
 **HID** — `BLEHidAdafruit` with keyboard, mouse and consumer (media) keys over a
-composite report descriptor.
+composite report descriptor, plus `BLEHidGamepad`, and `BLEClientHidAdafruit` for
+reading another device's keyboard or mouse.
 
-**Coming** — `analogRead` / `analogWrite`, `Wire`, `SPI`, `attachInterrupt` (M2),
-and a bootloader with UART and BLE OTA DFU (M4).
+**Other BLE services** — `BLEMidi` (BLE-MIDI 1.0), `BLEClientCts` (read the time
+from a paired phone) and `BLEAncs` (iPhone notifications).
+
+**Peripherals** — `Wire` (I2C), `SPI`, `attachInterrupt`, `analogWrite` (PWM) and
+`analogRead` (SAADC). All five are verified on hardware.
+
+⚠ **Peripherals are tied to a GPIO port** on nRF54L, unlike nRF52 where any pin
+could take any peripheral. PWM and the ADC reach **P1 only**; pin interrupts reach
+P1 and P0 but **never P2**; `SPI` runs on P2 and each signal has just two possible
+pins. A wrong assignment fails the build with the pins that would have worked, and
+the bundled **PinMap** examples carry the full table for each chip and board — open
+**File → Examples → PinMap**.
+
+⚠ **`analogRead` voltages differ from nRF52.** The internal reference is 900 mV
+rather than 600, and there is no 1/6 gain and no VDD/4 reference. Adafruit's
+`AR_DEFAULT` (3.6 V) and `AR_INTERNAL_1_8` are exact; `AR_INTERNAL_3_0` is really
+3.15 V, `AR_INTERNAL_2_4` is 2.25 V, `AR_INTERNAL_1_2` is 1.35 V, and `AR_VDD4`
+falls back to 3.6 V. Call `analogReadMillivolts()` and none of that matters.
+
+**Third-party libraries** — `Adafruit_BusIO` works, so the Adafruit sensor family
+compiles: `Adafruit_BME280`, `Adafruit_seesaw`, `Adafruit_ST7735/ST7789` with
+`Adafruit_GFX`, along with `SdFat`, Arduino `SD`, `MIDI_Library`, `ArduinoJson` and
+`Seeed_Arduino_LSM6DS3`. The measurements, and which of those have been run on real
+hardware rather than only compiled, are in
+[docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md).
+
+**Partially supported**
+
+- **`Wire` is master only.** Target (slave) mode is not implemented.
+- **`Servo`** does not build — the library itself rejects any architecture it does
+  not recognise with an `#error`. Drive a servo with `analogWrite()` instead, using
+  `analogWriteResolution()` to reach the 50 Hz servo frame.
+- **A sensor library may still address the wrong bus.** `Seeed_Arduino_LSM6DS3`
+  only substitutes `Wire1` for specific Seeed board macros, so on this core it talks
+  to the header `Wire` and reads zeros. Prefer libraries that take the bus as an
+  argument, such as `bme.begin(0x76, &Wire1)`.
+
+**Coming** — a bootloader with UART and BLE OTA DFU (M4).
 
 **Not supported**
 

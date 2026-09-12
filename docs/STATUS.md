@@ -97,22 +97,18 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 | ~~`analogRead`(SAADC)~~ | ✅ **끝났다 (§2.16).** 0V/3.3V 절대값으로 확인 |
 | 전류 측정 | M1 을 닫는 마지막 항목. 프로브 분리 필수 (§7 F8) |
 
-⚠ **M2 DoD 의 "I2C 센서 라이브러리 1종 동작" 이 아직 안 끝났다.** SPI 가 생겨
-`Seeed_Arduino_LSM6DS3` 는 컴파일되지만 **값이 0 으로만 나온다** — 그 라이브러리가
-`Wire`->`Wire1` 치환을 **특정 Seeed 보드 매크로**(`TARGET_SEEED_XIAO_NRF52840_SENSE`
-등)에만 걸어 두어서, 우리 보드에서는 헤더 쪽 `Wire` 를 쓴다. 거기엔 아무것도 없다.
-**우리 버그가 아니다** (I2C 자체는 §2.11 에서 확인됐다).
-→ 버스를 인자로 받는 라이브러리를 쓰거나, 센서를 `Wire`(헤더) 쪽에 붙여 재시험하라.
+✅ **M2 DoD 의 "I2C 센서 라이브러리" 는 정리됐다** (`docs/LIBRARY-COMPAT.md`).
+`Wire` 자체는 실기 검증됐고(XIAO 온보드 IMU), 제3자 센서 라이브러리는
+`Adafruit_BME280` · `Adafruit_seesaw` · `Seeed_Arduino_LSM6DS3` 등이 컴파일된다.
+**셰임 세 벌을 넣기 전에는 전부 실패했다** — AVR 포트 매크로, Arduino 표준
+매크로(`constrain` 등), `pins_arduino.h`. 센서 부품이 없어 실기로 값을 읽은 것은
+아직 온보드 IMU 뿐이고, README 에 그 구분을 적는다.
 
-⚠ **`Adafruit_BusIO` 는 아직 못 쓴다.** `digitalPinToPort` / `portOutputRegister` /
-`digitalPinToBitMask` 를 요구하는데 우리 코어에 없다. **Adafruit 센서 라이브러리
-대부분이 BusIO 를 거치므로** 이 셰임을 넣을지는 별도 판단이다 (AVR 식 고속 GPIO
-매크로라 §11 의 AVR 셰임과 같은 성격이다).
 ~~5. **처리량 실측**~~ — ✅ **끝났다 (§2.6).** 맥 상대 양방향 26~28 KB/s.
    notify 큐 깊이는 병목이 아니었다. 남은 것은 iOS 쪽 수치뿐이다
 
-그 다음이 M2 다 (`Wire`(TWIM) -> `attachInterrupt`/`analogWrite` -> `SPI`/`analogRead`),
-그리고 전류 측정으로 M1 을 닫는다. **M2 착수 전에 CLAUDE.md §7 F10 ④ 체크리스트를
+M2 의 페리페럴은 전부 끝났다 (`Wire` · `SPI` · `attachInterrupt` · `analogWrite` ·
+`analogRead`). 남은 것은 전류 측정으로 M1 을 닫는 것이다. **M2 착수 전에 CLAUDE.md §7 F10 ④ 체크리스트를
 반드시 읽어라** — 같은 번호대 SERIAL 블록 충돌(`docs/PERIPHERAL-PINMAP.md` §0)과
 다중 인스턴스 IRQ 직접 연결이 그대로 재발한다.
 
@@ -1175,12 +1171,15 @@ M1 에서 UARTE·GRTC 로 태운 함정들이 이번엔 하나도 재발하지 �
   `endTransmission()` 이 1 을 돌려준다
 - ⚠ **master 전용이다.** target(slave)은 없다 — TWIS 로 따로 만들어야 한다
 
-#### ⚠ M2 DoD 가 SPI 에 걸려 있다
+#### M2 DoD 가 SPI 에 걸려 있었다 — ✅ 풀렸다
 
 "I2C 센서 라이브러리 1종 동작" 을 하려 했는데 **라이브러리들이 `SPI.h` 를 조건 없이
-include 한다.** `Adafruit_BusIO`(거의 모든 Adafruit 센서가 쓴다)도,
+include 했다.** `Adafruit_BusIO`(거의 모든 Adafruit 센서가 쓴다)도,
 `Seeed_Arduino_LSM6DS3` 도 그렇다. **I2C 만 쓰는 코드여도 헤더가 없으면 컴파일이
-안 된다.** 그래서 `SPI` 를 `attachInterrupt` 보다 먼저 해야 한다.
+안 된다.** 그래서 `SPI` 를 `attachInterrupt` 보다 먼저 했다.
+
+`SPI` 만으로는 부족했고 셰임 세 벌이 더 필요했다 — AVR 포트 매크로,
+Arduino 표준 매크로, `pins_arduino.h`. 전체 결과는 `docs/LIBRARY-COMPAT.md`.
 
 ---
 
