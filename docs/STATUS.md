@@ -80,7 +80,7 @@ XIAO nRF54L15 + Mac(bleak) / 폰(nRF Connect) / NU54-DK 로 확인한 것:
 
 ~~1. **`BLEMidi`**~~ — ✅ **끝났다 (§2.7).** 양방향 실기 확인.
    상류 원본 `blemidi.ino` 가 include 3줄 삭제만으로 컴파일된다
-2. **`BLEClientCts`** — B9 클라이언트 위에 얹는다. iPhone 이 CTS 서버다
+~~2. **`BLEClientCts`**~~ — ✅ **끝났다 (§2.8).** iPhone 상대로 시각·시간대 확인
 3. **`BLEAncs`** — B13b 중 가장 크다. 본딩 + iPhone 필요
 4. **`BLEClientHidAdafruit`** — 상대 HID 기기가 필요하다. BLE 키보드 실물이 없으면
    보드 2대(한쪽에 `blehid_keyboard`)로 시험한다.
@@ -235,7 +235,8 @@ SoftDevice S145 가 뜨고 advertising 이 공중에서 잡히며 연결까지 �
 | ~~**B13a**~~ ✅ | `BLEHidGamepad` | **완료.** Mac 에서 리포트 수신 확인 (§B13a) |
 | ~~**B13c**~~ ✅ | **처리량 API** — `requestPHY` / DLE / MTU 협상 + 실측 | **완료.** 맥 상대 26~28 KB/s (§2.6) |
 | ~~**B13b-1**~~ ✅ | **`BLEMidi`** — BLE-MIDI 1.0 | **완료.** 양방향 실기 확인 (§2.7) |
-| B13b (남음) | `BLEClientHidAdafruit`, `BLEAncs`/`BLEClientCts` | |
+| ~~**B13b-2**~~ ✅ | **`BLEClientCts`** — 폰의 시계를 읽는다 | **완료.** iPhone 상대 실기 확인 (§2.8) |
+| B13b (남음) | `BLEClientHidAdafruit`, `BLEAncs` | |
 
 지금 위치: **M3 DoD 달성.** Adafruit 원본 `bleuart.ino` 가
 `#include <Adafruit_LittleFS.h>` / `<InternalFileSystem.h>` **두 줄 삭제만으로**
@@ -908,6 +909,72 @@ Dropped - re-pair to get notifications back.
 찾는 데 오래 걸렸다. 해결은 양쪽을 지우는 것이다 — 보드는 `clearbonds`,
 호스트는 Bluetooth 설정에서 기기 삭제. **한쪽만 지우면**
 `Peer removed pairing information` 으로 연결 자체가 거부된다 (실제로 겪었다).
+
+---
+
+## 2.8 `BLEClientCts` — ✅ (2026-09-12)
+
+폰의 시계를 읽는다. 보드가 **peripheral 인데 GATT 클라이언트**인 구성이라
+`BLEClientService`(B9) 위에 얹었다. 예제는 `examples/Peripheral/client_cts` 다 —
+상류도 Central 이 아니라 Peripheral 아래 둔다.
+
+**실기 (XIAO + iPhone, nRF Connect 로 연결):**
+
+```
+Connected. Asking to pair.
+Link secured, looking for the Current Time service
+  found
+time: 2026-09-12 10:29:48  weekday=6  adjust=0x02
+timezone: 36 quarter-hours, dst offset 0
+```
+
+호스트 시계와 초까지 일치. `weekday=6` = 토요일, `timezone 36` × 15분 = **+9시간(KST)**.
+
+#### ⚠ 라이브러리 버그를 찾았다 — 보안 콜백이 이벤트 태스크에서 돌고 있었다
+
+**이것이 이번 작업의 본체다.** 상류 `client_cts` 는 `secured` 콜백 안에서
+`discover()` 를 부르는데, 그 콜백만 `_cb_queue` 를 안 타고 **BLE 이벤트 태스크에서
+직접** 불리고 있었다. 탐색은 응답 이벤트를 기다리는 블로킹 절차라, 기다리는 이벤트를
+처리할 주체가 자기 자신이 되어 영영 오지 않는다. B7 에서 연결 콜백을 옮긴 것과 같은
+문제인데 보안 콜백만 빠져 있었다.
+
+진단이 결정적이었다 — **같은 코드를 두 컨텍스트에서 돌려 비교했다**:
+
+| 어디서 | 결과 |
+|---|---|
+| `secured` 콜백 안 | `service=-` / `discover=FAIL` |
+| `loop()` 안 | `service=FOUND (29..34)` / `discover=OK` / 시각 정상 |
+
+→ `BLE_CB_SECURED` 를 추가해 연결·해제와 같은 큐로 보냈다
+(`bluefruit.cpp`, `BLESecurity::_invokeSecuredCallback`).
+**안 고쳤으면 상류 스케치가 우리 코어에서 조용히 실패한다** (R12).
+
+⚠ 증상이 사람을 엉뚱한 곳으로 보낸다. 폰은 멀쩡하고, 광고도 정상이고, 같은 코드가
+`loop()` 에서는 된다. 게다가 내가 예제에 쓴 실패 메시지가
+`not found - the peer does not publish one` 이라 **원인이 상대에게 있는 것처럼
+읽혔다.** 실패 메시지에 원인을 단정해 적으면 안 된다 — 그 문구도 고쳤다.
+
+#### 그 밖에 없어서 새로 만든 것
+
+- **`Advertising.addService(BLEClientService&)`** — 상류 예제가 부르는데 우리에겐
+  `BLEService&` 판만 있었다. 상류를 보니 일반 서비스 목록이 아니라
+  **Solicitation UUID**(`0x14`/`0x15`)로 싣는다. "내가 제공한다" 가 아니라
+  **"당신이 가졌다면 붙어 달라"** 는 정반대 의미다. iOS 는 CTS·ANCS 를 이 방식으로만
+  열어 준다. **`BLEAncs` 에도 그대로 필요하다**
+- `UUID16_CHR_LOCAL_TIME_INFORMATION`(0x2A0F) 이 표에 없어 추가
+- 수신 알림의 길이 검사 — 상류는 받은 길이를 그대로 `memcpy` 해서, 상대가 규격보다
+  긴 값을 보내면 구조체 뒤를 넘어 쓴다
+
+#### 실기 시험에서 알아 둘 것
+
+- **iOS 설정 → Bluetooth 목록에 안 뜬다.** 요즘 iOS 는 일반 BLE 주변기기를 거기
+  잘 안 올린다 (상류 주석의 "Accessory 로 보인다" 는 옛 이야기다).
+  **nRF Connect 로 연결**하면 된다
+- 그런데 nRF Connect 는 **페어링을 걸지 않는다.** 그러면 링크가 암호화되지 않아
+  iOS 가 CTS 를 안 준다. → 예제가 연결 콜백에서 `conn->requestPairing()` 을 먼저
+  부른다. 상류에는 없는 부분이고, 없으면 아무 일도 안 일어난다
+- Local Time Information 은 **규격상 선택**이다. 없다고 실패시키면 안 된다
+  (iPhone 은 준다)
 
 ---
 
