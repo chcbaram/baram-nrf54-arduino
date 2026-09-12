@@ -67,11 +67,22 @@ uint8_t BLEClientService::discoverCharacteristics(void)
    * characteristic 마다 따로 훑으면 DIS 처럼 특성이 많을 때 그 수만큼 왕복한다.
    */
   ble_gattc_char_t found[BLE_CLIENT_CHAR_MAX];
+  uint8_t  matched = 0;
+  uint16_t next    = _hdl_range.start_handle;
+
+  /*
+   * ⚠ 한 번에 BLE_CLIENT_CHAR_MAX 개까지만 담을 수 있으므로 **범위를 나눠 여러 번**
+   *   훑는다. HID 처럼 characteristic 이 10개가 넘는 서비스가 실제로 있고,
+   *   한 번만 부르면 뒤쪽이 조용히 빠진다 — 부트 키보드 리포트가 그래서 안 잡혔다.
+   *   배열을 키우는 대신 나눠 도는 쪽을 골랐다: 스택에 들고 있는 크기가 서비스
+   *   크기에 따라 늘지 않는다.
+   */
+  while (next <= _hdl_range.end_handle) {
   uint8_t n = Bluefruit.Gatt.discoverChars(_conn_hdl,
-                                           _hdl_range.start_handle,
+                                           next,
                                            _hdl_range.end_handle,
                                            found, BLE_CLIENT_CHAR_MAX);
-  uint8_t matched = 0;
+  if (n == 0) break;
 
   for (uint8_t i = 0; i < _char_count; i++) {
     BLEClientCharacteristic *chr = _chars[i];
@@ -96,6 +107,11 @@ uint8_t BLEClientService::discoverCharacteristics(void)
       matched++;
       break;
     }
+  }
+
+    uint16_t last = found[n - 1].handle_value;
+    if (last >= _hdl_range.end_handle) break;
+    next = (uint16_t) (last + 1);
   }
   return matched;
 }
