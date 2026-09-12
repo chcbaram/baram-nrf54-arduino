@@ -80,6 +80,42 @@
               "version": "0.32.0"
             }
           ]
+        },
+        {
+          "name": "BARAM nRF54L Boards",
+          "architecture": "nrf54l",
+          "version": "0.3.0",
+          "category": "Contributed",
+          "url": "https://github.com/chcbaram/baram-nrf54-arduino/releases/download/0.3.0/baram-nrf54l-0.3.0.tar.bz2",
+          "archiveFileName": "baram-nrf54l-0.3.0.tar.bz2",
+          "checksum": "SHA-256:C09128C6AA6BD163CA3583A655676D19AD4A5ADAEF636F8ACD4C0009A71E48FD",
+          "size": "1825616",
+          "help": {
+            "online": "https://github.com/chcbaram/baram-nrf54-arduino"
+          },
+          "boards": [
+            {
+              "name": "NU54V-DK (nRF54L15)"
+            },
+            {
+              "name": "NU54-DK (nRF54L05)"
+            },
+            {
+              "name": "XIAO nRF54L15 / Sense (Seeed)"
+            }
+          ],
+          "toolsDependencies": [
+            {
+              "packager": "baram-nrf54",
+              "name": "xpack-arm-none-eabi-gcc",
+              "version": "14.2.1-1.1"
+            },
+            {
+              "packager": "baram-nrf54",
+              "name": "probe-rs",
+              "version": "0.32.0"
+            }
+          ]
         }
       ],
       "tools": [
