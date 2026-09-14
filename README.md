@@ -9,11 +9,12 @@ Bluefruit (nRF52) sketches keep working.**
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
 [![Status](https://img.shields.io/badge/status-M4%20(DFU)%20next-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ Early release — v0.3.0
+> ### ⚠ Early release — v0.4.0
 > **All the Arduino peripheral APIs are here** — `Wire`, `SPI`, `attachInterrupt`,
 > `analogWrite` and `analogRead`, each verified on hardware, alongside blink,
-> `Serial`, multitasking and tickless idle across three boards. The core installs
-> from Board Manager.
+> `Serial`, multitasking and tickless idle across four boards. The core installs
+> from Board Manager. **New in 0.4.0: the Seeed XIAO nRF54LM20A** — the first
+> nRF54LM20A board, with BLE, its PMIC and the Sense IMU verified on hardware.
 >
 > **BLE works in both the peripheral and central roles** — Adafruit's own
 > `bleuart` example runs with two `#include` lines removed, and MTU 247

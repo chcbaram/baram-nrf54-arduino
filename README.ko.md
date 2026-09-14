@@ -9,10 +9,12 @@
 [![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
 [![Status](https://img.shields.io/badge/status-M4%20(DFU)%20next-yellow.svg)](docs/STATUS.md)
 
-> ### ⚠ 초기 릴리스 — v0.3.0
+> ### ⚠ 초기 릴리스 — v0.4.0
 > **Arduino 페리페럴 API 가 전부 들어왔다** — `Wire` · `SPI` · `attachInterrupt` ·
 > `analogWrite` · `analogRead` 다섯 개를 모두 실기 검증했다. blink / `Serial` /
-> 멀티태스킹 / tickless idle 도 **보드 3종에서 동작**하고 Board Manager 로 설치된다.
+> 멀티태스킹 / tickless idle 도 **보드 4종에서 동작**하고 Board Manager 로 설치된다.
+> **0.4.0 에서 Seeed XIAO nRF54LM20A 가 추가됐다** — 첫 nRF54LM20A 보드이고,
+> BLE·PMIC·Sense IMU 까지 실기에서 확인했다.
 >
 > **BLE 는 peripheral 과 central 이 모두 동작한다** — Adafruit `bleuart` 원본
 > 예제가 `#include` 두 줄만 지우면 그대로 돌고, MTU 247 협상·다중 연결·
