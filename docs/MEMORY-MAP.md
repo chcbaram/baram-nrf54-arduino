@@ -1,58 +1,59 @@
-# 메모리 맵 — 칩별 (nRF54L05 / nRF54L15 / nRF54LM20A)
+# Memory map — per chip (nRF54L05 / nRF54L15 / nRF54LM20A)
 
-**이 문서는 칩 단위다.** 보드가 아니라 실장 칩이 배치를 정한다.
-보드별 핀맵은 `docs/boards/` 를 봐라.
+*[English](MEMORY-MAP.md) · [한국어](MEMORY-MAP.ko.md)*
 
-| 보드 | 칩 | 아래 어느 절을 쓰나 |
+**This document is per chip.** The fitted chip decides the layout, not the board.
+For board pin maps see `docs/boards/`.
+
+| Board | Chip | Section to use |
 |---|---|---|
-| NU54-DK | nRF54L05 | nRF54L05 절 |
-| NU54V-DK | nRF54L15 | nRF54L15 절 |
-| XIAO nRF54L15 / Sense | nRF54L15 | nRF54L15 절 (NU54V-DK 와 동일) |
-| XIAO nRF54LM20A / Sense | **nRF54LM20A** | nRF54LM20A 절 |
+| NU54-DK | nRF54L05 | nRF54L05 section |
+| NU54V-DK | nRF54L15 | nRF54L15 section |
+| XIAO nRF54L15 / Sense | nRF54L15 | nRF54L15 section (same as NU54V-DK) |
+| XIAO nRF54LM20A / Sense | **nRF54LM20A** | nRF54LM20A section |
 
-NU54-DK 와 NU54V-DK 는 회로도·핀맵이 동일하고 실장 모듈만 다르다.
-메모리 배치만 다르므로 링커 스크립트와 SoftDevice hex 를 나눠 둔다.
+NU54-DK and NU54V-DK have identical schematics and pin maps; only the fitted module differs.
+Only the memory layout differs, so the linker script and SoftDevice hex are kept separate.
 
 | | NU54-DK | NU54V-DK |
 |---|---|---|
-| 칩 | **nRF54L05** | nRF54L15 |
+| Chip | **nRF54L05** | nRF54L15 |
 | FQBN | `baram-nrf54:nrf54l:nu54dk` | `...:nu54vdk` |
 | RRAM | 500 KB | 1.5 MB |
 | RAM | 96 KB | 256 KB |
-| 링커 | `nrf54l05_s145_v10.ld` | `nrf54l15_s145_v10.ld` |
+| Linker | `nrf54l05_s145_v10.ld` | `nrf54l15_s145_v10.ld` |
 | SD hex | `s145_nrf54l05_...` (@0x5A800) | `s145_nrf54l15_...` (@0x15A800) |
 
-> ⚠ **nRF54L05 는 nRF54L15 와 같은 다이를 비닝한 것이다.**
-> 사양 밖 RRAM/RAM 이 물리적으로 존재해서, L15 설정으로 L05 를 구워도
-> 오류 없이 **그냥 동작해 버린다.** 실제로 M1 내내 그렇게 돌고 있었고
-> 아무 증상도 없었다. 보드를 잘못 고르면 조용히 사양을 벗어나므로,
-> 실장 칩은 FICR 로 확인한다:
+> ⚠ **The nRF54L05 is a binned nRF54L15 die.**
+> The out-of-spec RRAM/RAM physically exists, so flashing an L05 with L15 settings
+> **simply works, with no error.** It actually ran that way through all of M1 with no symptom.
+> Picking the wrong board silently goes out of spec, so check the fitted chip with FICR:
 >
 > ```
 > FICR INFO.PART     @ 0x00FFC31C   0x00054B05 = L05 / 0x00054B15 = L15
-> FICR INFO.VARIANT  @ 0x00FFC320   ASCII (기능 variant + HW 버전)
-> FICR INFO.PACKAGE  @ 0x00FFC324   ASCII (패키지 코드. 예 "CA")
-> FICR INFO.RAM      @ 0x00FFC328   KB 단위. 0x60 = 96 KB(L05) / 0x100 = 256 KB(L15)
-> FICR INFO.RRAM     @ 0x00FFC32C   KB 단위. 0x1F4 = 500 KB(L05) / 0x5F4 = 1524 KB(L15)
+> FICR INFO.VARIANT  @ 0x00FFC320   ASCII (feature variant + HW revision)
+> FICR INFO.PACKAGE  @ 0x00FFC324   ASCII (package code, e.g. "CA")
+> FICR INFO.RAM      @ 0x00FFC328   in KB. 0x60 = 96 KB (L05) / 0x100 = 256 KB (L15)
+> FICR INFO.RRAM     @ 0x00FFC32C   in KB. 0x1F4 = 500 KB (L05) / 0x5F4 = 1524 KB (L15)
 > ```
 >
-> nRF54LM20A 실측 (XIAO): PART `0x054BC20A` · PACKAGE `"PA"` · RAM `0x200` · RRAM `0x7F4`.
-> PART 형식이 L05/L15 와 다르다. **RAM `0x200`(512 KB)은 올림값이다** — 아래 nRF54LM20A 절.
+> nRF54LM20A measured (XIAO): PART `0x054BC20A` · PACKAGE `"PA"` · RAM `0x200` · RRAM `0x7F4`.
+> The PART format differs from L05/L15. **RAM `0x200` (512 KB) is rounded up** — see the nRF54LM20A section below.
 >
-> ⚠ 이 오프셋은 원래 RAM 을 `0x00FFC324`, `CODESIZE` 를 `0x00FFC328` 로
-> **4 바이트씩 앞당겨 적어 놓았다.** 그 자리는 실제로 `PACKAGE` / `RAM` 이라
-> 그대로 읽으면 엉뚱한 값이 나온다. 근거는 MDK `NRF_FICR_INFO_Type`
-> (FICR 베이스 `0x00FFC000` + `INFO` `0x300`) 이고, 위 값은 실기 판독으로 확인했다.
-> 마지막 필드 이름도 `CODESIZE` 가 아니라 **`RRAM`** 이다.
+> ⚠ These offsets were originally written with RAM at `0x00FFC324` and `CODESIZE` at `0x00FFC328`,
+> **4 bytes early each.** Those addresses are actually `PACKAGE` / `RAM`, so reading them as written
+> gives nonsense. The basis is MDK `NRF_FICR_INFO_Type` (FICR base `0x00FFC000` + `INFO` `0x300`),
+> and the values above were confirmed by reading the hardware.
+> The last field is also named **`RRAM`**, not `CODESIZE`.
 
 ---
 
 
-출처: `nrfconnect/sdk-nrf-bm` v2.0.1
+Source: `nrfconnect/sdk-nrf-bm` v2.0.1
 `boards/nordic/bm_nrf54l15dk/bm_nrf54l15dk_nrf54l15_cpuapp_s145_softdevice.dts`
-(및 같은 디렉토리의 `..._s115_softdevice.dts`)
+(and `..._s115_softdevice.dts` in the same directory)
 
-MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
+No MCUboot / no TrustZone (secure-only, R5).
 
 ---
 
@@ -60,27 +61,27 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 
 ### RRAM (1.5 MB = 0x17D000)
 
-| 시작 | 크기 | 영역 | 비고 |
+| Start | Size | Region | Notes |
 |---|---|---|---|
-| `0x00000000` | 1378 KB (`0x158800`) | **application (slot0)** | 벡터 테이블 포함 |
-| `0x00158800` | 4 KB (`0x1000`) | peer_manager | BLE 본딩 저장 (M3) |
-| `0x00159800` | 4 KB (`0x1000`) | storage0 | 사용자 스토리지 |
-| `0x0015A800` | 137 KB (`0x22400`) | **SoftDevice S145** | `0x17CC00`에서 끝 |
+| `0x00000000` | 1378 KB (`0x158800`) | **application (slot0)** | Includes the vector table |
+| `0x00158800` | 4 KB (`0x1000`) | peer_manager | BLE bonding storage (M3) |
+| `0x00159800` | 4 KB (`0x1000`) | storage0 | User storage |
+| `0x0015A800` | 137 KB (`0x22400`) | **SoftDevice S145** | Ends at `0x17CC00` |
 
 ### RAM (256 KB = 0x40000)
 
-| 시작 | 크기 | 영역 |
+| Start | Size | Region |
 |---|---|---|
 | `0x20000000` | `0x8000` (32 KB) | **SoftDevice** |
 | `0x20008000` | `0x38000` (229,376 B) | **application** |
 
-> **DTS 기본값(`0x4780`, 18.25 KB)보다 넉넉히 잡았다.** 이유는 **동시 연결**이다.
-> SoftDevice 는 링크마다 RAM 을 더 쓰는데, 그 크기는 `sd_ble_enable()` 이
-> 돌려주는 값으로만 알 수 있다.
+> **Reserved more generously than the DTS default (`0x4780`, 18.25 KB).** The reason is **concurrent connections**.
+> The SoftDevice uses more RAM per link, and how much is known only from the value
+> `sd_ble_enable()` returns.
 
-**실측 (XIAO nRF54L15, MTU 247, notify 큐 1):**
+**Measured (XIAO nRF54L15, MTU 247, notify queue 1):**
 
-| 동시 링크 | 필요한 앱 RAM 시작 | 링커 `0x20008000` 안에 |
+| Concurrent links | Required app RAM start | Within linker `0x20008000` |
 |---|---|---|
 | 1 | `0x20003750` | ✅ |
 | 2 | `0x200046D8` | ✅ |
@@ -88,126 +89,126 @@ MCUboot 없음 / TrustZone 없음(secure-only, R5) 기준.
 | 4 | `0x200065F8` | ✅ |
 | 5 | `0x20007590` | ✅ |
 
-링크당 약 **3980 B** (MTU 247). MTU 를 줄이면 같이 준다 — MTU 23 이면 약 1950 B 라
-같은 경계로 링크 8개도 들어간다. **연결 수와 MTU 는 맞바꾸는 관계다.**
+About **3980 B** per link (MTU 247). It shrinks with MTU — about 1950 B at MTU 23,
+so the same boundary would fit 8 links. **Connection count and MTU trade against each other.**
 
-**현재 구성은 peripheral 4 + central 1 + notify 큐 3 이고, 필요량은
-`0x20007F48` (실측) 이다.** 경계 `0x20008000` 안에 184 B 가 남는다.
+**The current configuration is peripheral 4 + central 1 + notify queue 3, requiring
+`0x20007F48` (measured).** 184 B are left inside the `0x20008000` boundary.
 
-참고로 Adafruit nRF52840 코어는 `0x20006000`(24 KB)을 잡는다. 그 값이면 링크 3개까지다.
-전체 256 KB 중 32 KB 를 예약하므로 앱 RAM 손해는 6.25 % 다 (243,328 → 229,376 B).
+For reference, the Adafruit nRF52840 core reserves `0x20006000` (24 KB). That would allow 3 links.
+Reserving 32 KB of 256 KB costs 6.25 % of app RAM (243,328 → 229,376 B).
 
-⚠ 링크를 늘리면 라디오 시간을 나눠 쓰므로 **연결당 처리량이 떨어진다.**
-`SD_BLE_EVENT_LENGTH`(현재 6 = 7.5 ms)를 함께 봐야 할 수 있고, 이건 실측 대상이다.
+⚠ More links share radio time, so **per-connection throughput drops.**
+`SD_BLE_EVENT_LENGTH` (currently 6 = 7.5 ms) may need to be considered too; that is a measurement item.
 
-#### notify 큐 깊이도 같은 RAM 을 먹는다
+#### The notify queue depth uses the same RAM
 
-`SD_BLE_HVN_TX_QUEUE_SIZE` (`BLE_CONN_CFG_GATTS.hvn_tx_queue_size`, 기본 1) 는
-**처리량을 정하는 값**이다. `HVN_TX_COMPLETE` 는 패킷이 나가고 ACK 된 뒤 —
-연결 이벤트가 끝날 무렵 — 오므로, 큐가 1이면 그 완료를 기다려야 다음 건을 넣는다.
-상대가 이벤트당 여러 건을 받아 줘도 우리는 한 건밖에 못 채운다.
-(iOS 기준 15 ms 간격 · MTU 185 이면 대략 97 kbps 상한이다.)
+`SD_BLE_HVN_TX_QUEUE_SIZE` (`BLE_CONN_CFG_GATTS.hvn_tx_queue_size`, default 1)
+**sets throughput**. `HVN_TX_COMPLETE` arrives after the packet is sent and ACKed —
+near the end of the connection event — so with a queue of 1 you must wait for that completion
+before queueing the next one. Even if the peer would take several per event, we can fill only one.
+(On iOS at 15 ms interval · MTU 185 that caps at about 97 kbps.)
 
-**실측 (XIAO nRF54L15, 링크 5개, MTU 247):**
+**Measured (XIAO nRF54L15, 5 links, MTU 247):**
 
-| 큐 깊이 | 필요한 앱 RAM 시작 | 증가분 |
+| Queue depth | Required app RAM start | Increase |
 |---|---|---|
 | 1 | `0x20007590` | — |
 | 2 | `0x20007A78` | +1,256 B |
 | 3 | `0x20007F68` | +1,264 B |
 | 4 | `0x20008450` | +1,256 B |
 
-한 칸이 **링크당 약 251 B** (≈ MTU 크기) 다. 그래서 대략:
+One slot is **about 251 B per link** (≈ MTU size). So roughly:
 
 ```
-필요 RAM(링크 L, 큐 Q) ≈ 필요 RAM(L, 1) + (Q - 1) × 251 × L
+required RAM(links L, queue Q) ≈ required RAM(L, 1) + (Q - 1) × 251 × L
 ```
 
-실기로 맞춰 봤다: 링크 4 · 큐 3 → 예측 `0x20006DD0`, 실측 **`0x20006DD8`** (8 B 차, `begin=1`).
+Checked on hardware: 4 links · queue 3 → predicted `0x20006DD0`, measured **`0x20006DD8`** (8 B off, `begin=1`).
 
-**그래서 링크 수와 큐 깊이는 맞바꾸는 관계다.** 채택한 32 KB 예약 기준:
+**So link count and queue depth trade against each other.** With the chosen 32 KB reservation:
 
-| 원하는 것 | 조합 | 예약 32 KB (`0x20008000`) 안에 |
+| Goal | Combination | Within the 32 KB reservation (`0x20008000`) |
 |---|---|---|
-| **채택** | **peripheral 4 + central 1 · 큐 3** | ✅ `0x20007F48`, 여유 184 B — 큐 깊이는 Adafruit `BANDWIDTH_MAX` 와 같다 |
-| 예약을 줄이려면 | peripheral 3 + central 1 · 큐 3 | ✅ `0x20006DC0` — 28 KB 로도 된다 |
-| 큐를 더 | 링크 4 · 큐 4 | ✅ `0x200071C4` |
+| **Chosen** | **peripheral 4 + central 1 · queue 3** | ✅ `0x20007F48`, 184 B to spare — queue depth matches Adafruit `BANDWIDTH_MAX` |
+| Smaller reservation | peripheral 3 + central 1 · queue 3 | ✅ `0x20006DC0` — fits in 28 KB |
+| Deeper queue | 4 links · queue 4 | ✅ `0x200071C4` |
 
-#### 역할 배분은 **런타임**이다
+#### Role allocation happens **at run time**
 
-`Bluefruit.begin(prph, central)` 인자가 그대로 `sd_ble_cfg_set()` 까지 간다.
-링커가 고정하는 것은 **RAM 경계뿐**이고, 그 안에서 어떻게 나눌지는 스케치가 정한다
-(Adafruit 과 같다). `boards.txt` 의 `-DSD_BLE_*_LINK_COUNT` 는 **인자 없는
-`begin()` 의 기본값**일 뿐 상한이 아니다.
+The arguments of `Bluefruit.begin(prph, central)` go straight through to `sd_ble_cfg_set()`.
+The linker fixes **only the RAM boundary**; how it is split inside is up to the sketch
+(same as Adafruit). The `-DSD_BLE_*_LINK_COUNT` in `boards.txt` is **only the default for
+`begin()` without arguments**, not an upper limit.
 
-**실측 (XIAO nRF54L15, 예약 32 KB = `0x20008000`, MTU 247 · 큐 3):**
+**Measured (XIAO nRF54L15, 32 KB reservation = `0x20008000`, MTU 247 · queue 3):**
 
-| begin(prph, central) | 필요한 앱 RAM 시작 | |
+| begin(prph, central) | Required app RAM start | |
 |---|---|---|
-| `(4, 0)` | `0x20006DD8` | ✅ 보드 기본값의 peripheral 쪽 |
-| `(0, 4)` | `0x20006868` | ✅ central 이 링크당 더 싸다 |
+| `(4, 0)` | `0x20006DD8` | ✅ the peripheral side of the board default |
+| `(0, 4)` | `0x20006868` | ✅ central is cheaper per link |
 | `(2, 2)` | `0x20006C00` | ✅ |
 | `(0, 5)` | `0x20007828` | ✅ |
 | `(1, 1)` | `0x20004AB0` | ✅ |
-| `(8, 0)` | `0x2000B3F8` | ❌ `begin()` 이 false |
-| `(6, 2)` | `0x2000B220` | ❌ `begin()` 이 false |
+| `(8, 0)` | `0x2000B3F8` | ❌ `begin()` returns false |
+| `(6, 2)` | `0x2000B220` | ❌ `begin()` returns false |
 
-RAM 이 모자라면 **조용히 깎지 않고 실패한다.** `sdLastError()` 가 `0x04`
-(`NRF_ERROR_NO_MEM`), `sdCfgResults()` 의 `ram_required` 가 **얼마가 필요했는지**
-알려 준다. 링커 `RAM ORIGIN` 을 그 값 이상으로 올리면 된다.
+When RAM is short it **fails instead of silently cutting back.** `sdLastError()` gives `0x04`
+(`NRF_ERROR_NO_MEM`), and `ram_required` from `sdCfgResults()` says **how much was needed**.
+Raise the linker `RAM ORIGIN` to at least that value.
 
-이 덕분에 상류 예제가 요구하는 배분이 그대로 통한다 — `central_bleuart_multi`
-는 `begin(0, 4)`, `dual_bleuart` 와 `rssi_proximity_central` 은 `begin(1, 1)` 이다.
+Thanks to this, the allocations the upstream examples ask for work as is — `central_bleuart_multi`
+uses `begin(0, 4)`, and `dual_bleuart` and `rssi_proximity_central` use `begin(1, 1)`.
 
-#### peripheral 과 central 은 버퍼를 **따로 못 잡는다**
+#### Peripheral and central **cannot have separate buffers**
 
-SoftDevice 는 버퍼를 역할이 아니라 **연결 구성(`conn_cfg_tag`) 단위**로 잡는다.
-그런데 **S145 v10.0.1 은 연결 구성을 하나만 허용한다** — 두 번째 태그를 만들려 하면
-`sd_ble_cfg_set()` 이 `NRF_ERROR_NOT_SUPPORTED`(6) 를 낸다 (실기 확인).
-`ble.h` 원문: *"A second connection configuration (conn_cfg_tag) is attempted to be created."*
+The SoftDevice allocates buffers per **connection configuration (`conn_cfg_tag`)**, not per role.
+But **S145 v10.0.1 allows only one connection configuration** — trying to create a second tag makes
+`sd_ble_cfg_set()` return `NRF_ERROR_NOT_SUPPORTED` (6) (confirmed on hardware).
+From `ble.h`: *"A second connection configuration (conn_cfg_tag) is attempted to be created."*
 
-그래서 Adafruit 이 nRF52 에서 쓰는 방식 — `CONN_CFG_PERIPHERAL` / `CONN_CFG_CENTRAL`
-을 나눠 peripheral 은 MTU 247, central 은 23 을 주는 것 — 은 **여기서 못 쓴다.**
-두 역할이 MTU · 이벤트 길이 · notify 큐를 공유하고, `conn_count` 는 양쪽 합을 덮는다.
+So the approach Adafruit uses on nRF52 — splitting `CONN_CFG_PERIPHERAL` / `CONN_CFG_CENTRAL`
+to give peripheral MTU 247 and central 23 — **does not work here.**
+Both roles share MTU · event length · notify queue, and `conn_count` covers the sum of both.
 
-**실측 (XIAO nRF54L15, MTU 247):**
+**Measured (XIAO nRF54L15, MTU 247):**
 
-| periph + central | 큐 | 필요한 앱 RAM 시작 | 경계 `0x20008000` |
+| periph + central | Queue | Required app RAM start | Boundary `0x20008000` |
 |---|---|---|---|
-| 4 + 0 | 3 | `0x20006DD8` | ✅ 여유 552 B |
-| 3 + 1 | 3 | `0x20006DC0` | ✅ (28 KB 예약이면 이 조합) |
+| 4 + 0 | 3 | `0x20006DD8` | ✅ 552 B to spare |
+| 3 + 1 | 3 | `0x20006DC0` | ✅ (this combination with a 28 KB reservation) |
 | 2 + 1 | 3 | `0x20005C38` | ✅ |
 | 3 + 1 | 1 | `0x200065E0` | ✅ |
 | 4 + 1 | 1 | `0x20007570` | ✅ |
-| **4 + 1** | **3** | **`0x20007F48`** | ✅ 여유 184 B — **채택** |
+| **4 + 1** | **3** | **`0x20007F48`** | ✅ 184 B to spare — **chosen** |
 
-**비용은 역할이 아니라 링크 수에 붙는다.** peripheral 하나를 central 로 바꾸면
-오히려 24 B 싸다 (central 은 광고 관련 상태가 없다).
+**The cost attaches to the number of links, not to the role.** Turning a peripheral into a central
+is actually 24 B cheaper (a central has no advertising state).
 
-예약을 28 KB 에서 32 KB 로 키워 `4+1` 을 담았다. 앱 RAM 은 233,472 -> 229,376 B
-(256 KB 중 1.6%). `3+1` 이면 28 KB 로 되지만 다중 peripheral 이 4 -> 3 으로 준다.
+The reservation was grown from 28 KB to 32 KB to fit `4+1`. App RAM went 233,472 -> 229,376 B
+(1.6 % of 256 KB). `3+1` would fit in 28 KB, but multi-peripheral drops from 4 -> 3.
 
-nRF54L05 도 같은 성질이 실측으로 확인됐다: `periph 1 + central 1` = `0x20004AB0` 로
-`periph 2 + central 0`(`0x20004AC8`) 보다 24 B 싸다. 다만 L05 는 둘 다 갖기 위해
-예약을 키웠다 (아래 L05 절).
+The nRF54L05 shows the same property in measurement: `periph 1 + central 1` = `0x20004AB0`,
+24 B cheaper than `periph 2 + central 0` (`0x20004AC8`). The L05 grew its reservation
+to have both (see the L05 section below).
 
-⚠ 코어 기본값은 **1 이다** (Adafruit 기본과 같다). 보드가 `boards.txt` 의
-`build.extra_flags` 에서 `-DSD_BLE_HVN_TX_QUEUE_SIZE=N` 으로 올린다.
-nRF54L15 보드는 3 으로 켜 두었고, nRF54L05 는 기본값 그대로다. 상류처럼 스케치에서 고르게 하려면
-`configPrphConn()` 이 실제로 동작해야 하는데, 그러려면 이 값들이 `sdEnable()` 안의
-`sd_ble_cfg_set()` 까지 전달돼야 한다 (지금은 인자를 받아만 두고 버린다).
-RAM 이 모자라면 `begin()` 이 **조용히 깎지 말고 실패해야 한다** — 링크 수와 같은 규칙이다.
+⚠ The core default is **1** (same as the Adafruit default). Boards raise it with
+`-DSD_BLE_HVN_TX_QUEUE_SIZE=N` in `build.extra_flags` of `boards.txt`.
+The nRF54L15 boards set 3; the nRF54L05 keeps the default. To let the sketch choose as upstream does,
+`configPrphConn()` would have to actually work, and for that these values must reach
+`sd_ble_cfg_set()` inside `sdEnable()` (today the arguments are accepted and discarded).
+When RAM is short, `begin()` **must fail rather than silently cut back** — the same rule as link count.
 
-> ⚠ 설정을 바꿔 RAM 이 모자라면 `sd_ble_enable()` 이 **필요한 정확한 주소**를 돌려준다.
-> `sdCfgResults()` 로 읽어서 링커 스크립트의 `RAM ORIGIN`/`LENGTH` 와
-> `boards.txt` 의 `upload.maximum_data_size` **세 곳을 함께** 고쳐야 한다.
+> ⚠ If changing the configuration leaves RAM short, `sd_ble_enable()` returns **the exact address needed**.
+> Read it with `sdCfgResults()` and fix **all three together**: the linker script `RAM ORIGIN`/`LENGTH`
+> and `upload.maximum_data_size` in `boards.txt`.
 
-> **✅ 2026-09-05 실기 확인** (예약 `0x4780` 이던 시절):
+> **✅ Confirmed on hardware 2026-09-05** (when the reservation was `0x4780`):
 > `.vectors @ 0x00000000`, `.text @ 0x00000E08`, `.data @ 0x20004780`,
-> `__StackTop = 0x20040000`. 배치 규칙 자체는 그대로이고 시작 주소만 위로 옮겼다.
-> 검증 기록: [HIL/M1-nu54dk.md](HIL/M1-nu54dk.md)
+> `__StackTop = 0x20040000`. The layout rule is unchanged; only the start address moved up.
+> Log: [HIL/M1-nu54dk.md](HIL/M1-nu54dk.md) (Korean)
 
-### 링커 스크립트 값
+### Linker script values
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x158800
@@ -225,59 +226,59 @@ build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_CO
 
 ## NU54-DK — nRF54L05 + S145 v10.0.1
 
-출처: 같은 저장소의 `bm_nrf54l15dk_nrf54l05_cpuapp_s145_softdevice.dts`
-칩 용량 근거: MDK 9.0.2 `nrf54l05_xxaa_application_memory.h`
+Source: `bm_nrf54l15dk_nrf54l05_cpuapp_s145_softdevice.dts` in the same repository
+Chip capacity: MDK 9.0.2 `nrf54l05_xxaa_application_memory.h`
 (`NRF_MEMORY_FLASH_SIZE 0x0007D000`, `NRF_MEMORY_RAM_SIZE 0x00018000`)
 
 ### RRAM (500 KB = 0x7D000)
 
-| 시작 | 크기 | 영역 |
+| Start | Size | Region |
 |---|---|---|
 | `0x00000000` | 354 KB (`0x58800`) | **application (slot0)** |
 | `0x00058800` | 4 KB | peer_manager |
 | `0x00059800` | 4 KB | storage0 |
 | `0x0005A800` | 137 KB (`0x22400`) | **SoftDevice S145** |
-| `0x0007D000` | — | RRAM 끝 |
+| `0x0007D000` | — | End of RRAM |
 
 ### RAM (96 KB = 0x18000)
 
-| 시작 | 크기 | 영역 |
+| Start | Size | Region |
 |---|---|---|
 | `0x20000000` | `0x5D00` | **SoftDevice** |
 | `0x20005D00` | `0x12300` (74,496 B) | **application** |
-| `0x20018000` | — | RAM 끝 |
+| `0x20018000` | — | End of RAM |
 
-**실측 (NU54-DK 실기, nRF54L05, MTU 247):**
+**Measured (NU54-DK hardware, nRF54L05, MTU 247):**
 
-| periph + central · 큐 | 필요한 앱 RAM 시작 | `0x20005D00` 안에 |
+| periph + central · queue | Required app RAM start | Within `0x20005D00` |
 |---|---|---|
 | 1 + 0 · 1 | `0x20003750` | ✅ |
 | 2 + 0 · 1 | `0x200046D8` | ✅ |
 | 2 + 0 · 2 | `0x200048D0` | ✅ |
 | 2 + 0 · 3 | `0x20004AC8` | ✅ |
-| 1 + 1 · 3 | `0x20004AB0` | ✅ central 이 24 B 싸다 |
-| **2 + 1 · 3** | **`0x20005C38`** | ✅ 여유 200 B — **채택** |
+| 1 + 1 · 3 | `0x20004AB0` | ✅ central is 24 B cheaper |
+| **2 + 1 · 3** | **`0x20005C38`** | ✅ 200 B to spare — **chosen** |
 | 3 + 0 · 1 | `0x20005668` | ✅ |
 
-**L15 와 숫자가 완전히 같다 — SoftDevice RAM 요구량은 SoC 와 무관하다.**
-L05 용 S145 는 재배치된 별도 빌드지만 RAM 요구량은 설정만 따른다.
-그래서 한쪽에서 잰 값을 다른 쪽에 그대로 쓸 수 있다. 다만 여유가 얇을 때는
-**옮겨 쓰지 말고 재라** — 빗나가면 그 보드는 BLE 를 아예 못 켠다.
+**The numbers are exactly the same as L15 — SoftDevice RAM demand does not depend on the SoC.**
+The L05 S145 is a separately relocated build, but its RAM demand follows only the configuration.
+So a value measured on one can be used on the other. But when the margin is thin,
+**measure instead of carrying it over** — if it misses, that board cannot start BLE at all.
 
-peripheral 2 + central 1 을 담으려고 예약을 `0x4B80` -> `0x5D00` 으로 키웠다.
-앱 RAM 은 80,000 -> 74,496 B (96 KB 중 5.7%). 다중 peripheral 과 central 을
-둘 다 갖기 위한 값이다 — 예약을 그대로 두면 둘 중 하나를 포기해야 한다
-(`2+0` 이거나 `1+1`).
+The reservation was grown from `0x4B80` -> `0x5D00` to fit peripheral 2 + central 1.
+App RAM went 80,000 -> 74,496 B (5.7 % of 96 KB). This value is for having both multi-peripheral and
+central — keeping the old reservation would force giving up one of them
+(`2+0` or `1+1`).
 
-> DTS 의 `app_ram` 은 `DT_SIZE_K(78)` = `0x13800` 이라 상단 128 바이트가 남는다.
-> 디바이스 트리가 크기를 K 단위로만 적기 때문에 생긴 내림이지 예약 영역이 아니다.
-> 링커 스크립트는 RAM 끝(`0x20018000`)까지 전부 쓴다.
+> The DTS `app_ram` is `DT_SIZE_K(78)` = `0x13800`, which leaves the top 128 bytes.
+> That is rounding down because the device tree writes sizes only in K, not a reserved region.
+> The linker script uses everything up to the end of RAM (`0x20018000`).
 
-> **✅ 2026-09-06 실기 확인** (SD 예약이 `0x4780` / 앱 80,000 B 이던 시절).
+> **✅ Confirmed on hardware 2026-09-06** (when the SD reservation was `0x4780` / app 80,000 B).
 > `__StackTop = 0x20018000`. Flash 36420 B (10% of 362496) / RAM 3856 B (4%).
-> millis/micros 델타 정확. 검증 기록: [HIL/M1-tickless.md](HIL/M1-tickless.md)
+> millis/micros deltas exact. Log: [HIL/M1-tickless.md](HIL/M1-tickless.md) (Korean)
 
-### 링커 스크립트 값
+### Linker script values
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x58800
@@ -291,68 +292,68 @@ upload.maximum_data_size =  74496   # 0x12300
 build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=2 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
 ```
 
-### SoftDevice hex 는 SoC 별 재배치 빌드다
+### The SoftDevice hex is a per-SoC relocated build
 
-크기는 137 KB 로 같지만 로드 주소가 다르고 **서로 호환되지 않는다.**
+They are the same 137 KB, but the load address differs and **they are not interchangeable.**
 
 ```
 s145_nrf54l05_10.0.1_softdevice.hex : :020000025000AC  -> 0x0005A800
 s145_nrf54l15_10.0.1_softdevice.hex : :020000040015E5  -> 0x0015A800
 ```
 
-`platform.txt` 의 `sd.hex` 는 `{build.sd_soc}` 로 파일을 고른다.
-보드의 `menu.softdevice.*.build.sd_soc` 를 틀리면 SoftDevice 가 RRAM 밖에 써진다.
+`sd.hex` in `platform.txt` picks the file by `{build.sd_soc}`.
+If a board's `menu.softdevice.*.build.sd_soc` is wrong, the SoftDevice is written outside RRAM.
 
 ---
 
 ## XIAO nRF54LM20A — nRF54LM20A + S145 v10.0.1
 
-출처: sdk-nrf-bm v2.0.1
+Source: sdk-nrf-bm v2.0.1
 `boards/nordic/bm_nrf54lm20dk/bm_nrf54lm20dk_nrf54lm20a_cpuapp_s145_softdevice.dts`
-(+ 같은 디렉토리의 `..._cpuapp_common.dtsi`)
+(+ `..._cpuapp_common.dtsi` in the same directory)
 
 ### RRAM (2036 KB = 0x1FD000)
 
-| 시작 | 크기 | 영역 |
+| Start | Size | Region |
 |---|---|---|
 | `0x00000000` | 1890 KB (`0x1D8800`) | **application (slot0)** |
 | `0x001D8800` | 4 KB | peer_manager |
 | `0x001D9800` | 4 KB | storage0 |
 | `0x001DA800` | 137 KB (`0x22400`) | **SoftDevice S145** |
-| `0x001FD000` | — | RRAM 끝 |
+| `0x001FD000` | — | End of RRAM |
 
-`NRF_MEMORY_FLASH_SIZE 0x001FD000` 과 DTS `cpuapp_rram` 2036 K, FICR `INFO.RRAM 0x7F4` 가 일치한다.
+`NRF_MEMORY_FLASH_SIZE 0x001FD000`, the DTS `cpuapp_rram` 2036 K and FICR `INFO.RRAM 0x7F4` agree.
 
-### RAM (**0x7FD40** — 1 KB 단위가 아니다)
+### RAM (**0x7FD40** — not a whole number of KB)
 
-| 시작 | 크기 | 영역 |
+| Start | Size | Region |
 |---|---|---|
 | `0x20000000` | `0x8000` (32 KB) | **SoftDevice** |
 | `0x20008000` | `0x77D40` (490,816 B) | **application** |
-| `0x2007FD40` | — | **RAM 끝** |
+| `0x2007FD40` | — | **End of RAM** |
 
-> ⚠ **RAM 끝은 `0x2007FD40` 이다.** DTS 가 `cpuapp_sram` 을 `0x20000080` 부터
-> `511K − 0x80 + 0x140` 으로 적고 "total size of SRAM is not 1kB aligned" 라고 달아 두었다.
+> ⚠ **RAM ends at `0x2007FD40`.** The DTS writes `cpuapp_sram` from `0x20000080` as
+> `511K − 0x80 + 0x140` and notes "total size of SRAM is not 1kB aligned".
 >
-> 이것을 "대략 512 KB" 로 읽어 끝을 `0x20080000` 에 잡았다가 **부팅 첫 명령에서
-> HardFault** 가 났다 (CFSR `0x9201` STKERR, BFAR `0x2007FFF8`). 다른 출처는 믿지 마라:
+> Reading that as "about 512 KB" and putting the end at `0x20080000` produced **a HardFault on the
+> first instruction at boot** (CFSR `0x9201` STKERR, BFAR `0x2007FFF8`). Do not trust other sources:
 >
-> | 출처 | 값 | |
+> | Source | Value | |
 > |---|---|---|
-> | FICR `INFO.RAM` | `0x200` = 512 KB | KB 단위 올림 |
-> | MDK `NRF_MEMORY_RAM_SIZE` | `0x40000` = 256 KB | 틀림 (L15 헤더도 틀렸다) |
-> | MDK `.ld` | RAM `0x40000` + RAM1 `0x40000` | 명목값 |
+> | FICR `INFO.RAM` | `0x200` = 512 KB | rounded up to KB |
+> | MDK `NRF_MEMORY_RAM_SIZE` | `0x40000` = 256 KB | wrong (the L15 header was wrong too) |
+> | MDK `.ld` | RAM `0x40000` + RAM1 `0x40000` | nominal |
 >
-> 기록: [HIL/M6-xiao-nrf54lm20a.md](HIL/M6-xiao-nrf54lm20a.md) §3
+> Log: [HIL/M6-xiao-nrf54lm20a.md](HIL/M6-xiao-nrf54lm20a.md) §3 (Korean)
 
-**SoftDevice 요구량 실측 (XIAO nRF54LM20A, MTU 247): peripheral 4 + central 1 + 큐 3 =
-`0x20007F48`** — L15·L05 와 같다. LM20 용 S145 도 요구량은 설정만 따른다.
-예약 32 KB 에 184 B 가 남는다. RAM 이 넉넉하므로 링크 수를 늘리려면 예약을 키우면 된다.
+**SoftDevice demand measured (XIAO nRF54LM20A, MTU 247): peripheral 4 + central 1 + queue 3 =
+`0x20007F48`** — the same as L15·L05. The LM20 S145 also follows only the configuration.
+184 B remain in the 32 KB reservation. RAM is plentiful, so to add links, grow the reservation.
 
-DTS 는 `0x20000000 ~ 0x20000080` 을 KMU 예약으로 뗀다. 코어는 KMU 를 쓰지 않고
-(CRACEN 은 TRNG 만) 그 영역은 SoftDevice 예약 안에 있다 — L15 와 같다.
+The DTS takes `0x20000000 ~ 0x20000080` as a KMU reservation. The core does not use KMU
+(CRACEN only for TRNG), and that range is inside the SoftDevice reservation — same as L15.
 
-### 링커 스크립트 값
+### Linker script values
 
 ```
 FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x1D8800
@@ -369,14 +370,14 @@ build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_CO
 ### SoftDevice hex
 
 `s145_nrf54lm20_10.0.1_softdevice.hex` (389,951 B, sha256 `d1d24495…ffd1`).
-실측 로드 범위 **`0x001DA800` ~ `0x001FC57C`** (135.4 KB). L15 용과 호환되지 않는다.
-`boards.txt` 의 `build.sd_soc=nrf54lm20` 이 이 파일을 고른다.
+Measured load range **`0x001DA800` ~ `0x001FC57C`** (135.4 KB). Not interchangeable with the L15 build.
+`build.sd_soc=nrf54lm20` in `boards.txt` picks this file.
 
 ---
 
-## 참고 — nRF54L15 + S115 v10.0.1 (미채택)
+## For reference — nRF54L15 + S115 v10.0.1 (not adopted)
 
-| 영역 | 값 |
+| Region | Value |
 |---|---|
 | application | `0x00000000`, 1414 KB (`0x161800`) |
 | storage | `0x00161800`, 8 KB |
@@ -384,61 +385,61 @@ build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_CO
 | SD RAM | `0x20000000`, `0x4380` |
 | app RAM | `0x20004380`, `0x3BC80` |
 
-S115는 peripheral 전용이라 Bluefruit의 Central 계열 API를 못 쓴다. 그래서 S145를 고정으로 택했다
-(CLAUDE.md §8). 나중에 추가하려면 `boards.txt`에 메뉴 항목 하나와 링커 스크립트 하나만 더하면 된다.
+S115 is peripheral-only, so the Central family of Bluefruit APIs cannot be used. That is why S145 was fixed
+(CLAUDE.md §8). To add it later, only one menu entry in `boards.txt` and one linker script are needed.
 
 ---
 
-## ⚠ nRF52와 정반대 배치
+## ⚠ The opposite of nRF52
 
 | | nRF52 + S140 | **nRF54L15 + S145** |
 |---|---|---|
 | `0x0` | SoftDevice | **application** |
-| 상단 | application → bootloader | **SoftDevice** |
-| 벡터 테이블 소유 | SoftDevice (MBR) | **application** |
-| IRQ 전달 | SD가 앱으로 포워딩 | **앱이 SD로 포워딩** |
+| Top | application → bootloader | **SoftDevice** |
+| Vector table owner | SoftDevice (MBR) | **application** |
+| IRQ forwarding | SD forwards to the app | **the app forwards to the SD** |
 
-Adafruit 코어의 `nrf52840_s140_v6.ld`(`FLASH ORIGIN = 0x26000`)를 그대로 베끼면 안 된다.
-앱이 `0x0`에서 시작하고 벡터 테이블도 앱 것이므로 VTOR 재배치가 필요 없다.
-자세한 배경은 CLAUDE.md §7 F1.
+Do not copy the Adafruit core's `nrf52840_s140_v6.ld` (`FLASH ORIGIN = 0x26000`).
+The app starts at `0x0` and owns the vector table, so no VTOR relocation is needed.
+Background in CLAUDE.md §7 F1.
 
 ---
 
-## M4(부트로더) 레이아웃 — 제약은 이미 확정됐다
+## M4 (bootloader) layout — the constraints are settled
 
-**결정된 것** (조사·실측 완료. CLAUDE.md §7 F11):
+**Decided** (investigated and measured. CLAUDE.md §7 F11):
 
-- **부트로더는 `0x0` 에 와야 한다.** nRF54L 에는 MBR 도 `UICR.BOOTLOADERADDR` 도 없어서
-  (MDK 에 심볼 자체가 없다) CPU 가 `0x0` 에서 바로 부팅한다.
-  nRF52 처럼 "MBR 이 상단의 부트로더를 찾아가는" 구조가 불가능하다
-- **애플리케이션은 위로 밀린다.** nRF52 와 정반대다
-- **SoftDevice 는 `0x0015A800` 고정.** hex 파일에 절대 주소로 박혀 있다
-  (실측: `0x0015A800` ~ `0x0017C4F8`, 135.2 KB). 옮길 수 없다.
-  칩마다 주소가 다르다 — L05 `0x0005A800`, **LM20A `0x001DA800`**
-- **본딩·스토리지는 이미 앱 파티션 밖이다** (`0x158800` ~ `0x15A800`).
-  single-bank 업데이트로 날아가지 않는다. Nordic DTS 를 따른 결과다
-- **VTOR 재배치는 코어가 이미 처리한다.** `cores/nrf54l/wiring.c` 의 `init()` 이
-  링커 심볼 `__vectors_start` 에서 `SCB->VTOR` 을 설정하므로 앱 시작 주소가
-  바뀌어도 자동으로 따라간다. MDK 스타트업은 VTOR 을 건드리지 않으므로 이게 없으면
-  앱이 밀리는 순간 인터럽트가 부트로더 벡터로 간다
+- **The bootloader must sit at `0x0`.** The nRF54L has neither an MBR nor `UICR.BOOTLOADERADDR`
+  (the MDK has no such symbols), so the CPU boots straight from `0x0`.
+  The nRF52 arrangement of "the MBR finds a bootloader at the top" is impossible
+- **The application moves up.** The opposite of nRF52
+- **The SoftDevice is fixed at `0x0015A800`.** The address is absolute in the hex file
+  (measured: `0x0015A800` ~ `0x0017C4F8`, 135.2 KB). It cannot move.
+  The address differs by chip — L05 `0x0005A800`, **LM20A `0x001DA800`**
+- **Bonding and storage are already outside the app partition** (`0x158800` ~ `0x15A800`).
+  A single-bank update does not wipe them. This follows the Nordic DTS
+- **The core already handles VTOR relocation.** `init()` in `cores/nrf54l/wiring.c` sets
+  `SCB->VTOR` from the linker symbol `__vectors_start`, so it follows the app start address when that
+  changes. The MDK startup does not touch VTOR, so without this, interrupts would go to the bootloader
+  vectors the moment the app moves
 
 ```
-0x00000000  Bootloader              <- CPU 가 여기서 부팅 (크기 미정)
-0x000?????  Application             <- 부트로더가 점프
-0x00158800  peer_manager  4 KB      <- 앱 밖. 본딩 유지
+0x00000000  Bootloader              <- CPU boots here (size TBD)
+0x000?????  Application             <- bootloader jumps here
+0x00158800  peer_manager  4 KB      <- outside the app. Bonds survive
 0x00159800  storage0      4 KB
-0x0015A800  SoftDevice  137 KB      <- 고정
-0x0017C4F8  (끝)
+0x0015A800  SoftDevice  137 KB      <- fixed
+0x0017C4F8  (end)
 ```
 
-**M4 에서 정할 것** (지금 정할 근거가 없다):
+**To decide in M4** (no basis to decide now):
 
-- 부트로더 크기 → 앱 시작 주소. 실제로 만들어 봐야 안다.
-  `caveman99/nRF54_Bootloader` 를 먼저 빌드해 보면 현실적인 숫자가 나온다
-- dual-bank 여부. **RRAM 은 erase 개념이 없어 swap 알고리즘 특성이 flash 와 다르다** (R9).
-  실기 검증 전에는 확정하지 마라
-- RRAM write block **16바이트** 정렬 (R9 / F5). 파티션 경계에 별도 정렬 요구가
-  있는지는 미확인
+- Bootloader size → app start address. Only building it will tell.
+  Building `caveman99/nRF54_Bootloader` first gives a realistic number
+- Dual-bank or not. **RRAM has no erase, so swap algorithms behave differently from flash** (R9).
+  Do not settle it before hardware verification
+- RRAM write block **16 bytes** alignment (R9 / F5). Whether partition boundaries need separate
+  alignment is unconfirmed
 
-바뀌는 것은 링커 스크립트의 `FLASH ORIGIN` 한 줄과 `boards.txt` 의
-`upload.maximum_size` 한 줄뿐이다. 숫자를 미리 찍어두는 것보다 위 제약을 아는 게 중요하다.
+What changes is one line, `FLASH ORIGIN` in the linker script, and one line,
+`upload.maximum_size` in `boards.txt`. Knowing the constraints above matters more than fixing numbers in advance.

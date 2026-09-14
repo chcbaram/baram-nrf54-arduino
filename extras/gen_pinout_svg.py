@@ -108,7 +108,7 @@ def render(board, chip_name, md_path, power, note,
          f'viewBox="0 0 {W} {H}" font-family="system-ui,-apple-system,sans-serif">',
          f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
          f'<text x="{MARGIN}" y="40" font-size="24" font-weight="700" fill="#263238">{esc(board)}</text>',
-         f'<text x="{MARGIN}" y="64" font-size="13" fill="#546e7a">{esc(chip_name)} · 확장 헤더 핀아웃</text>',
+         f'<text x="{MARGIN}" y="64" font-size="13" fill="#546e7a">{esc(chip_name)} · expansion header pinout</text>',
          f'<text x="{MARGIN}" y="84" font-size="11" fill="#b71c1c">{esc(note)}</text>']
 
     bx = MARGIN + side_w + GAP
@@ -117,11 +117,11 @@ def render(board, chip_name, md_path, power, note,
     s.append(f'<text x="{bx + BOARD_W/2}" y="{TOP + 26}" text-anchor="middle" font-size="15" '
              f'font-weight="600" fill="#1b5e20">{esc(board)}</text>')
     for i, (label, sub) in enumerate([
-            ('USB-C + 온보드 CMSIS-DAP', '시리얼 포트 2개로 잡힌다'),
-            ('Qwiic (J5)', 'P1.02 SDA / P1.03 SCL · 2.1K 풀업'),
-            ('BQ25186 충전기', 'Wire 버스의 0x6A · 배터리 전압은 A5'),
-            ('J1 점퍼', '빼고 전류계를 물리면 모듈 전류만 측정'),
-            ('LED1~4 / SW1~4', 'LED active HIGH · 버튼은 내부 풀업')]):
+            ('USB-C + onboard CMSIS-DAP', 'shows up as two serial ports'),
+            ('Qwiic (J5)', 'P1.02 SDA / P1.03 SCL · 2.1K pull-ups'),
+            ('BQ25186 charger', '0x6A on the Wire bus · battery voltage on A5'),
+            ('J1 jumper', 'remove it and add an ammeter for module current'),
+            ('LED1~4 / SW1~4', 'LEDs active HIGH · buttons need internal pull-up')]):
         y = TOP + 70 + i * 46
         s.append(f'<text x="{bx + 16}" y="{y}" font-size="12" font-weight="600" fill="#1b5e20">{esc(label)}</text>')
         s.append(f'<text x="{bx + 16}" y="{y + 16}" font-size="10" fill="#37474f">{esc(sub)}</text>')
@@ -131,7 +131,7 @@ def render(board, chip_name, md_path, power, note,
         hx = MARGIN if side == 'L' else bx + BOARD_W + GAP
         s.append(f'<text x="{hx if side=="L" else hx + side_w}" y="{TOP + 4}" '
                  f'text-anchor="{"start" if side=="L" else "end"}" font-size="13" '
-                 f'font-weight="700" fill="#263238">{esc(key)} 헤더</text>')
+                 f'font-weight="700" fill="#263238">{esc(key)} header</text>')
         # ⚠ 헤더마다 번호가 도는 방향이 다르다. 실물 NU54V-DK 는 P2 가 1번이
         #   위, P4 는 **30번이 위**다 — 회로도도 그렇게 그려져 있다.
         for row, n in enumerate(order.get(key, range(1, n_pins + 1))):
@@ -142,7 +142,7 @@ def render(board, chip_name, md_path, power, note,
             if not label and kind in ('pwr', 'gnd', 'taken'):
                 label = gpio
             if not gpio:
-                gpio, label, kind = '', 'GND / 전원', 'unk'
+                gpio, label, kind = '', 'GND / power', 'unk'
             if n in nc.get(key, ()):
                 # 헤더에는 이름이 찍혀 있지만 솔더 브리지가 없어 MCU 에
                 # 닿지 않는다. 이름을 지우면 헤더와 안 맞으므로 남기고,
@@ -161,10 +161,10 @@ def render(board, chip_name, md_path, power, note,
                 s.append(chip(x - NUM_W - GPIO_W - 8 - FN_W, y, FN_W, label, kind, 'start'))
 
     ly = TOP + n_pins * PITCH + 40
-    s.append(f'<text x="{MARGIN}" y="{ly}" font-size="12" font-weight="700" fill="#263238">범례</text>')
-    for i, (k, t) in enumerate([('pwr','전원'), ('gnd','GND'), ('i2c','I2C'), ('uart','UART'),
-                                ('spi','SPI'), ('analog','아날로그'), ('led','온보드 LED/버튼'),
-                                ('taken','보드가 점유'), ('gpio','범용 GPIO'), ('nc','미연결')]):
+    s.append(f'<text x="{MARGIN}" y="{ly}" font-size="12" font-weight="700" fill="#263238">Legend</text>')
+    for i, (k, t) in enumerate([('pwr','Power'), ('gnd','GND'), ('i2c','I2C'), ('uart','UART'),
+                                ('spi','SPI'), ('analog','Analog'), ('led','Onboard LED/button'),
+                                ('taken','Used by the board'), ('gpio','General GPIO'), ('nc','Not connected')]):
         x = MARGIN + (i % 4) * 195
         y = ly + 14 + (i // 4) * 26
         s.append(chip(x, y, 26, '', k))
@@ -185,16 +185,16 @@ if __name__ == '__main__':
     POWER['P4'].update({30: 'VBUS', 29: 'VEXT', 27: 'VBAT',
                         26: 'VDD_3V3_SYS', 25: 'VDD_MOD', 3: 'MOD_RST'})
     POWER['P2'].update({27: 'SWDCLK', 28: 'SWDIO', 29: 'VDD_MOD'})
-    NC = {'P4': {14: ('P1.00', 'SB20 미실장 — 미연결'),
-                 15: ('P1.01', 'SB21 미실장 — 미연결')}}
+    NC = {'P4': {14: ('P1.00', 'SB20 not fitted - not connected'),
+                 15: ('P1.01', 'SB21 not fitted - not connected')}}
     # 실물을 놓고 본 방향 그대로 그린다:
     #   왼쪽 P4 — 1번이 위,  오른쪽 P2 — 30번이 위
     ORDER = {'P4': list(range(1, 31)), 'P2': list(range(30, 0, -1))}
     SIDES = ('P4', 'P2')
     svg = render('NU54V-DK', 'nRF54L15',
                  os.path.join(ROOT, 'docs/boards/NU54V-DK.md'), POWER,
-                 '회로도에서 생성 · 전원/GND 는 실물 통전 확인 · '
-                 'P4 는 도면과 18행 일치 · P2 핀 번호는 실크스크린 미대조',
+                 'Generated from the schematic · power/GND checked on the board · '
+                 'P4 matches the drawing on 18 rows · P2 pin numbers not checked against the silkscreen',
                  NC, ORDER, SIDES)
     out = os.path.join(ROOT, 'docs/boards/NU54V-DK-pinout.svg')
     open(out, 'w', encoding='utf-8').write(svg)

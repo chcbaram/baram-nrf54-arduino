@@ -237,6 +237,18 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 | XIAO nRF54L15 / Sense | nRF54L15 | `xiao_nrf54l15` | `docs/boards/XIAO-nRF54L15.md` |
 | XIAO nRF54LM20A / Sense | nRF54LM20A (FCCSP98) | `xiao_nrf54lm20a` | `docs/boards/XIAO-nRF54LM20A.md` |
 
+**사용자용 문서는 두 벌이다 — 영문 `이름.md` 가 기본, 한국어는 `이름.ko.md`.**
+대상: `docs/boards/*` · `MEMORY-MAP` · `PERIPHERAL-PINMAP` · `EXAMPLE-COMPAT` · `LIBRARY-COMPAT` ·
+`LICENSE-INVENTORY` (README 도 `README.md` / `README.ko.md`). 문서 맨 위의
+`*[English](X.md) · [한국어](X.ko.md)*` 줄로 오간다.
+
+- **고칠 때는 두 파일을 함께 고친다.** 한쪽만 고치면 사용자가 보는 영문판이 틀린 채로 남는다
+- 영문판은 영문판끼리, 한국어판은 `.ko.md` 끼리 링크한다
+- ⚠ **`extras/gen_pinmap.py` · `gen_pinout_svg.py` 는 영문 보드 문서를 읽는다.** 헤더 표 제목에
+  `header` 를 남기고(`### P2 header (30 pins)`, `**P1 header**`) 표 형식(핀·이름·GPIO)을 바꾸지 마라.
+  제목이 안 맞으면 그 보드의 핀맵 예제에서 헤더 표가 **조용히 빠진다**
+- `CLAUDE.md` · `docs/STATUS.md` · `docs/HIL/` 은 한국어 개발 문서로 한 벌만 둔다
+
 **어디에 쓸지 판단 기준은 "보드 사실이냐 칩 사실이냐" 하나다:**
 
 | 종류 | 예 | 위치 |

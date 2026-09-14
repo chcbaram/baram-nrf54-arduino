@@ -70,19 +70,21 @@ def board_headers(md_path):
     보드 문서가 핀 배정의 정본이므로(CLAUDE.md §4.1) 여기서 다시 적지 않고 읽는다.
     다만 문서마다 적는 방식이 달라 두 형태를 모두 받는다:
 
-      ① 코드블록      NU54-DK  — '**P1 헤더**' 다음 ``` 블록에 '1 P0.00' 나열
-      ② 마크다운 표   XIAO     — '| 핀 | 이름 | GPIO |' 표. 좌우 두 벌이 한 줄에 있다
+      ① 코드블록      NU54-DK  — '**P1 header**' 다음 ``` 블록에 '1 P0.00' 나열
+      ② 마크다운 표   XIAO     — '### XIAO header' 아래 '| Pin | Name | GPIO |' 표. 좌우 두 벌이 한 줄에 있다
 
     반환: [(헤더이름, [(핀번호, 'P0.00', '별명' 또는 ''), ...]), ...]
     """
     text = open(md_path, encoding='utf-8').read()
     out = []
 
-    for m in re.finditer(r'\*\*(\S+)\s*헤더\*\*\s*\n```\n(.*?)\n```', text, re.S):
+    # 제목 단어는 영문 문서(`header`)와 한국어 문서(`헤더`) 둘 다 받는다.
+    # 기준은 영문 `docs/boards/<보드>.md` 다 — 한국어는 `.ko.md` 로 따로 있다.
+    for m in re.finditer(r'\*\*(\S+)\s*(?:헤더|[Hh]eader)\*\*\s*\n```\n(.*?)\n```', text, re.S):
         entries = [(int(n), sig, '') for n, sig in re.findall(r'(\d+)\s+(\S+)', m.group(2))]
         out.append((m.group(1), sorted(entries)))
 
-    for m in re.finditer(r'###\s*(.+?헤더.*?)\n\n((?:\|.*\n)+)', text):
+    for m in re.finditer(r'###\s*(.+?(?:헤더|[Hh]eader).*?)\n\n((?:\|.*\n)+)', text):
         rows = []
         for line in m.group(2).strip().split('\n'):
             cells = [c.strip() for c in line.strip('|').split('|')]
@@ -285,7 +287,7 @@ def render_board(board, chip, soc, package, md_path, variant_h):
         nw = (max([len(', '.join(used.get(sig, []))) for _, sig, _ in entries] + [14])
               if used else None)
 
-        L.append(f" {hdr}" if hdr.endswith('헤더') or '헤더' in hdr else f" {hdr} 헤더")
+        L.append(f" {hdr}" if ('헤더' in hdr or 'header' in hdr.lower()) else f" {hdr} header")
         head = f"   {'Pin':>3s} {'GPIO':6s} "
         rule = f"   {'-' * 3} {'-' * 6} "
         if has_alias:

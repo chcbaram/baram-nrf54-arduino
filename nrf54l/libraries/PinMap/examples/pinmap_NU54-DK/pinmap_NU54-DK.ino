@@ -40,7 +40,7 @@
  'x' 는 **그 핀에서 그 함수를 쓸 수 없다** 는 뜻이다. 하드웨어가 없는 것이라
  코어가 나중에 지원해 주는 종류의 것이 아니다.
 
- P1 헤더
+ P1 header
    Pin GPIO   Name in sketch                PWM IRQ ADC  Only this pin
    --- ------ ----------------------------- --- --- ---- ----------------------------------
      1 P0.00  PIN_SERIAL_TX                 x   o   x
@@ -69,7 +69,7 @@
     24 GND
     25 GND
 
- P3 헤더
+ P3 header
    Pin GPIO   Name in sketch                 PWM IRQ ADC  Only this pin
    --- ------ ------------------------------ --- --- ---- ----------------------------------
      1 GND

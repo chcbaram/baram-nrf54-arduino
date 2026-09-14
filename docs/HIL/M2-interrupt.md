@@ -51,7 +51,7 @@ P2.09 (없어야 함) 거부됨  <-- 맞다
 
 `attachInterruptOk(_PINNUM(2, 9), ...)` 가 `false` 를 돌려준다.
 **P2 를 담당하는 GPIOTE 가 아예 없다** (Pin Planner 의 SoC 정의로 확인,
-[PERIPHERAL-PINMAP.md](../PERIPHERAL-PINMAP.md) §4). 조용히 아무 일도 안 하는 대신
+[PERIPHERAL-PINMAP.md](../PERIPHERAL-PINMAP.ko.md) §4). 조용히 아무 일도 안 하는 대신
 호출자가 알 수 있게 한 이유가 이것이다 — Arduino 표준 `attachInterrupt()` 는
 반환값이 없어서 실패를 알릴 방법이 없다.
 

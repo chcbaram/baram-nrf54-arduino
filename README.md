@@ -489,16 +489,19 @@ This project is not affiliated with or endorsed by Nordic Semiconductor.
 
 ## Documentation
 
+User-facing documents are in English, each with a Korean version (`*.ko.md`) linked at the top.
+Development notes marked *(Korean)* are kept in Korean only.
+
 | | |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Project rules, known traps, milestones |
-| [docs/STATUS.md](docs/STATUS.md) | Where things stand and what is next |
+| [CLAUDE.md](CLAUDE.md) | Project rules, known traps, milestones (Korean) |
+| [docs/STATUS.md](docs/STATUS.md) | Where things stand and what is next (Korean) |
 | [docs/boards/](docs/boards/) | One document per board, from the schematics |
 | [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) | RRAM / RAM layout per chip |
 | [docs/PERIPHERAL-PINMAP.md](docs/PERIPHERAL-PINMAP.md) | Which pins a given peripheral can reach |
 | [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md) | Third-party libraries, compiled and measured |
 | [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) | How many Adafruit examples build as-is |
-| [docs/HIL/](docs/HIL/) | Hardware verification logs |
+| [docs/HIL/](docs/HIL/) | Hardware verification logs (Korean) |
 | [docs/LICENSE-INVENTORY.md](docs/LICENSE-INVENTORY.md) | Licensing, component by component |
 
 ## Credits

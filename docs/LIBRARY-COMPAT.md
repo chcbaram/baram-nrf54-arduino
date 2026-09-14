@@ -1,101 +1,103 @@
-# 제3자 라이브러리 호환 현황
+# Third-party library compatibility
 
-CLAUDE.md §11 의 원칙 — **추측하지 말고 컴파일해 보라.**
-이 문서는 실제로 빌드해 본 결과이고, README 의 "지원 범위" 표기의 근거다.
+*[English](LIBRARY-COMPAT.md) · [한국어](LIBRARY-COMPAT.ko.md)*
 
-측정: 2026-09-12 · XIAO nRF54L15 (`baram-nrf54:nrf54l:xiao_nrf54l15`)
+The principle of CLAUDE.md §11 — **do not guess, compile it.**
+This document is the result of actually building, and it backs the "support scope" in the README.
+
+Measured: 2026-09-12 · XIAO nRF54L15 (`baram-nrf54:nrf54l:xiao_nrf54l15`)
 
 ---
 
-## 1. 결과
+## 1. Results
 
-| 라이브러리 | 버스 | 컴파일 | 실기 |
+| Library | Bus | Compiles | On hardware |
 |---|---|---|---|
 | `Adafruit_BME280` (+ `Adafruit_BusIO`, `Adafruit_Unified_Sensor`) | I2C | ✅ | — |
 | `Adafruit_seesaw` | I2C | ✅ | — |
-| `Seeed_Arduino_LSM6DS3` | I2C | ✅ | ⚠ 아래 §3 |
+| `Seeed_Arduino_LSM6DS3` | I2C | ✅ | ⚠ §3 below |
 | `Adafruit_ST7735/ST7789` (+ `Adafruit_GFX`) | SPI | ✅ | — |
-| `SdFat` | SPI | ✅ | ✅ NU54-DK + SD 소켓 |
-| `SD` (Arduino) | SPI | ✅ | ✅ NU54-DK + SD 소켓 |
+| `SdFat` | SPI | ✅ | ✅ NU54-DK + SD socket |
+| `SD` (Arduino) | SPI | ✅ | ✅ NU54-DK + SD socket |
 | `MIDI_Library` | UART | ✅ | — |
 | `ArduinoJson` | — | ✅ | — |
-| **`Servo`** | — | ❌ | **구조적 불가.** §4 |
+| **`Servo`** | — | ❌ | **Structurally impossible.** §4 |
 
-**"컴파일 ✅ / 실기 —"** 는 부품이 없어 못 재 본 것이지 실패한 것이 아니다.
-구분해서 읽어라.
+**"Compiles ✅ / On hardware —"** means there was no part to test with, not that it failed.
+Read them separately.
 
 ---
 
-## 2. 여기까지 오는 데 필요했던 것 — 셰임 세 벌
+## 2. What it took to get here — three sets of shims
 
-처음에는 **I2C 만 쓰는 스케치조차** 컴파일되지 않았다. 원인은 전부 우리 코어의
-결손이었고, 라이브러리 쪽 문제가 아니었다.
+At first **even a sketch using only I2C** did not compile. Every cause was a gap in our core,
+not a problem in the libraries.
 
-| 없던 것 | 무엇이 깨졌나 | 넣은 곳 |
+| What was missing | What broke | Added in |
 |---|---|---|
-| `digitalPinToPort` / `digitalPinToBitMask` / `portOutputRegister` / `portInputRegister` | `Adafruit_BusIO` — **거의 모든 Adafruit 센서가 쓴다** | `cores/nrf54l/Arduino.h` |
-| `constrain` / `round` / `sq` / `radians` / `bitRead` … | `Adafruit_seesaw` | 〃 |
+| `digitalPinToPort` / `digitalPinToBitMask` / `portOutputRegister` / `portInputRegister` | `Adafruit_BusIO` — **used by almost every Adafruit sensor** | `cores/nrf54l/Arduino.h` |
+| `constrain` / `round` / `sq` / `radians` / `bitRead` … | `Adafruit_seesaw` | Same |
 | `pins_arduino.h` | `Adafruit_ST77xx` | `cores/nrf54l/pins_arduino.h` |
 
-**⚠ `Adafruit_BusIO` 가 관문이다.** I2C 만 쓰는 스케치여도 BusIO 의 **SPI 쪽
-소스가 함께 컴파일**되므로, `SPI.h` 와 AVR 포트 매크로가 없으면 무조건 깨진다.
-그래서 `SPI` 를 먼저 만들어야 했고, 포트 셰임도 있어야 했다.
+**⚠ `Adafruit_BusIO` is the gate.** Even for an I2C-only sketch, **the SPI sources of BusIO are compiled
+too**, so without `SPI.h` and the AVR port macros it always breaks.
+That is why `SPI` had to come first, along with the port shims.
 
-⚠ Adafruit 의 2포트 판(`abs < 32 ? NRF_P0 : NRF_P1`)을 그대로 쓸 수 없다.
-nRF54L 은 포트가 **셋**, LM20A 는 **넷**이다.
+⚠ Adafruit's two-port version (`abs < 32 ? NRF_P0 : NRF_P1`) cannot be used as is.
+The nRF54L has **three** ports, the LM20A **four**.
 
-덤: `digitalPinHasPWM()` 은 Adafruit 처럼 대충(`P > 1`) 두지 않고 실제로 답한다.
-PWM20/21/22 가 도메인 20 이라 **P1 에만** 붙는다 — 생성된 `nrf54l_pinmap.h` 를 쓴다.
-
----
-
-## 3. `Seeed_Arduino_LSM6DS3` — 컴파일은 되지만 값이 0 이다
-
-**우리 문제가 아니다.** 그 라이브러리는 `Wire` → `Wire1` 치환을
-**특정 Seeed 보드 매크로**(`TARGET_SEEED_XIAO_NRF52840_SENSE` 등)에만 걸어 둔다.
-우리 보드에서는 헤더 쪽 `Wire`(TWIM22, D4/D5)를 쓰는데 거기엔 아무것도 없다.
-XIAO 의 온보드 IMU 는 `Wire1`(TWIM30, P0.03/P0.04)에 있다.
-
-→ 버스를 인자로 받는 라이브러리를 쓰거나, 센서를 헤더 쪽 `Wire` 에 붙여라.
-`Adafruit_BME280` 처럼 `begin(addr, &Wire1)` 를 받는 API 면 문제없다.
-
-**우리 `Wire1` 자체는 동작한다** — `i2c_scanner` 예제가 XIAO 온보드 IMU 를
-`0x6A` 로 찾는다 (`docs/STATUS.md` §2.11).
+Bonus: `digitalPinHasPWM()` is not left rough like Adafruit's (`P > 1`) but answers correctly.
+PWM20/21/22 are domain 20 and attach **only to P1** — it uses the generated `nrf54l_pinmap.h`.
 
 ---
 
-## 4. `Servo` — 구조적으로 안 된다
+## 3. `Seeed_Arduino_LSM6DS3` — compiles, but the values are 0
 
-라이브러리 자신이 막는다:
+**Not our problem.** That library applies the `Wire` → `Wire1` substitution
+**only for specific Seeed board macros** (`TARGET_SEEED_XIAO_NRF52840_SENSE` and so on).
+On our board it uses the header-side `Wire` (TWIM22, D4/D5), where nothing is attached.
+The XIAO's onboard IMU is on `Wire1` (TWIM30, P0.03/P0.04).
+
+→ Use a library that takes the bus as an argument, or attach the sensor to the header-side `Wire`.
+APIs that accept `begin(addr, &Wire1)`, like `Adafruit_BME280`, have no problem.
+
+**Our `Wire1` itself works** — the `i2c_scanner` example finds the XIAO onboard IMU
+at `0x6A` (`docs/STATUS.md` §2.11).
+
+---
+
+## 4. `Servo` — structurally impossible
+
+The library blocks itself:
 
 ```
 Servo.h:79:2: error: #error "This library only supports boards with an AVR, SAM, SAMD, NRF52 or STM32F4 processor."
 ```
 
-아키텍처 매크로를 검사하는 `#error` 라 셰임으로는 통과시킬 수 없다.
-`ARDUINO_ARCH_NRF52` 를 정의하면 통과하겠지만 **그건 별개의 결정이고
-위험하다** — nRF52 레지스터 접근 경로가 함께 열린다 (CLAUDE.md §11).
-지금은 **미지원**으로 둔다.
+It is an `#error` that checks architecture macros, so no shim can get past it.
+Defining `ARDUINO_ARCH_NRF52` would get through, but **that is a separate decision and
+risky** — it opens nRF52 register access paths along with it (CLAUDE.md §11).
+For now it stays **unsupported**.
 
-PWM 서보가 필요하면 `analogWrite()` 로 직접 몰 수 있다. 단 서보는 보통
-50 Hz 를 요구하므로 `analogWriteResolution()` 으로 주파수를 맞춰야 한다
-(기준 클럭 1 MHz 고정 → 주파수 = 1 MHz / 2^bits).
-
----
-
-## 5. 여전히 안 되는 부류 (CLAUDE.md §7 F6)
-
-**bit-banging 라이브러리** — NeoPixel, DHT, OneWire, SoftwareSerial 등.
-SoftDevice 가 최상위 우선순위를 점유하고 라디오 이벤트 중 애플리케이션을
-블로킹하므로 타이밍이 깨진다. **고치는 것이 아니라 문서화 대상이다.**
+If you need a PWM servo, drive it directly with `analogWrite()`. Servos usually want
+50 Hz, so set the frequency with `analogWriteResolution()`
+(base clock fixed at 1 MHz → frequency = 1 MHz / 2^bits).
 
 ---
 
-## 6. 재현
+## 5. The category that still does not work (CLAUDE.md §7 F6)
+
+**Bit-banging libraries** — NeoPixel, DHT, OneWire, SoftwareSerial and so on.
+The SoftDevice owns the top priority and blocks the application during radio events, so
+the timing breaks. **This is to be documented, not fixed.**
+
+---
+
+## 6. Reproducing
 
 ```sh
-arduino-cli compile -b baram-nrf54:nrf54l:xiao_nrf54l15 <스케치>
+arduino-cli compile -b baram-nrf54:nrf54l:xiao_nrf54l15 <sketch>
 ```
 
-라이브러리는 Library Manager 로 설치한다. `architectures=` 불일치 경고는
-무시해도 된다 — arduino-cli 는 경고만 내고 컴파일을 진행한다 (§11).
+Install the libraries with the Library Manager. An `architectures=` mismatch warning can be ignored —
+arduino-cli only warns and carries on compiling (§11).

@@ -40,7 +40,7 @@
  'x' 는 **그 핀에서 그 함수를 쓸 수 없다** 는 뜻이다. 하드웨어가 없는 것이라
  코어가 나중에 지원해 주는 종류의 것이 아니다.
 
- XIAO 헤더 (14핀)
+ XIAO header (14 pins)
    Pin GPIO   Board      Name in sketch          PWM IRQ ADC  Only this pin
    --- ------ ---------- ----------------------- --- --- ---- ----------------------------------
      1 P1.04  D0 / A0    PIN_A0, D0, A0          o   o   AIN0 SAADC.AIN0, TAMPC.ASO[0]

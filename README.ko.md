@@ -6,7 +6,7 @@
 *[English](README.md) · [한국어](README.ko.md)*
 
 [![License: MIT](https://img.shields.io/badge/core-MIT-blue.svg)](LICENSE)
-[![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.md)
+[![SoftDevice](https://img.shields.io/badge/SoftDevice-S145%20v10.0.1-orange.svg)](docs/LICENSE-INVENTORY.ko.md)
 [![Status](https://img.shields.io/badge/status-M4%20(DFU)%20next-yellow.svg)](docs/STATUS.md)
 
 > ### ⚠ 초기 릴리스 — v0.4.0
@@ -30,8 +30,8 @@
 > 다음(M4)이다.
 >
 > 진행 상황과 호환 현황: [docs/STATUS.md](docs/STATUS.md) ·
-> [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) ·
-> [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md)
+> [docs/EXAMPLE-COMPAT.ko.md](docs/EXAMPLE-COMPAT.ko.md) ·
+> [docs/LIBRARY-COMPAT.ko.md](docs/LIBRARY-COMPAT.ko.md)
 
 ---
 
@@ -93,10 +93,10 @@ FreeRTOS 위에서 같은 의미로 도는 `delay()`.
 
 | 보드 | MCU | Flash / RAM | 디버그 | 핀맵 |
 |---|---|---|---|---|
-| **Seeed XIAO nRF54L15** / Sense | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54L15.md) |
-| **Seeed XIAO nRF54LM20A** / Sense | nRF54LM20A | 2 MB / 512 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54LM20A.md) |
-| **NU54-DK** | nRF54L05 | 500 KB / 96 KB | 외부 프로브 | [문서](docs/boards/NU54-DK.md) |
-| **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/NU54V-DK.md) |
+| **Seeed XIAO nRF54L15** / Sense | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54L15.ko.md) |
+| **Seeed XIAO nRF54LM20A** / Sense | nRF54LM20A | 2 MB / 512 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54LM20A.ko.md) |
+| **NU54-DK** | nRF54L05 | 500 KB / 96 KB | 외부 프로브 | [문서](docs/boards/NU54-DK.ko.md) |
+| **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/NU54V-DK.ko.md) |
 
 전부 128 MHz Cortex-M33 이다. **XIAO 두 종과 NU54V-DK 는 USB-C 케이블 하나면 된다** —
 온보드 디버거가 플래시와 시리얼을 모두 처리한다. NU54V-DK 에는 배터리 충전기와
@@ -111,10 +111,10 @@ Qwiic 커넥터도 있고, 시리얼 포트가 **두 개** 잡힌다.
 - **Sense 센서 전원을 GPIO 가 아니라 nPM1300 PMIC 가 준다.** 동봉된 `BOARD-XIAO-nRF54LM20A`
   라이브러리가 처리한다 — `IMU.begin()` 이 레일을 켜고, `PMIC` 로 배터리·충전 상태를 읽는다.
 
-메모리 배치는 보드가 아니라 칩 단위다: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
+메모리 배치는 보드가 아니라 칩 단위다: [docs/MEMORY-MAP.ko.md](docs/MEMORY-MAP.ko.md).
 
 > 보드를 하나 추가하는 데 필요한 건 `variants/` 디렉토리 하나와 `boards.txt` 항목
-> 하나다. [docs/boards/XIAO-nRF54L15.md](docs/boards/XIAO-nRF54L15.md) 가 실제 사례다.
+> 하나다. [docs/boards/XIAO-nRF54L15.ko.md](docs/boards/XIAO-nRF54L15.ko.md) 가 실제 사례다.
 
 ## 설치
 
@@ -358,7 +358,7 @@ PWM 과 ADC 는 **P1 에만**, 핀 인터럽트는 P1·P0 에 되고 **P2 에는
 `Adafruit_BME280`, `Adafruit_seesaw`, `Adafruit_GFX` 를 쓰는 `Adafruit_ST7735/ST7789`,
 그리고 `SdFat`, Arduino `SD`, `MIDI_Library`, `ArduinoJson`,
 `Seeed_Arduino_LSM6DS3`. **어디까지 컴파일만 됐고 어디까지 실기로 확인했는지**는
-[docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md) 에 구분해 적어 두었다.
+[docs/LIBRARY-COMPAT.ko.md](docs/LIBRARY-COMPAT.ko.md) 에 구분해 적어 두었다.
 
 **부분 지원**
 
@@ -462,23 +462,26 @@ CAMI 포크들도 그렇다.
 | Arduino API 파일 (`Print`, `Stream`, `WString` 등) | LGPL-2.1 (다른 Arduino 코어들과 동일) |
 | nrfx / MDK / CMSIS / FreeRTOS | 구성 요소별 BSD-3-Clause / Apache-2.0 / MIT |
 
-전체 내역: [docs/LICENSE-INVENTORY.md](docs/LICENSE-INVENTORY.md).
+전체 내역: [docs/LICENSE-INVENTORY.ko.md](docs/LICENSE-INVENTORY.ko.md).
 
 이 프로젝트는 Nordic Semiconductor 와 무관하며 후원받지 않았다.
 
 ## 문서
+
+사용자용 문서는 영문이 기본이고, 이 한국어 README 에서는 한국어판(`*.ko.md`)으로 연결한다.
+각 문서 맨 위에서 언어를 바꿀 수 있다. `CLAUDE.md` · `STATUS` · `HIL` 은 한국어 개발 문서다.
 
 | | |
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | 프로젝트 지침, 알려진 함정, 마일스톤 |
 | [docs/STATUS.md](docs/STATUS.md) | 지금 어디까지 됐고 다음에 뭘 하는지 |
 | [docs/boards/](docs/boards/) | 보드별 회로도 분석 (보드 하나당 문서 하나) |
-| [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md) | 칩별 RRAM / RAM 배치 |
-| [docs/PERIPHERAL-PINMAP.md](docs/PERIPHERAL-PINMAP.md) | 페리페럴이 쓸 수 있는 GPIO |
-| [docs/LIBRARY-COMPAT.md](docs/LIBRARY-COMPAT.md) | 제3자 라이브러리 — 실제로 빌드해 본 결과 |
-| [docs/EXAMPLE-COMPAT.md](docs/EXAMPLE-COMPAT.md) | Adafruit 예제가 얼마나 그대로 빌드되나 |
+| [docs/MEMORY-MAP.ko.md](docs/MEMORY-MAP.ko.md) | 칩별 RRAM / RAM 배치 |
+| [docs/PERIPHERAL-PINMAP.ko.md](docs/PERIPHERAL-PINMAP.ko.md) | 페리페럴이 쓸 수 있는 GPIO |
+| [docs/LIBRARY-COMPAT.ko.md](docs/LIBRARY-COMPAT.ko.md) | 제3자 라이브러리 — 실제로 빌드해 본 결과 |
+| [docs/EXAMPLE-COMPAT.ko.md](docs/EXAMPLE-COMPAT.ko.md) | Adafruit 예제가 얼마나 그대로 빌드되나 |
 | [docs/HIL/](docs/HIL/) | 실기 검증 기록 |
-| [docs/LICENSE-INVENTORY.md](docs/LICENSE-INVENTORY.md) | 구성 요소별 라이선스 |
+| [docs/LICENSE-INVENTORY.ko.md](docs/LICENSE-INVENTORY.ko.md) | 구성 요소별 라이선스 |
 
 ## 참고한 것들
 
