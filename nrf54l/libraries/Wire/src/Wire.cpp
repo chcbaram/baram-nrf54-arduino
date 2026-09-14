@@ -211,7 +211,7 @@ void TwoWire::flush(void) { }
 
 #ifdef WIRE_TWIM_INSTANCE
   #ifndef WIRE_TWIM_IRQ_HANDLER
-    #error "variant.h 에서 WIRE_TWIM_IRQ_HANDLER 도 정의해야 한다 (예: SERIAL22_IRQHandler)"
+    #error "variant.h must also define WIRE_TWIM_IRQ_HANDLER (e.g. SERIAL22_IRQHandler)"
   #endif
 
 TwoWire Wire(WIRE_TWIM_INSTANCE, PIN_WIRE_SDA, PIN_WIRE_SCL);
@@ -228,7 +228,7 @@ extern "C" void WIRE_TWIM_IRQ_HANDLER(void) { Wire._irqHandler(); }
 
 #ifdef WIRE1_TWIM_INSTANCE
   #ifndef WIRE1_TWIM_IRQ_HANDLER
-    #error "variant.h 에서 WIRE1_TWIM_IRQ_HANDLER 도 정의해야 한다"
+    #error "variant.h must also define WIRE1_TWIM_IRQ_HANDLER"
   #endif
 
 TwoWire Wire1(WIRE1_TWIM_INSTANCE, PIN_WIRE1_SDA, PIN_WIRE1_SCL);

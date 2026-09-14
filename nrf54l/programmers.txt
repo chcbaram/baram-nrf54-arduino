@@ -15,6 +15,23 @@ sd_burn.program.extra_params=
 sd_burn.program.burn_pattern="{probers.path}/probe-rs" download --chip {build.chip_probers} --binary-format hex --non-interactive --disable-progressbars --verify "{sd.hex}"
 sd_burn.program.pattern="{probers.path}/probe-rs" download {probers.opts} "{build.path}/{build.project_name}.hex"
 
+# ── 전체 지우고 SoftDevice 굽기 (한 번에) ─────────────────────────────
+# 새 보드를 처음 쓸 때 누르는 항목이다. 아래 "전체 지우기" 와 위 "SoftDevice
+# 굽기" 를 차례로 누르는 것과 결과가 같다.
+#
+# 보호(APPROTECT)가 걸린 채 출하되는 보드가 있다. XIAO nRF54LM20A 가 그랬고,
+# 그 상태에서는 SoftDevice 굽기가 "lacked the permission to do so: erase_all"
+# 로 거부된다. `--allow-erase-all --chip-erase` 가 잠금 해제·전체 소거를 한 뒤
+# 이어서 굽는다 (실측: XIAO nRF54LM20A 6.3 s).
+#
+# ⚠ 스케치와 **본딩 키(peer_manager)까지** RRAM 전체가 지워진다.
+sd_erase_burn.name=Erase all + Burn SoftDevice (probe-rs)
+sd_erase_burn.program.tool=bootburn
+sd_erase_burn.program.tool.default=bootburn
+sd_erase_burn.program.extra_params=
+sd_erase_burn.program.burn_pattern="{probers.path}/probe-rs" download --chip {build.chip_probers} --binary-format hex --allow-erase-all --chip-erase --non-interactive --disable-progressbars --verify "{sd.hex}"
+sd_erase_burn.program.pattern="{probers.path}/probe-rs" download {probers.opts} "{build.path}/{build.project_name}.hex"
+
 # ── 전체 지우기 / 복구 ────────────────────────────────────────────────
 # ⚠ SoftDevice 를 포함해 RRAM 전체가 지워진다. 굽기 전에 SoftDevice 를
 #   다시 써야 BLE 가 동작한다. APPROTECT 로 잠긴 칩을 되살릴 때도 쓴다.

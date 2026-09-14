@@ -51,6 +51,23 @@
 #define NRF54L_DOMAIN30_PORT   0   /* SPIM30 TWIM30 UARTE30 GPIOTE30 COMP LPCOMP */
 
 /*
+ * ⚠ **nRF54LM20A 는 도메인 20 이 포트를 둘 소유한다 — P1 과 P3.**
+ *   SPIM/TWIM/UARTE 20~24, PWM20~22, GPIOTE20 이 P3 에도 닿는다.
+ *   단 SAADC·PDM·TDM·QDEC 는 LM20A 에서도 P1 전용이다.
+ *   SERIAL23/24 는 주소가 GRTC 대역(0x500E)에 있지만 GPIO 는 도메인 20 쪽이다 —
+ *   주소 대역으로 도메인을 추측하면 틀린다 (docs/PERIPHERAL-PINMAP.md §5).
+ *
+ * 포트 검사가 필요한 코드는 `== NRF54L_DOMAIN20_PORT` 대신 이 매크로를 써라.
+ */
+#if defined(NRF54LM20A_XXAA)
+  #define NRF54L_DOMAIN20_PORT_EXT   3
+  #define NRF54L_IS_DOMAIN20_PORT(port) \
+      ((port) == NRF54L_DOMAIN20_PORT || (port) == NRF54L_DOMAIN20_PORT_EXT)
+#else
+  #define NRF54L_IS_DOMAIN20_PORT(port)  ((port) == NRF54L_DOMAIN20_PORT)
+#endif
+
+/*
  * variant 검증용 매크로.
  *
  * C 와 C++ 양쪽에서 쓰이므로 _Static_assert / static_assert 를 가려 쓴다.
@@ -74,11 +91,12 @@
 
 /* 자주 쓰는 조합 */
 #define NRF54L_ASSERT_SPIM00_PIN(pin, what) \
-    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN00_PORT, what " : SPIM00/UARTE00 은 P2 도메인만 쓸 수 있다")
+    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN00_PORT, what " : SPIM00/UARTE00 can only use pins on P2")
 #define NRF54L_ASSERT_DOMAIN20_PIN(pin, what) \
-    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN20_PORT, what " : x20 계열 인스턴스는 P1 도메인만 쓸 수 있다")
+    NRF54L_STATIC_ASSERT(NRF54L_IS_DOMAIN20_PORT(NRF54L_PORT_OF(pin)), \
+                         what " : x20 instances can only use pins on P1 (P1 or P3 on nRF54LM20A)")
 #define NRF54L_ASSERT_DOMAIN30_PIN(pin, what) \
-    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN30_PORT, what " : x30 계열 인스턴스는 P0 도메인만 쓸 수 있다")
+    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN30_PORT, what " : x30 instances can only use pins on P0")
 
 /**
  * PERI(x20) 도메인의 **UARTE / SPIS 에 한한 예외**. P1 뿐 아니라 P2 도 허용한다.
@@ -99,12 +117,12 @@
  * 상세는 docs/PERIPHERAL-PINMAP.md.
  */
 #define NRF54L_ASSERT_PERI_SERIAL_PIN(pin, what)                              \
-    NRF54L_STATIC_ASSERT(NRF54L_PORT_OF(pin) == NRF54L_DOMAIN20_PORT ||       \
+    NRF54L_STATIC_ASSERT(NRF54L_IS_DOMAIN20_PORT(NRF54L_PORT_OF(pin)) ||      \
                          NRF54L_PORT_OF(pin) == NRF54L_DOMAIN00_PORT,         \
-                         what " : PERI 의 UARTE/SPIS 는 P1 또는 P2 만 쓸 수 있다")
+                         what " : UARTE/SPIS in PERI can only use pins on P1 or P2 (P3 too on nRF54LM20A)")
 
 /** SAADC 는 P1 도메인이다. AIN 핀은 반드시 P1. */
 #define NRF54L_ASSERT_ANALOG_PIN(pin, what) \
-    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN20_PORT, what " : SAADC 는 P1 도메인만 쓸 수 있다")
+    NRF54L_ASSERT_PIN_PORT(pin, NRF54L_DOMAIN20_PORT, what " : SAADC can only use pins on P1")
 
 #endif /* _NRF54L_DOMAINS_H_ */

@@ -194,7 +194,7 @@ NRF54L_ASSERT_SIG(PIN_NFC2, NFCT_NFC2, "NFC2");
 /* ⚠ LED1(P2.09)·LED3(P2.07)은 P2 다. P2 를 담당하는 GPIOTE 도 PWM 도 없으므로
  *   그 두 핀에는 attachInterrupt 도 analogWrite 도 걸리지 않는다.
  *   LED_BUILTIN 이 LED1 이라는 점에 주의하라 — PWM 시험은 LED2/LED4 로 한다. */
-NRF54L_ASSERT_SIG(PIN_BUTTON1, GPIOTE20_CHAN_0, "SW2 (인터럽트 가능해야 한다)");
-NRF54L_ASSERT_SIG(PIN_BUTTON4, GPIOTE30_CHAN_0, "SW5 (인터럽트 가능해야 한다)");
+NRF54L_ASSERT_SIG(PIN_BUTTON1, GPIOTE20_CHAN_0, "SW2 (must be interrupt-capable)");
+NRF54L_ASSERT_SIG(PIN_BUTTON4, GPIOTE30_CHAN_0, "SW5 (must be interrupt-capable)");
 
 #endif /* _VARIANT_NU54DK_H_ */

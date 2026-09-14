@@ -1,4 +1,12 @@
 /*
+ * baram-nrf54l-arduino 패치 — nRF54LM20A 에는 I2S 가 없다 (TDM 으로 대체됐다).
+ * MDK 에 NRF_I2S_Type 자체가 없어서 HAL 헤더를 include 하는 순간 깨지는데,
+ * Arduino 는 cores/ 아래 .c 를 전부 컴파일하므로 파일을 뺄 수 없다 (CLAUDE.md §7 F13 ②).
+ * NRFX_I2S_ENABLED 가드는 include 뒤에 있어 소용없다. 원본과 다른 것은 이 가드뿐이다.
+ */
+#if !defined(NRF54LM20A_XXAA)
+
+/*
  * Copyright (c) 2015 - 2026, Nordic Semiconductor ASA
  * All rights reserved.
  *
@@ -671,3 +679,5 @@ void nrfx_i2s_irq_handler(nrfx_i2s_t * p_instance)
         }
     }
 }
+
+#endif /* !NRF54LM20A_XXAA */

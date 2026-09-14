@@ -9,6 +9,6 @@
 #ifndef _ADAFRUIT_LITTLEFS_H_
 #define _ADAFRUIT_LITTLEFS_H_
 
-#error "이 코어에는 파일시스템이 없다. 스케치에서 #include <Adafruit_LittleFS.h> 와 #include <InternalFileSystem.h> 두 줄을 지워라. Adafruit 예제가 이 줄을 넣은 이유는 본딩 코드를 링크시키기 위해서인데, 이 코어는 본딩을 RRAM 파티션에 직접 저장하므로 필요 없다. 예제가 파일시스템 API 를 직접 쓰는 경우는 없다 (CLAUDE.md 8.1)."
+#error "This core has no filesystem. Delete the two lines #include <Adafruit_LittleFS.h> and #include <InternalFileSystem.h> from the sketch. Adafruit examples include them only so the bonding code gets linked; this core stores bonds directly in an RRAM partition, so they are not needed. No example calls the filesystem API itself (CLAUDE.md 8.1)."
 
 #endif

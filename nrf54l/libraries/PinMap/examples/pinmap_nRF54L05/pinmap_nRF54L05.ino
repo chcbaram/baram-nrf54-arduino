@@ -1,5 +1,5 @@
 /*********************************************************************
- nRF54L05 핀맵
+ nRF54L05 pin map
 
  ⚠ 이 파일은 손으로 쓴 것이 아니다. `extras/gen_pinmap.py` 가
    Nordic Pin Planner 의 SoC 정의에서 구워 낸다. 고칠 일이 있으면
@@ -78,12 +78,12 @@ void setup()
 
   /* 이 스케치는 위 주석이 본체다. 굽지 않아도 된다.
      굳이 돌리면 보드 이름과 실장 칩만 확인해 준다. */
-  Serial.println("nRF54L05 핀맵");
-  Serial.print("빌드된 보드: ");
+  Serial.println("nRF54L05 pin map");
+  Serial.print("Built for board: ");
   Serial.println(BOARD_NAME);
 
   uint32_t part = *(volatile uint32_t *) 0x00FFC31C;   /* FICR INFO.PART */
-  Serial.print("실장 칩 FICR INFO.PART = 0x");
+  Serial.print("Chip on board, FICR INFO.PART = 0x");
   Serial.println(part, HEX);
 }
 

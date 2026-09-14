@@ -190,7 +190,7 @@ void SPIClass::transfer(void *buf, size_t count)
 
 #ifdef SPI_SPIM_INSTANCE
   #ifndef SPI_SPIM_IRQ_HANDLER
-    #error "variant.h 에서 SPI_SPIM_IRQ_HANDLER 도 정의해야 한다 (예: SERIAL00_IRQHandler)"
+    #error "variant.h must also define SPI_SPIM_IRQ_HANDLER (e.g. SERIAL00_IRQHandler)"
   #endif
 
 SPIClass SPI(SPI_SPIM_INSTANCE, PIN_SPI_SCK, PIN_SPI_MOSI, PIN_SPI_MISO);
@@ -204,7 +204,7 @@ extern "C" void SPI_SPIM_IRQ_HANDLER(void) { SPI._irqHandler(); }
 
 #ifdef SPI1_SPIM_INSTANCE
   #ifndef SPI1_SPIM_IRQ_HANDLER
-    #error "variant.h 에서 SPI1_SPIM_IRQ_HANDLER 도 정의해야 한다"
+    #error "variant.h must also define SPI1_SPIM_IRQ_HANDLER"
   #endif
 
 SPIClass SPI1(SPI1_SPIM_INSTANCE, PIN_SPI1_SCK, PIN_SPI1_MOSI, PIN_SPI1_MISO);

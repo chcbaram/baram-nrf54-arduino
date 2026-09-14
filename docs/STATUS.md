@@ -1,6 +1,6 @@
 # 진행 상황 / 다음 세션 인수인계
 
-최종 갱신: 2026-09-08 · 릴리스 `0.2.0` + `BLEHidGamepad`
+최종 갱신: 2026-09-14 · XIAO nRF54LM20A 지원 추가 (§2.17)
 
 프로젝트 지침과 설계 결정은 [CLAUDE.md](../CLAUDE.md) 가 정본이다.
 이 문서는 **"지금 어디까지 됐고 다음에 뭘 하면 되는지"** 만 짧게 적는다.
@@ -21,7 +21,7 @@
 | **tickless idle** | ✅ 틱 vs SYSCOUNTER 0 ppm, 5분 소크 이상 0건 |
 | LFXO 클럭 정확도 | ✅ 호스트 대비 +25~38 ppm |
 | arduino-cli / Arduino IDE 컴파일·업로드 | ✅ probe-rs, CMSIS-DAP |
-| 보드 3종 | ✅ NU54-DK / NU54V-DK / XIAO nRF54L15 |
+| 보드 4종 | ✅ NU54-DK / NU54V-DK / XIAO nRF54L15 / **XIAO nRF54LM20A** |
 
 **XIAO nRF54L15 실기 확인 (2026-09-06)** — `docs/HIL/M1-xiao.md`:
 온보드 CMSIS-DAP 업로드 1.9초, LED 점멸(active LOW) 및 `Serial`(UARTE20) 정상,
@@ -32,6 +32,7 @@ LFXO 내부 로드 캡을 잡기 전에는 **+805 ppm** 이었다 (§ 아래 4-7
 FQBN  baram-nrf54:nrf54l:nu54dk          NU54-DK    (nRF54L05, 500KB/96KB)
       baram-nrf54:nrf54l:nu54vdk         NU54V-DK   (nRF54L15, 1.5MB/256KB)
       baram-nrf54:nrf54l:xiao_nrf54l15   XIAO       (nRF54L15, 온보드 CMSIS-DAP)
+      baram-nrf54:nrf54l:xiao_nrf54lm20a XIAO LM20A (nRF54LM20A, 2MB/512KB, 온보드 CMSIS-DAP)
 ```
 
 빌드 크기(blink + Serial + 2태스크): Flash 38004 B, RAM 3856 B.
@@ -142,6 +143,7 @@ nRF54L 에서 쓰면 안 되는 것이었고(§2.5), 연결 핸들은 배열 인
 |---|---|
 | XIAO nRF54L15 | probe `2886:0066:5784477E`, 시리얼 `/dev/cu.usbmodem5784477E3` |
 | NU54-DK (L05) | probe `0d28:0204:1070…2820`, 시리얼 `/dev/cu.usbserial-2110` |
+| XIAO nRF54LM20A Sense | probe `2886:0068:0862DE5D`, 시리얼 `/dev/cu.usbmodem0862DE5D3`, **외부 안테나 필요** |
 
 ⚠ **프로브가 둘 붙어 있으면 `arduino-cli upload` 가 실패한다** — 어느 쪽인지 못 고른다.
 `probe-rs download --probe <VID:PID:serial>` 로 직접 굽는다.
@@ -1547,6 +1549,48 @@ blink 의 벡터를 전수 조사하니 **쓰지도 않는 단일 인스턴스 �
 지금은 되돌려 두었다. 지우면 나중에 쓸 때 다시 가져와야 하므로 판단이 필요하다 —
 `nrfx_pdm.c` 는 XIAO 마이크에, `nrfx_i2s.c`/`nrfx_qdec.c` 는 언젠가 쓸 수 있다.
 `nordic/nrfx/VENDORING.md` 에 21개를 지운 전례가 있다.
+
+## 2.17 XIAO nRF54LM20A — ✅ (2026-09-14)
+
+**M6 의 첫 보드.** 실기 기록은 `docs/HIL/M6-xiao-nrf54lm20a.md`, 보드 사실은
+`docs/boards/XIAO-nRF54LM20A.md`, 메모리는 `docs/MEMORY-MAP.md` 의 nRF54LM20A 절.
+
+**실기 확인**: 소거+SoftDevice 굽기, 업로드, blink, `Serial`, HFXO·LFXO 내부 캡,
+SoftDevice(요구 RAM `0x20007F48` — L15 와 같음), **BLE 연결·MTU 247·NUS 에코**,
+보드 라이브러리 예제 5개(`pmic`/`imu`/`flash_id`/`rgb_led`/`button`).
+예제 스윕 4 보드 76건 전부 컴파일 (`SD`·`SdFat` 라이브러리 설치 필요).
+
+**코어에 들어간 것**
+
+| | |
+|---|---|
+| 칩 | MDK·nrfx 템플릿 LM20A 분, S145 LM20 hex, 링커 `nrf54lm20a_s145_v10.ld` |
+| 빌드 | 칩 가드 3곳 — 스타트업 두 벌, `nrfx_i2s.c` (LM20A 에는 I2S 가 없다) |
+| 도메인 | `NRF54L_IS_DOMAIN20_PORT()` — P3 도 도메인 20 이라 인터럽트·PWM 이 된다 |
+| 핀 검사 | `nrf54l_pinmap.h` 가 L15 / LM20A 두 표. 생성기가 GPIO 아닌 항목(`USBHS.D+`)을 건너뛰고, 다 만든 뒤에 파일을 쓰게 고쳤다 |
+| 클럭 | variant 가 `HFXO_LOAD_CAP_FF` 로 HFXO 내부 캡을 준다 |
+| 굽기 | `programmers.txt` 에 `Erase all + Burn SoftDevice (probe-rs)` |
+| 메시지 | 시리얼 출력·`#error`·핀 검증 메시지를 영어로 바꿨다 (주석은 한국어 유지) |
+
+**보드 라이브러리 `BOARD-XIAO-nRF54LM20A`**: nPM1300 `PMIC`(전용 TWIM24, 트랜잭션 락),
+`IMU`(LSM6DS3TR-C, **Arduino_LSM6DS3 과 같은 API**, `begin()` 이 PMIC 로 레일을 켠다).
+
+### 이 보드에서 물린 것 세 가지
+
+1. **RAM 끝이 `0x2007FD40` 이다 — 512 KB 로 잡으면 부팅 첫 명령에 HardFault.**
+   CLAUDE.md §7 F14. LED 가 안 켜지는 증상뿐이라 SCB 부터 읽어야 보인다
+2. **칩 안테나가 없다.** 안테나 없이 광고하면 SWD 로 라디오가 TX 하는 것까지 보이는데
+   Mac 이 한 건도 못 받는다. 소프트웨어가 전부 정상이라 코어 문제로 오진하기 쉽다
+3. **APPROTECT 로 잠겨 출하된다.** 굽기가 `erase_all` 권한 오류로 거부된다
+
+### 남은 것
+
+- LFXO −49 ppm — 크리스털 사양(±20) 밖. `LFXO_LOAD_CAP_FF` 17000 을 줄여 볼 것
+- PDM 마이크 API, TDM API, 저전력 측정
+- `TwoWire` 에 버스 락이 없다 — 여러 태스크가 같은 `Wire` 를 쓰면 트랜잭션이 섞일 수 있다
+- nrfx 가 v4.6.0 으로 올라갔다 (동봉 v4.5.0)
+
+---
 
 ## 3. 아직 검증 못 한 가정
 

@@ -135,7 +135,7 @@ variant 가 `PIN_VBAT` / `VBAT_DIVIDER` 로 제공한다 (XIAO 와 같은 이름
 (10 µs)으로는 값이 낮고 수십 mV 흔들린다. **여러 번 읽어 평균 내라.**
 대신 누설이 4.1 V 에서 **2.8 µA** 뿐이라 배터리 구동에 유리한 선택이다.
 
-### 예제 — `libraries/NU54V-DK/examples/`
+### 예제 — `libraries/BOARD-NU54V-DK/examples/`
 
 | | 무엇 | 실기 출력 |
 |---|---|---|

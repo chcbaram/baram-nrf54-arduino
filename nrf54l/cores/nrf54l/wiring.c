@@ -69,7 +69,7 @@ void init(void)
      * 여기서 미리 켜면 GRTC 준비 전에 카운터가 돌아 첫 틱이 빗나간다.
      */
 #if !defined(USE_LFXO) && !defined(USE_LFRC)
-  #error "variant.h 에서 USE_LFXO 또는 USE_LFRC 를 정의해야 한다"
+  #error "variant.h must define USE_LFXO or USE_LFRC"
 #endif
 
     /*

@@ -98,13 +98,24 @@ the install, and where the project is going — not radio quality.
 | Board | MCU | Flash / RAM | Debug | Pinout |
 |---|---|---|---|---|
 | **Seeed XIAO nRF54L15** / Sense | nRF54L15 | 1.5 MB / 256 KB | **onboard CMSIS-DAP** | [docs](docs/boards/XIAO-nRF54L15.md) |
+| **Seeed XIAO nRF54LM20A** / Sense | nRF54LM20A | 2 MB / 512 KB | **onboard CMSIS-DAP** | [docs](docs/boards/XIAO-nRF54LM20A.md) |
 | **NU54-DK** | nRF54L05 | 500 KB / 96 KB | external probe | [docs](docs/boards/NU54-DK.md) |
 | **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | **onboard CMSIS-DAP** | [docs](docs/boards/NU54V-DK.md) |
 
-All are 128 MHz Cortex-M33. **The XIAO and the NU54V-DK need nothing but a USB-C
-cable** — their onboard debuggers handle both flashing and the serial console. The
+All are 128 MHz Cortex-M33. **Both XIAO boards and the NU54V-DK need nothing but a
+USB-C cable** — their onboard debuggers handle both flashing and the serial console. The
 NU54V-DK also carries a battery charger and a Qwiic connector, and shows up as two
 serial ports rather than one.
+
+The **XIAO nRF54LM20A** differs in three ways worth knowing up front:
+
+- **It has no antenna on the board.** BLE goes out through the u.FL connector only, so
+  attach an antenna. Without one the stack runs normally and nobody hears it.
+- **It ships with its debug port locked.** Its first SoftDevice flash has to erase the
+  chip — see [Flash the SoftDevice first](#flash-the-softdevice-first).
+- **Its Sense sensors are powered by the nPM1300 PMIC**, not a GPIO. The bundled
+  `BOARD-XIAO-nRF54LM20A` library handles that: `IMU.begin()` switches the rail on, and `PMIC`
+  reads battery and charger state.
 
 Memory layout is per chip rather than per board: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
 
@@ -186,10 +197,10 @@ your sketch lands.
 
 ### From the Arduino IDE
 
-1. Connect the debug probe. XIAO nRF54L15 has one on board, so USB-C is enough;
+1. Connect the debug probe. Both XIAO boards have one on board, so USB-C is enough;
    NU54-DK needs an external CMSIS-DAP probe on the J3 header; NU54V-DK has one on board
 2. **Tools → Board** — pick your board **first**. The correct hex is chosen from it:
-   nRF54L05 and nRF54L15 take different SoftDevice builds
+   nRF54L05, nRF54L15 and nRF54LM20A each take their own SoftDevice build
 3. **Tools → Programmer → `Burn SoftDevice (probe-rs)`**
 4. **Tools → Burn Bootloader**
 
@@ -197,13 +208,21 @@ your sketch lands.
 > no bootloader yet (it is planned for M4). The IDE offers no other menu entry for
 > "program a second image", so that is the one it hangs off.
 
+> **A board that arrives locked.** Some boards leave the factory with the debug port
+> protected (APPROTECT) — the XIAO nRF54LM20A does. Step 4 then fails with
+> `lacked the permission to do so: erase_all`. Pick
+> **`Erase all + Burn SoftDevice (probe-rs)`** in step 3 instead: it unlocks and erases
+> the whole chip, then writes the SoftDevice, in one go. Everything on the board —
+> the factory demo, a previous sketch, stored bonds — is gone afterwards.
+
 ### From arduino-cli
 
 ```sh
 arduino-cli burn-bootloader --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 --programmer sd_burn
 ```
 
-Substitute your own FQBN — `nu54dk`, `nu54vdk` or `xiao_nrf54l15`. Then upload as
+Substitute your own FQBN — `nu54dk`, `nu54vdk`, `xiao_nrf54l15` or `xiao_nrf54lm20a`.
+For a locked board use `--programmer sd_erase_burn` instead of `sd_burn`. Then upload as
 usual:
 
 ```sh
@@ -377,9 +396,10 @@ hardware rather than only compiled, are in
   owns the top interrupt priority and blocks the application during radio events.
   Use PWM + EasyDMA based alternatives instead.
 - **USB** — the nRF54L15 has no USB hardware, so USB CDC, UF2 and the 1200 bps touch
-  reset are unavailable on the chips supported today. This is a property of the chip
-  rather than a decision. The **nRF54LM20A does have USB** (high-speed USBHS) and is
-  planned for M6, at which point USB support will be revisited.
+  reset are unavailable on it. This is a property of the chip rather than a decision.
+  The **nRF54LM20A does have USB** (high-speed USBHS), but the core does not drive it
+  yet, and on the XIAO nRF54LM20A that USB is not wired out — its USB-C port goes to
+  the onboard debugger.
 - **Matter / Thread / Zigbee / LE Audio / 802.15.4** — out of scope. This core targets
   BLE applications.
 

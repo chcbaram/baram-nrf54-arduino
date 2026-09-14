@@ -56,7 +56,7 @@ DualRoles/   dual_bleuart
 Hardware/    blinky  SerialEcho  temp_measure  rtos_scheduler  board_test
 ```
 
-세 보드(nu54dk / nu54vdk / xiao_nrf54l15) 전부에서 빌드된다.
+네 보드(nu54dk / nu54vdk / xiao_nrf54l15 / xiao_nrf54lm20a) 전부에서 빌드된다.
 
 ⚠ 상류 예제를 그대로 복사하지 않고 **다시 썼다.** 주석 톤을 맞추고, 이 코어에서
 다른 부분(예: `temp_measure` 는 비동기 판이 아직 안 된다)을 그 자리에 적기 위해서다.

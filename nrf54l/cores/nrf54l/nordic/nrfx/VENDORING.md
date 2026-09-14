@@ -31,7 +31,7 @@ nrfx_rtc.c          nRF52 RTC (nRF54L 은 GRTC)
 nrfx_rtc_legacy.c   위와 동일
 nrfx_spi.c          레거시 SPI (nRF54L 은 SPIM 만)
 nrfx_tbm.c
-nrfx_tdm.c          nRF54LM20A 전용. M6 에서 다시 넣는다
+nrfx_tdm.c          nRF54LM20A 전용. 코어에 TDM API 가 없어 아직 넣지 않았다
 nrfx_twi.c          레거시 TWI
 nrfx_uart.c         레거시 UART
 nrfx_usbd.c         nRF52840 USB (nRF54LM20A 는 USBHS 로 다른 IP)
@@ -60,7 +60,7 @@ nrfx 는 같은 심볼을 정의하는 **대안 구현**을 함께 담고 있고
 
 ## 그 밖에 제외한 것
 
-- `bsp/` 는 `stable/` 만, 그중 `mdk/nrf54l/nrf54l15` 와 공통 파일만 남겼다
+- `bsp/` 는 `stable/` 만, 그중 `mdk/nrf54l/nrf54l15`·`mdk/nrf54l/nrf54lm20a` 와 공통 파일만 남겼다
   (전체는 301MB. 다른 nRF 계열 전부를 담고 있다)
 - `mdk` 의 `.svd` 파일과 FLPR 스타트업 (`gcc_startup_nrf54l15_flpr.S`) 제거.
   FLPR 은 범위 밖이다 (CLAUDE.md R6). 단 `nrf54l15_flpr.h` 는 `nrf54l15.h` 가
@@ -72,8 +72,9 @@ nrfx 는 같은 심볼을 정의하는 **대안 구현**을 함께 담고 있고
 1. 새 nrfx 를 받아 위 구조로 다시 추린다
 2. **위 21개 목록을 그대로 믿지 말고** `-fsyntax-only` 판정을 다시 돌려라.
    nrfx 버전에 따라 가드가 추가/제거된다
-3. nRF54LM20A 를 지원하게 되면 `nrfx_tdm.c` 를 되살리고
-   `NRF54LM20A_XXAA` 가드를 확인한다
+3. 아래 "칩 가드 패치" 세 파일에 가드를 **다시 씌운다.** 새 원본으로 덮으면 사라지고,
+   빠뜨리면 L15 와 LM20A 중 한쪽 빌드가 깨진다
+4. LM20A 에 TDM API 를 넣게 되면 `nrfx_tdm.c` 를 되살리고 `NRF54LM20A_XXAA` 가드를 확인한다
 
 판정 스크립트 예:
 
@@ -84,3 +85,30 @@ for f in $(find nordic -name '*.c'); do
     <include 경로들> 2>/dev/null || echo "FAIL $f"
 done
 ```
+
+## nRF54LM20A 추가 (2026-09-14)
+
+XIAO nRF54LM20A 지원 때 **같은 nrfx v4.5.0** 에서 가져왔다. 기존 L15 파일이 v4.5.0 원본과
+바이트 단위로 같은 것을 먼저 확인했다 (`nrf54l15_application.h`, irqs/config 템플릿).
+
+| 추가 | 원본 경로 |
+|---|---|
+| `bsp/mdk/nrf54l/nrf54lm20a/` (18 파일) | `bsp/stable/mdk/nrf54l/nrf54lm20a/` — L15 와 같은 기준으로 `.svd` 와 FLPR 스타트업은 제외 |
+| `bsp/soc/irqs/nrfx_irqs_nrf54lm20a_application.h` | `bsp/stable/soc/irqs/` |
+| `bsp/templates/nrfx_config_nrf54lm20a_application.h` | `bsp/stable/templates/` |
+
+SoftDevice hex 는 nrfx 가 아니라 sdk-nrf-bm v2.0.1 에서 왔다 (`docs/LICENSE-INVENTORY.md`).
+
+### 칩 가드 패치 — 원본과 다른 곳은 이 셋뿐이다
+
+Arduino 는 `cores/` 아래를 전부 컴파일하므로 **칩별 파일을 빌드에서 뺄 수 없다.**
+그래서 파일 머리에 칩 define 가드를 씌웠다. 각 파일 첫 주석에 같은 설명이 있다.
+
+| 파일 | 가드 | 이유 |
+|---|---|---|
+| `bsp/mdk/nrf54l/nrf54l15/gcc_startup_nrf54l15_application.S` | `#if !defined(NRF54LM20A_XXAA)` | 스타트업 두 벌이 `Reset_Handler`·벡터 테이블을 중복 정의한다. L05 는 L15 스타트업을 쓴다 |
+| `bsp/mdk/nrf54l/nrf54lm20a/gcc_startup_nrf54lm20a_application.S` | `#if defined(NRF54LM20A_XXAA)` | 위와 같다. LM20A 는 벡터가 다르다(SERIAL23/24, TDM, USBHS) |
+| `drivers/src/nrfx_i2s.c` | `#if !defined(NRF54LM20A_XXAA)` | **LM20A 에는 I2S 가 없다** (TDM 으로 대체). MDK 에 `NRF_I2S_Type` 이 없어 HAL 헤더를 include 하는 순간 167줄 오류가 난다. `NRFX_I2S_ENABLED` 가드는 include 뒤에 있어 소용없다 |
+
+`.S` 는 `-x assembler-with-cpp` 로 조립되고 `platform.txt` 가 칩 define 을 넘기므로
+`#if` 가 통한다.

@@ -19,13 +19,13 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 | SVC 충돌(F1) | **있다.** FreeRTOS 11.x 가 SVC 100~105 사용 → 0~5 로 옮김 (§7 F1) |
 | SD 예약 인터럽트 우선순위(F2) | **0과 4** (§7 F2) |
 | FreeRTOS 포트 | sdk-nrf-bm에 **없음.** 직접 포팅 (§7 F4) |
-| 업로드 툴 | **probe-rs**, 타깃 이름 `nRF54L15` (§3). `probe-rs chip list` 에 **nRF54L05 타깃은 없다** — 같은 다이라 L05 도 `nRF54L15` 로 플래시한다 |
+| 업로드 툴 | **probe-rs**, 타깃 이름 `nRF54L15` / `nRF54LM20A` (§3). `probe-rs chip list` 에 **nRF54L05 타깃은 없다** — 같은 다이라 L05 도 `nRF54L15` 로 플래시한다 |
 | `__NVIC_PRIO_BITS` | **3** (0~7). BASEPRI 는 `prio << 5` |
 | GRTC 인터럽트 그룹 | 앱 = **`GRTC_2_IRQn`**, SoftDevice = `GRTC_3_IRQn`. 앱 CC 는 0~6 |
 | 리셋 원인 레지스터 | **`NRF_RESET`** (nRF54H 계열의 `NRF_RESETINFO` 아님) |
 | WFI 기상과 마스크(F9) | **BASEPRI 는 기상을 막는다. PRIMASK 는 막지 않는다.** 슬립 창에서 BASEPRI 를 걸어 두면 안 된다 (§7 F9) |
-| 지원 보드 | `nu54dk` = NU54-DK / **nRF54L05**(500KB/96KB), `nu54vdk` = NU54V-DK / nRF54L15(1.5MB/256KB). ⚠ **PCB 가 다르다 — variant 를 분리했다** (2026-09-12). NU54V 는 온보드 CMSIS-DAP·PMIC·Qwiic·30핀 헤더 |
-| 실장 칩 판별 | `FICR INFO.PART` @ `0x00FFC31C` — `0x00054B05` = L05, `0x00054B15` = L15 |
+| 지원 보드 | `nu54dk` = NU54-DK / **nRF54L05**(500KB/96KB), `nu54vdk` = NU54V-DK / nRF54L15(1.5MB/256KB). ⚠ **PCB 가 다르다 — variant 를 분리했다** (2026-09-12). NU54V 는 온보드 CMSIS-DAP·PMIC·Qwiic·30핀 헤더. `xiao_nrf54l15` = XIAO nRF54L15, `xiao_nrf54lm20a` = XIAO nRF54LM20A / **nRF54LM20A**(2MB/512KB, RAM 끝 `0x2007FD40`, 2026-09-14) |
+| 실장 칩 판별 | `FICR INFO.PART` @ `0x00FFC31C` — `0x00054B05` = L05, `0x00054B15` = L15, `0x054BC20A` = LM20A (실측) |
 
 시간이 지나면 위 값도 바뀔 수 있다. 재확인이 필요하면 §10 M0의 절차를 다시 밟고 이 표를 갱신하라.
 
@@ -75,8 +75,8 @@ nRF54L 시리즈용 Arduino 코어. Nordic SoftDevice + FreeRTOS 기반, Adafrui
 
 | 항목 | 값 |
 |---|---|
-| 지원 보드 | **NU54-DK (nRF54L05)** / **NU54V-DK (nRF54L15)** / **XIAO nRF54L15 (Seeed)** |
-| board id | `nu54dk` / `nu54vdk` / `xiao_nrf54l15` |
+| 지원 보드 | **NU54-DK (nRF54L05)** / **NU54V-DK (nRF54L15)** / **XIAO nRF54L15 (Seeed)** / **XIAO nRF54LM20A (Seeed)** |
+| board id | `nu54dk` / `nu54vdk` / `xiao_nrf54l15` / `xiao_nrf54lm20a` |
 | `build.variant` | `nu54dk` 는 두 DK 가 공유(핀맵 동일), XIAO 는 별도 |
 | packager (FQBN 앞) | **`baram-nrf54`** — 인덱스의 `packages[0].name` 이자 개발용 `hardware/` 링크 이름 |
 | architecture | **`nrf54l`** (플랫폼 디렉토리 `nrf54l/`, 코어 `cores/nrf54l/`) |
@@ -162,6 +162,7 @@ arduino-cli의 `tools.<t>.upload.field.<name>` 기법을 쓴다 — IDE가 값�
 `EIDOSDATA/NU54DK_Arduino_Core/platform.txt`가 이 방식을 쓰고 있으니 참고하라. probe-rs는 `--probe <VID>:<PID>:<Serial>`을 받는다.
 
 일반 업로드는 mass erase나 recover를 자동 실행하지 않는다. `programmers.txt`의 별도 항목으로 분리하라.
+새 보드용으로 **`Erase all + Burn SoftDevice (probe-rs)`** (`sd_erase_burn`) 가 있다 — `download --allow-erase-all --chip-erase` 한 줄이 잠금 해제·전체 소거·SoftDevice 굽기를 한다. **APPROTECT 로 잠겨 출하되는 보드**(XIAO nRF54LM20A)는 이것 없이는 굽기가 거부된다.
 
 ---
 
@@ -234,7 +235,7 @@ CP2102N의 GPIO.2/GPIO.3도 비어 있지만 호스트에서 벤더 특화 USB �
 | NU54-DK | nRF54L05 | `nu54dk` | `docs/boards/NU54-DK.md` |
 | NU54V-DK | nRF54L15 | **`nu54vdk`** | `docs/boards/NU54V-DK.md` |
 | XIAO nRF54L15 / Sense | nRF54L15 | `xiao_nrf54l15` | `docs/boards/XIAO-nRF54L15.md` |
-| XIAO nRF54LM20A / Sense | nRF54LM20A (FCCSP98) | **없음 — M6** | `docs/boards/XIAO-nRF54LM20A.md` |
+| XIAO nRF54LM20A / Sense | nRF54LM20A (FCCSP98) | `xiao_nrf54lm20a` | `docs/boards/XIAO-nRF54LM20A.md` |
 
 **어디에 쓸지 판단 기준은 "보드 사실이냐 칩 사실이냐" 하나다:**
 
@@ -258,17 +259,17 @@ Serial.println(BOARD_NAME);   // "XIAO nRF54L15 / Sense (Seeed)"
 보드를 추가해도 고칠 곳이 없다. `variant` 를 공유하는 보드(NU54-DK / NU54V-DK)도
 서로 다른 이름이 나온다 — variant.h 에 넣으면 안 되는 이유다.
 
-### 4.2 nRF54LM20A 조사 결과 (M6 대비)
+### 4.2 nRF54LM20A — ✅ XIAO nRF54LM20A 로 첫 지원 (2026-09-14)
 
 **베어메탈 지원됨.** sdk-nrf-bm v2.0.1 에 S115/S145 v10.0.1 hex 가 있다 (같은 5-Clause).
 
 | | nRF54L15 | nRF54LM20A |
 |---|---|---|
-| RRAM / RAM | 1.5MB / 256KB | 2MB / 512KB |
+| RRAM / RAM | 1.5MB / 256KB | 2MB / 512KB (**RAM 끝 `0x2007FD40`** — §7 F14) |
 | GPIO 포트 | P0 P1 P2 (3개) | P0 P1 P2 **P3** (4개) |
 | SERIAL 인스턴스 | ~22 | **~24** (SPIM/TWIM/UARTE 23·24 추가) |
 | USB | 없음 | **USBHS** + USBHSCORE + VREGUSB (High-Speed) |
-| 오디오 | I2S20 | **TDM** |
+| 오디오 | I2S20 | **TDM** (I2S 는 하드웨어에 없다. Pin Planner·nrfx main 으로 확인) |
 
 **SoftDevice 파일 — 중요:**
 - **hex 는 다르다** (L15 389583 B / LM20 389951 B, sha256 상이). SoC 별 빌드다
@@ -289,8 +290,18 @@ Serial.println(BOARD_NAME);   // "XIAO nRF54L15 / Sense (Seeed)"
   variant 의 `SERIAL_UARTE_INSTANCE` 로 고른다
 - `nrfx_config.h` 의 UARTE23/24 가 `#if defined(NRF54LM20A_XXAA)` 로 분기
 
-**M6 에서 해야 할 것:**
-- variant + 링커 스크립트 + 메모리 맵 (LM20 DTS 에서 뽑는다)
+**M6 에서 한 것 (2026-09-14, 실기 `docs/HIL/M6-xiao-nrf54lm20a.md`):**
+- variant `xiao_nrf54lm20a` + 링커 `nrf54lm20a_s145_v10.ld` + `docs/MEMORY-MAP.md` 절
+- MDK·nrfx 템플릿 LM20A 분 vendoring, **칩 가드 3곳** (스타트업 두 벌, `nrfx_i2s.c`) — `nordic/nrfx/VENDORING.md`
+- `nrf54l_domains.h` 의 `NRF54L_IS_DOMAIN20_PORT()` 로 P3 를 도메인 20 에 포함 → 인터럽트·PWM
+- `nrf54l_pinmap.h` 를 **L15 / LM20A 두 표**로 생성, 칩 define 으로 고른다
+- `nrfx_config.h` 에 SPIM/TWIM 23·24
+- variant 가 `HFXO_LOAD_CAP_FF` 로 HFXO 내부 캡을 줄 수 있게 했다 (Zephyr 공식)
+- SoftDevice 요구 RAM 이 L15 와 같다는 것 실측 (`0x20007F48`)
+- ⚠ XIAO nRF54LM20A 에는 **칩 안테나가 없다** (u.FL 뿐). 안테나 없이는 광고가 정상으로
+  돌면서 아무에게도 안 들린다 — `docs/boards/XIAO-nRF54LM20A.md` §3
+
+**그 전에 적어 둔 조사 결과** (반영 완료):
 - `nrf54l_domains.h` 에 LM20A 도메인 표 추가.
   ✅ **규칙 확인 완료 (2026-09-12, Pin Planner)** — `docs/PERIPHERAL-PINMAP.md` §5.
   **도메인 20 이 포트를 둘 소유한다: P1 과 P3.** SPIM/TWIM/UARTE 20~24,
@@ -298,7 +309,9 @@ Serial.println(BOARD_NAME);   // "XIAO nRF54L15 / Sense (Seeed)"
   SERIAL 23·24 가 GRTC 와 같은 0x500E 대역에 있지만 GPIO 는 도메인 20 쪽이다 —
   **주소 대역으로 도메인을 추측하면 안 된다.**
   포트 하나를 비교하는 L15 식 매크로로는 표현되지 않으므로,
-  `extras/gen_pinmap.py` 로 LM20A 용 `nrf54l_pinmap.h` 를 한 벌 더 생성하라
+  `extras/gen_pinmap.py` 로 LM20A 용 `nrf54l_pinmap.h` 를 한 벌 더 생성하라 → ✅ 했다
+
+**아직 안 한 것:**
 - **USB 는 별개 대공사다.** nrfx 에 `nrf_usbhs.h` HAL 은 있으나
   **`nrfx_usbhs` 드라이버가 없다** (`nrfx_usbd` 는 nRF52 용).
   디바이스 스택(TinyUSB 등)의 nRF54L USBHS 포트 유무부터 조사해야 한다.
@@ -812,6 +825,26 @@ arduino-cli 는 recipe 를 셸 없이 토큰 단위로 실행한다.
 
 선언하지 않으면 라이브러리가 없을 때 치환되지 않고 문자열 그대로 링커에 넘어간다.
 
+### F14. nRF54LM20A 의 RAM 은 512 KB 가 아니다 — **부팅 첫 명령에서 HardFault**
+
+**실기에서 겪었다 (2026-09-14, XIAO nRF54LM20A).** RAM 끝은 **`0x2007FD40`** 이다.
+
+sdk-nrf-bm DTS 가 `cpuapp_sram` 을 `0x20000080` 부터 `511K − 0x80 + 0x140` 으로 적고
+"total size of SRAM is not 1kB aligned" 라고 주석까지 달아 두었는데, 이것을
+"대략 512 KB" 로 읽고 끝을 `0x20080000` 에 잡았다. 초기 SP 에서 첫 push 가
+없는 주소에 써서 죽는다:
+
+```
+CFSR 0x00009201 (STKERR, BFARVALID)   BFAR 0x2007FFF8   HFSR FORCED
+```
+
+증상은 **LED 가 안 켜진다** 뿐이라 variant 핀을 먼저 의심하게 된다.
+SWD 로 SCB(`ICSR`·`CFSR`·`HFSR`·`BFAR`)부터 읽으면 바로 보인다.
+
+**RAM 크기는 DTS 의 정확한 식을 따르라.** 다른 출처가 전부 틀렸다:
+FICR `INFO.RAM` = `0x200`(KB 올림), MDK `NRF_MEMORY_RAM_SIZE` = `0x40000`(256 KB).
+새 칩을 추가할 때 같은 방식으로 확인하라. `docs/MEMORY-MAP.md` 의 nRF54LM20A 절.
+
 ---
 
 ## 8. 참조 구현 매핑
@@ -1234,9 +1267,14 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 
 **DoD**: 깨끗한 환경에서 Board Manager URL로 설치 → blink 업로드 성공. Linux/Windows 양쪽에서 확인.
 
-### M6 — LM20A 확장 (계획)
+### M6 — LM20A 확장 (진행 중)
 
-- [ ] nRF54LM20A variant. I2S→TDM 차이 반영. USB 지원 여부 별도 판단
+- [x] **nRF54LM20A variant** — XIAO nRF54LM20A / Sense (2026-09-14). blink·Serial·BLE·보드 라이브러리 실기 확인.
+      `docs/HIL/M6-xiao-nrf54lm20a.md`
+- [x] I2S→TDM 차이 반영 — LM20A 는 I2S 가 없어 `nrfx_i2s.c` 를 칩 가드로 뺐다. TDM API 는 아직 없다
+- [ ] USB 지원 여부 판단 — 칩에 USBHS 가 있지만 `nrfx_usbhs` 드라이버가 없다.
+      XIAO nRF54LM20A 는 칩의 USB 가 **배선돼 있지 않다** (USB-C 는 SAMD11)
+- [ ] LFXO 로드 캡 튜닝 (XIAO 실측 −49 ppm), 저전력 측정
 
 ---
 
@@ -1262,7 +1300,7 @@ OTA 제약으로 문서화할 것: Adafruit 부트로더 기준 **Packet Receipt
 - 문서와 실제가 다르면 문서를 고쳐라 (§0)
 - 하드웨어 없이 추측으로 진행하지 마라. DK에서 검증 후 다음 단계로
 - **예제를 고쳤으면 `extras/check_examples.sh` 를 돌려라.** 전 보드에서 번들 예제를
-  컴파일한다. 보드 이름을 딴 라이브러리(`libraries/NU54V-DK/`)는 그 보드에서만
+  컴파일한다. 보드 이름을 딴 라이브러리(`libraries/BOARD-NU54V-DK/`)는 그 보드에서만
   빌드하도록 스크립트가 알고 있다 — **예제 파일에 `#if` 가드를 넣지 마라.**
   모든 파일이 지저분해지고, 제약이 있어야 할 곳은 빌드 대상을 아는 쪽이다
 - 저전력 관련 테스트는 SWD 프로브를 분리하고 수행하라 (F8)

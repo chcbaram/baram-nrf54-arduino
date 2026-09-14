@@ -72,6 +72,11 @@
 #define NRFX_TWIM21_ENABLED                      1
 #define NRFX_TWIM22_ENABLED                      1
 #define NRFX_TWIM30_ENABLED                      1
+/* nRF54LM20A 는 TWIM23/24 가 더 있다. XIAO nRF54LM20A 의 PMIC 버스가 TWIM24 다. */
+#if defined(NRF54LM20A_XXAA)
+  #define NRFX_TWIM23_ENABLED                    1
+  #define NRFX_TWIM24_ENABLED                    1
+#endif
 #define NRFX_TWIM_DEFAULT_CONFIG_IRQ_PRIORITY    NRFX_DEFAULT_IRQ_PRIORITY
 
 /* ── SPI ──────────────────────────────────────────────────────────────
@@ -85,6 +90,11 @@
 #define NRFX_SPIM20_ENABLED                      1
 #define NRFX_SPIM21_ENABLED                      1
 #define NRFX_SPIM22_ENABLED                      1
+/* nRF54LM20A 는 SPIM23/24 가 더 있다. XIAO nRF54LM20A 의 헤더 SPI 가 SPIM23 이다. */
+#if defined(NRF54LM20A_XXAA)
+  #define NRFX_SPIM23_ENABLED                    1
+  #define NRFX_SPIM24_ENABLED                    1
+#endif
 #define NRFX_SPIM_DEFAULT_CONFIG_IRQ_PRIORITY    NRFX_DEFAULT_IRQ_PRIORITY
 
 /*

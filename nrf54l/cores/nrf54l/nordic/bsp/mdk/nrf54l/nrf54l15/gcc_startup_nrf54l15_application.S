@@ -1,4 +1,12 @@
 /*
+ * baram-nrf54l-arduino 패치 — nRF54L05 / L15 전용 스타트업.
+ * Arduino 는 cores/ 아래 .S 를 전부 조립하므로 칩별 스타트업이 함께 있으면
+ * Reset_Handler 와 벡터 테이블이 중복 정의된다 (CLAUDE.md §7 F13 ②).
+ * 칩 define 으로 하나만 남긴다. nrfx v4.5.0 원본과 다른 것은 이 가드뿐이다.
+ */
+#if !defined(NRF54LM20A_XXAA)
+
+/*
  
 Copyright (c) 2009-2026 ARM Limited. All rights reserved.
 
@@ -636,3 +644,5 @@ Default_Handler:
     IRQ  GPIOTE30_1_IRQHandler
 
   .end
+
+#endif /* !defined(NRF54LM20A_XXAA) */

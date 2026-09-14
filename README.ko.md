@@ -92,12 +92,22 @@ FreeRTOS 위에서 같은 의미로 도는 `delay()`.
 | 보드 | MCU | Flash / RAM | 디버그 | 핀맵 |
 |---|---|---|---|---|
 | **Seeed XIAO nRF54L15** / Sense | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54L15.md) |
+| **Seeed XIAO nRF54LM20A** / Sense | nRF54LM20A | 2 MB / 512 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/XIAO-nRF54LM20A.md) |
 | **NU54-DK** | nRF54L05 | 500 KB / 96 KB | 외부 프로브 | [문서](docs/boards/NU54-DK.md) |
 | **NU54V-DK** | nRF54L15 | 1.5 MB / 256 KB | **온보드 CMSIS-DAP** | [문서](docs/boards/NU54V-DK.md) |
 
-전부 128 MHz Cortex-M33 이다. **XIAO 와 NU54V-DK 는 USB-C 케이블 하나면 된다** —
+전부 128 MHz Cortex-M33 이다. **XIAO 두 종과 NU54V-DK 는 USB-C 케이블 하나면 된다** —
 온보드 디버거가 플래시와 시리얼을 모두 처리한다. NU54V-DK 에는 배터리 충전기와
 Qwiic 커넥터도 있고, 시리얼 포트가 **두 개** 잡힌다.
+
+**XIAO nRF54LM20A** 는 미리 알아 둘 것이 세 가지다:
+
+- **보드에 안테나가 없다.** BLE 는 u.FL 커넥터로만 나가므로 안테나를 달아야 한다.
+  안테나가 없으면 스택은 정상으로 도는데 아무에게도 들리지 않는다.
+- **디버그 포트가 잠긴 채 출하된다.** 첫 SoftDevice 굽기에서 칩을 지워야 한다 —
+  [SoftDevice 를 먼저 굽는다](#softdevice-를-먼저-굽는다) 참조.
+- **Sense 센서 전원을 GPIO 가 아니라 nPM1300 PMIC 가 준다.** 동봉된 `BOARD-XIAO-nRF54LM20A`
+  라이브러리가 처리한다 — `IMU.begin()` 이 레일을 켜고, `PMIC` 로 배터리·충전 상태를 읽는다.
 
 메모리 배치는 보드가 아니라 칩 단위다: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
 
@@ -176,10 +186,10 @@ SoftDevice 는 Nordic 의 Bluetooth 스택이고, 스케치와는 **별개의 �
 
 ### Arduino IDE 에서
 
-1. 디버그 프로브를 연결한다. XIAO nRF54L15 는 온보드라 USB-C 하나면 되고,
+1. 디버그 프로브를 연결한다. XIAO 두 종은 온보드라 USB-C 하나면 되고,
    NU54-DK 는 J3 헤더에 외부 CMSIS-DAP 프로브가 필요하다. NU54V-DK 는 온보드에 있다
 2. **툴 → 보드** 에서 보드를 **먼저** 고른다. 어떤 hex 를 쓸지가 여기서 정해진다 —
-   nRF54L05 와 nRF54L15 는 SoftDevice 빌드가 서로 다르다
+   nRF54L05 / nRF54L15 / nRF54LM20A 는 SoftDevice 빌드가 각각 다르다
 3. **툴 → 프로그래머 → `Burn SoftDevice (probe-rs)`**
 4. **툴 → 부트로더 굽기**
 
@@ -187,13 +197,20 @@ SoftDevice 는 Nordic 의 Bluetooth 스택이고, 스케치와는 **별개의 �
 > 부트로더는 아직 없다 (M4 예정). Arduino IDE 에 "두 번째 이미지를 굽는" 메뉴가
 > 따로 없어서 여기에 얹었다.
 
+> **잠긴 채 오는 보드.** 디버그 포트 보호(APPROTECT)가 걸린 채 출하되는 보드가 있다 —
+> XIAO nRF54LM20A 가 그렇다. 그러면 4번이 `lacked the permission to do so: erase_all`
+> 로 실패한다. 3번에서 **`Erase all + Burn SoftDevice (probe-rs)`** 를 고르면 된다.
+> 잠금 해제·전체 소거·SoftDevice 굽기를 한 번에 한다. 보드에 있던 것 — 공장 데모,
+> 이전 스케치, 저장된 본딩 — 은 전부 지워진다.
+
 ### arduino-cli 에서
 
 ```sh
 arduino-cli burn-bootloader --fqbn baram-nrf54:nrf54l:xiao_nrf54l15 --programmer sd_burn
 ```
 
-FQBN 은 자기 보드로 바꾼다 — `nu54dk` / `nu54vdk` / `xiao_nrf54l15`.
+FQBN 은 자기 보드로 바꾼다 — `nu54dk` / `nu54vdk` / `xiao_nrf54l15` / `xiao_nrf54lm20a`.
+잠긴 보드는 `sd_burn` 대신 `--programmer sd_erase_burn` 을 쓴다.
 그 다음은 평소대로 올리면 된다:
 
 ```sh
@@ -361,10 +378,11 @@ PWM 과 ADC 는 **P1 에만**, 핀 인터럽트는 P1·P0 에 되고 **P2 에는
 - **bit-banging 라이브러리** (NeoPixel, DHT, OneWire, SoftwareSerial 등) —
   SoftDevice 가 최상위 인터럽트 우선순위를 점유하고 라디오 이벤트 중 애플리케이션을
   블로킹한다. PWM + EasyDMA 기반 대안을 쓸 것.
-- **USB** — nRF54L15 에 USB 하드웨어가 없어서, 현재 지원하는 칩에서는 USB CDC / UF2 /
-  1200bps touch 리셋을 쓸 수 없다. 선택이 아니라 칩의 성질이다.
-  **nRF54LM20A 에는 USB(high-speed USBHS)가 있고 M6 에서 지원할 계획**이므로,
-  그 시점에 USB 지원을 다시 판단한다.
+- **USB** — nRF54L15 에 USB 하드웨어가 없어서 USB CDC / UF2 / 1200bps touch 리셋을
+  쓸 수 없다. 선택이 아니라 칩의 성질이다.
+  **nRF54LM20A 에는 USB(high-speed USBHS)가 있지만** 코어가 아직 지원하지 않고,
+  XIAO nRF54LM20A 에서는 그 USB 가 밖으로 배선돼 있지 않다 — USB-C 는 온보드
+  디버거에 연결돼 있다.
 - **Matter / Thread / Zigbee / LE Audio / 802.15.4** — 범위 밖이다.
   이 코어는 BLE 애플리케이션을 대상으로 한다.
 

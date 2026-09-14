@@ -180,8 +180,9 @@ bool analogWriteOk(uint32_t arduino_pin, uint32_t value)
   uint32_t abs;
   if (!nrf54lPinResolve(arduino_pin, &abs)) return false;
 
-  /* PWM20/21/22 는 전부 도메인 20 이다. P2·P0 를 담당하는 PWM 은 없다. */
-  if (NRF54L_PORT_OF(abs) != NRF54L_DOMAIN20_PORT) return false;
+  /* PWM20/21/22 는 전부 도메인 20 이다. P2·P0 를 담당하는 PWM 은 없다.
+   * LM20A 는 도메인 20 이 P3 도 소유하므로 P3 핀에도 걸린다. */
+  if (!NRF54L_IS_DOMAIN20_PORT(NRF54L_PORT_OF(abs))) return false;
 
   slots_init_once();
 

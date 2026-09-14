@@ -44,7 +44,7 @@
 #define GRTC_CYCLES_PER_TICK ( configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ )
 
 #if ( configSYSTICK_CLOCK_HZ % configTICK_RATE_HZ ) != 0
-    #error "configTICK_RATE_HZ 가 GRTC 주파수를 정확히 나누지 못한다. millis() 에 오차가 쌓인다."
+    #error "configTICK_RATE_HZ does not divide the GRTC frequency exactly - millis() would drift"
 #endif
 
 /* 틱 채널. nrfx 할당기가 CC0~6 중에서 준다. */
@@ -125,7 +125,7 @@ static void grtc_tick_handler(int32_t id, uint64_t cc_value, void * p_context)
 
 /* nRF54L15 PS 가 규정하는 범위 (4~18 pF, 0.5 pF 단위). */
 #if (LFXO_LOAD_CAP_FF < 3000) || (LFXO_LOAD_CAP_FF > 18000)
-  #error "LFXO_LOAD_CAP_FF 는 3000~18000 (fF) 이어야 한다"
+  #error "LFXO_LOAD_CAP_FF must be between 3000 and 18000 (fF)"
 #endif
 
 static uint32_t lfxo_intcap_calc(void)
@@ -156,6 +156,46 @@ static uint32_t lfxo_intcap_calc(void)
     return cap;
 }
 #endif /* USE_LFXO && LFXO_LOAD_CAP_FF */
+
+/*
+ * HFXO(32 MHz) 내부 로드 커패시터 값 계산.
+ *
+ * LFXO 와 같은 사정이다 — 크리스털 옆에 외부 캡이 없는 보드는 칩 내부 캡을
+ * 맞춰야 한다. variant 가 HFXO_LOAD_CAP_FF (femtofarad) 를 정의할 때만 쓰고,
+ * 정의하지 않으면 **아무것도 쓰지 않는다** — 기존 보드는 리셋값 그대로다.
+ *
+ * ⚠ HFXO 가 틀리면 LFXO 와 달리 millis() 에는 전혀 드러나지 않는다.
+ *   HFXO 는 라디오 반송파의 기준이라 BLE 에서만 드러난다 (보통 ±50 ppm 요구).
+ *
+ * 공식은 Zephyr soc/nordic/nrf54l/soc.c 와 같다 (nRF54L 계열 공통):
+ *   CAPVALUE = round( ((C_pF - 5.5) * (SLOPE + 791) + (OFFSET << 2)) / 2^8 )
+ * fF 단위로 받아 ×1000 스케일에서 정수로 계산한다.
+ *
+ * ⚠ nrfx 의 NRF_OSCILLATORS_HFXO_CAP_CALCULATE 는 쓰지 않는다. `(cap*4-22) >> 10`
+ *   으로 식 자체가 다르고, 입력 단위도 pF 정수라 0.5 pF 를 표현하지 못한다.
+ *   NCS 가 이 칩에 실제로 쓰는 코드(Zephyr)를 따른다.
+ */
+#if defined(HFXO_LOAD_CAP_FF)
+static uint32_t hfxo_intcap_calc(void)
+{
+    uint32_t trim   = NRF_FICR->XOSC32MTRIM;
+    uint32_t sfield = (trim & FICR_XOSC32MTRIM_SLOPE_Msk) >> FICR_XOSC32MTRIM_SLOPE_Pos;
+    uint32_t smask  = FICR_XOSC32MTRIM_SLOPE_Msk >> FICR_XOSC32MTRIM_SLOPE_Pos;
+    uint32_t ssign  = smask - (smask >> 1);
+    /* SLOPE 는 2의 보수라 부호 확장이 필요하다. */
+    int32_t  slope  = (int32_t)(sfield ^ ssign) - (int32_t)ssign;
+    uint32_t offset = (trim & FICR_XOSC32MTRIM_OFFSET_Msk) >> FICR_XOSC32MTRIM_OFFSET_Pos;
+
+    uint32_t mid = (((uint32_t)HFXO_LOAD_CAP_FF - 5500UL) * (uint32_t)(slope + 791L)
+                    + (offset << 2UL) * 1000UL) >> 8UL;
+
+    uint32_t cap = mid / 1000UL;
+    if ((mid % 1000UL) >= 500UL) {
+        cap++;                          /* 소수부 반올림 */
+    }
+    return cap;
+}
+#endif /* HFXO_LOAD_CAP_FF */
 
 static void lfclk_start(void)
 {
@@ -203,6 +243,12 @@ static void lfclk_start(void)
 void vPortSetupTimerInterrupt(void)
 {
     int err;
+
+#if defined(HFXO_LOAD_CAP_FF)
+    /* HFXO 캡은 SoftDevice 가 HFXO 를 처음 켜기 전에 맞춰 둬야 한다.
+     * 스케줄러 기동(여기)은 setup() 의 Bluefruit.begin() 보다 앞이다. */
+    nrf_oscillators_hfxo_cap_set(NRF_OSCILLATORS, true, hfxo_intcap_calc());
+#endif
 
     /* GRTC 를 만지기 전에 LFCLK 부터 세운다. */
     lfclk_start();

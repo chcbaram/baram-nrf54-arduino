@@ -16,6 +16,8 @@
  *   GPIOTE20  0x400DA000  P1 전용  채널 8
  *   GPIOTE30  0x4010C000  P0 전용  채널 4
  *
+ * nRF54LM20A 는 GPIOTE20 이 **P3 도** 본다 (도메인 20 이 P1·P3 를 소유한다).
+ *
  * ⚠ **P2 를 담당하는 GPIOTE 가 없다.** P2 핀에는 핀 인터럽트를 걸 수 없다.
  *   (System OFF 기상용 SENSE 는 별개다 — wiring.c 의 systemOff() 참조.)
  */
@@ -40,11 +42,25 @@ static bool       m_inited20, m_inited30;
 
 static nrfx_gpiote_t *instance_of(uint32_t pin)
 {
+  nrfx_gpiote_t *inst = NULL;
+
   switch (NRF54L_PORT_OF(pin)) {
-    case 0:  return &m_gpiote30;
-    case 1:  return &m_gpiote20;
-    default: return NULL;      /* P2 — 담당 GPIOTE 가 없다 */
+    case 0:
+      inst = &m_gpiote30;
+      break;
+
+    case 1:
+#if defined(NRF54LM20A_XXAA)
+    case 3:                    /* LM20A — GPIOTE20 이 P3 도 본다 */
+#endif
+      inst = &m_gpiote20;
+      break;
+
+    default:                   /* P2 — 담당 GPIOTE 가 없다 */
+      break;
   }
+
+  return inst;
 }
 
 static irq_slot_t *slot_of(uint32_t pin)

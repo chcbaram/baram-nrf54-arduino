@@ -295,7 +295,7 @@ error: static assertion failed: SPI SCK : SPIM/SPIS00.SCK 는 P2.01, P2.06 만 �
 IDE 의 **파일 → 예제 → PinMap** 에서 바로 열린다. 그 표는
 `extras/gen_pinmap.py` 가 Pin Planner JSON 에서 굽는다 — 손으로 고치지 마라.
 
-## 5. nRF54LM20A (M6 대비)
+## 5. nRF54LM20A — ✅ 코어에 반영 (2026-09-14)
 
 주소 대역이 L15 와 다르게 나뉜다. 아래 두 의문은 **2026-09-12 에 해소됐다.**
 
@@ -339,16 +339,21 @@ L15 의 "도메인마다 GPIO 포트를 하나씩" 이 LM20A 에서는
 포트 공통이 없고 핀마다 다르다. LM20A 에서는 **P2.00~P2.05 가 `sQSPI` 전용**으로
 쓰이는 보드가 있다 (XIAO nRF54LM20A 의 온보드 8MB 플래시).
 
-### `nrf54l_domains.h` 에 무엇을 넣어야 하나
+### 코어에 어떻게 넣었나
 
-```c
-/* LM20A: 도메인 20 이 포트를 둘 소유한다 */
-#define NRF54LM20A_DOMAIN20_PORTS   ((1u << 1) | (1u << 3))   /* P1, P3 */
-```
+두 겹으로 처리했다.
 
-L15 처럼 포트 하나를 비교하는 매크로로는 표현되지 않는다.
-**신호 단위 검사(`nrf54l_pinmap.h`)를 LM20A 용으로 한 벌 더 생성하는 편이 낫다** —
-`extras/gen_pinmap.py` 가 이미 SoC 를 인자로 받는다.
+1. **포트 판정** — `nrf54l_domains.h` 의 `NRF54L_IS_DOMAIN20_PORT(port)`.
+   LM20A 에서는 P1 또는 P3, 그 밖의 칩에서는 P1 이다. `wiring_interrupt.c`(GPIOTE20)와
+   `wiring_analog.c`(PWM)가 이것으로 P3 를 받아들인다.
+   SAADC 판정(`NRF54L_ASSERT_ANALOG_PIN`)은 **P1 전용 그대로** 둔다
+2. **신호 단위 검사** — `nrf54l_pinmap.h` 에 **표를 두 벌** 생성하고
+   `#if defined(NRF54LM20A_XXAA)` 로 고른다. variant 는 칩을 신경 쓰지 않고 같은
+   `NRF54L_ASSERT_SIG(pin, SPIM23_SCK, ...)` 를 쓴다
+
+⚠ LM20A JSON 에는 GPIO 가 아닌 전용 패드(`USBHS.D+` / `D-`)가 `allowedGpio` 에
+`"D+"` 로 적혀 있다. 생성기가 그걸 핀 이름으로 파싱하다 죽으면서 헤더를 **빈 파일로**
+남긴 적이 있다 — 지금은 GPIO 형식만 받고, 다 만든 뒤에 파일을 쓴다.
 
 USB(USBHS)가 `0x50050000` 대역, 즉 **P2 와 같은 고속 도메인**에 있다는 점도 기록해 둔다.
 

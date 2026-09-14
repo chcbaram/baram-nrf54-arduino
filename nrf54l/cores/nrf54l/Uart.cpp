@@ -30,7 +30,7 @@
  * 하기 때문이다 (nrf54l_domains.h).
  */
 #ifndef SERIAL_UARTE_INSTANCE
-  #error "variant.h 에서 SERIAL_UARTE_INSTANCE 를 정의해야 한다 (예: NRF_UARTE30)"
+  #error "variant.h must define SERIAL_UARTE_INSTANCE (e.g. NRF_UARTE30)"
 #endif
 /*
  * 벡터 이름도 variant 가 정한다. 인스턴스에서 자동으로 끌어낼 수 없다 —
@@ -40,7 +40,7 @@
  * 아래 "IRQ 벡터 연결" 주석 참조.
  */
 #ifndef SERIAL_UARTE_IRQ_HANDLER
-  #error "variant.h 에서 SERIAL_UARTE_IRQ_HANDLER 도 정의해야 한다 (예: SERIAL30_IRQHandler)"
+  #error "variant.h must also define SERIAL_UARTE_IRQ_HANDLER (e.g. SERIAL30_IRQHandler)"
 #endif
 
 static nrfx_uarte_t _uarte_serial = NRFX_UARTE_INSTANCE(SERIAL_UARTE_INSTANCE);
@@ -49,10 +49,10 @@ Uart Serial(&_uarte_serial, PIN_SERIAL_RX, PIN_SERIAL_TX);
 
 #if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
   #ifndef SERIAL1_UARTE_INSTANCE
-    #error "Serial1 을 쓰려면 variant.h 에서 SERIAL1_UARTE_INSTANCE 도 정의해야 한다"
+    #error "Serial1 needs SERIAL1_UARTE_INSTANCE defined in variant.h as well"
   #endif
   #ifndef SERIAL1_UARTE_IRQ_HANDLER
-    #error "Serial1 을 쓰려면 variant.h 에서 SERIAL1_UARTE_IRQ_HANDLER 도 정의해야 한다"
+    #error "Serial1 needs SERIAL1_UARTE_IRQ_HANDLER defined in variant.h as well"
   #endif
 static nrfx_uarte_t _uarte_serial1 = NRFX_UARTE_INSTANCE(SERIAL1_UARTE_INSTANCE);
 Uart Serial1(&_uarte_serial1, PIN_SERIAL1_RX, PIN_SERIAL1_TX);

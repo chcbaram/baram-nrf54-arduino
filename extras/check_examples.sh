@@ -7,7 +7,7 @@
 # 보드를 안 주면 boards.txt 의 전부를 돈다.
 #
 # ⚠ **보드 이름을 딴 라이브러리는 그 보드에서만 빌드한다.**
-#   `libraries/NU54V-DK/` 처럼 보드 전용 하드웨어를 쓰는 예제는 다른 보드에서
+#   `libraries/BOARD-NU54V-DK/` 처럼 보드 전용 하드웨어를 쓰는 예제는 다른 보드에서
 #   당연히 컴파일되지 않는다. 예제마다 #if 가드를 넣는 대신 여기서 건너뛴다 —
 #   가드는 모든 파일을 지저분하게 만들고, 제약이 있어야 할 곳은 예제가 아니라
 #   "무엇을 어디서 빌드하는가" 를 아는 이 스크립트다.
@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="baram-nrf54:nrf54l"
 
 # 보드 전용 라이브러리 -> 그 보드의 board id (공백 구분, "라이브러리:보드")
-ONLY_ON="NU54V-DK:nu54vdk"
+ONLY_ON="BOARD-NU54V-DK:nu54vdk BOARD-XIAO-nRF54LM20A:xiao_nrf54lm20a"
 
 boards="$*"
 if [ -z "$boards" ]; then

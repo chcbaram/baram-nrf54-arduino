@@ -383,8 +383,8 @@ def sig_ident(peripheral, signal):
     return [f"{n}_{sig}" for n in dict.fromkeys(names)]
 
 
-def render_guard(chip, soc, package):
-    """핀 단위 제약을 컴파일 타임 매크로로 낸다."""
+def guard_body(soc, package):
+    """핀 단위 제약을 컴파일 타임 매크로로 낸다. (본문, 포트 목록, GPIO 개수)"""
     doc = fetch(soc, package)
     pins = {p['name'] for p in doc['pins'] if re.fullmatch(r'P\d+\.\d+', str(p.get('name', '')))}
     ports = sorted({int(p[1]) for p in pins})
@@ -396,12 +396,13 @@ def render_guard(chip, soc, package):
             if not allowed:
                 continue
             whole = sorted({int(a[1]) for a in allowed if a.endswith('*')})
-            exact = sorted([a for a in allowed if not a.endswith('*')], key=_pin_key)
+            # GPIO 가 아닌 전용 패드는 건너뛴다 — LM20A 의 USBHS.D+/D- 가 'D+' 로 적혀 있다.
+            exact = sorted([a for a in allowed if re.fullmatch(r'P\d+\.\d+', a)], key=_pin_key)
 
             tests, texts = [], []
             for port in whole:
                 tests.append(f"NRF54L_PORT_OF(p) == {port}")
-                texts.append(f"P{port} 의 아무 핀")
+                texts.append(f"any pin on P{port}")
             for a in exact:
                 port, idx = _pin_key(a)
                 tests.append(f"(p) == {port * 32 + idx}")
@@ -413,12 +414,24 @@ def render_guard(chip, soc, package):
             text = ', '.join(texts)
             for name in sig_ident(per['id'], sigdef['name']):
                 L.append(f"#define NRF54L_SIG_{name}(p)  ({cond})")
-                L.append(f'#define NRF54L_TXT_{name}     "{per["id"]}.{sigdef["name"]} 는 {text} 만 된다"')
+                L.append(f'#define NRF54L_TXT_{name}     "{per["id"]}.{sigdef["name"]} only works on {text}"')
             L.append("")
 
-    body = '\n'.join(L)
-    return GUARD_TMPL.format(chip=chip, package=package, ports=', '.join(f'P{p}' for p in ports),
-                             count=len(pins), body=body)
+    return '\n'.join(L), ', '.join(f'P{p}' for p in ports), len(pins)
+
+
+def render_guard():
+    """칩 define 으로 표를 고르는 헤더 하나를 낸다.
+
+    L05 / L10 / L15 는 제약이 같아 L15 표 하나로 덮는다. LM20A 는 포트가 넷이고
+    페리페럴이 더 많아 따로 굽는다. variant 는 칩을 신경 쓰지 않고 같은 매크로를 쓴다.
+    """
+    l15  = guard_body('nrf54l15', 'qfn52-6x6-qgaa')
+    lm20 = guard_body('nrf54lm20a', 'fccsp98-3.67x3.85-paaa')
+    body = ("#if defined(NRF54LM20A_XXAA)\n\n" + lm20[0] +
+            "\n#else /* nRF54L05 / L10 / L15 */\n\n" + l15[0] + "\n#endif\n")
+    return GUARD_TMPL.format(l15_ports=l15[1], l15_count=l15[2],
+                             lm20_ports=lm20[1], lm20_count=lm20[2], body=body)
 
 
 GUARD_TMPL = """/*
@@ -430,9 +443,11 @@ GUARD_TMPL = """/*
  *   `extras/gen_pinmap.py` 가 Nordic Pin Planner 의 SoC 정의에서 굽는다:
  *   https://github.com/NordicPlayground/PinPlanner
  *
- * 기준: {chip} {package} — {ports}, GPIO {count}개.
+ * 표가 두 벌이고 칩 define 으로 고른다:
+ *   nRF54L15   qfn52-6x6-qgaa          — {l15_ports}, GPIO {l15_count}개
+ *   nRF54LM20A fccsp98-3.67x3.85-paaa  — {lm20_ports}, GPIO {lm20_count}개  (NRF54LM20A_XXAA)
  * L05 / L10 / L15 는 제약이 **완전히 동일**하다 (JSON 을 비교해 확인).
- * LM20A 는 페리페럴이 더 많아 별도다 — M6 에서 낸다.
+ * LM20A 는 포트가 넷이고 도메인 20 이 P1·P3 를 함께 소유한다.
  *
  * ── 왜 필요한가 ───────────────────────────────────────────────────────
  *
@@ -507,11 +522,11 @@ void setup()
   /* 이 스케치는 위 주석이 본체다. 굽지 않아도 된다.
      굳이 돌리면 보드 이름과 실장 칩만 확인해 준다. */
   Serial.println("{title}");
-  Serial.print("빌드된 보드: ");
+  Serial.print("Built for board: ");
   Serial.println(BOARD_NAME);
 
   uint32_t part = *(volatile uint32_t *) 0x00FFC31C;   /* FICR INFO.PART */
-  Serial.print("실장 칩 FICR INFO.PART = 0x");
+  Serial.print("Chip on board, FICR INFO.PART = 0x");
   Serial.println(part, HEX);
 }}
 
@@ -541,25 +556,27 @@ BOARDS = [
     ('NU54-DK',        'nRF54L05', 'nrf54l05',  'qfn48-6x6-qfaa', 'NU54-DK.md',        'nu54dk'),
     ('NU54V-DK',       'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'NU54V-DK.md',       'nu54vdk'),
     ('XIAO_nRF54L15',  'nRF54L15', 'nrf54l15',  'qfn48-6x6-qfaa', 'XIAO-nRF54L15.md',  'xiao_nrf54l15'),
-    # variant 없음 — M6 대기. 표는 docs/boards 와 Pin Planner 만으로 만들어진다.
     ('XIAO_nRF54LM20A', 'nRF54LM20A', 'nrf54lm20a', 'fccsp98-3.67x3.85-paaa',
-     'XIAO-nRF54LM20A.md', None),
+     'XIAO-nRF54LM20A.md', 'xiao_nrf54lm20a'),
 ]
 
 
 if __name__ == '__main__':
     guard = os.path.join(ROOT, 'nrf54l/cores/nrf54l/nrf54l_pinmap.h')
+    # 다 만든 뒤에 연다. 렌더링 중에 예외가 나면 헤더가 빈 파일로 남아
+    # 모든 보드 빌드가 깨진다 (실제로 한 번 그랬다).
+    text = render_guard()
     with open(guard, 'w', encoding='utf-8') as f:
-        f.write(render_guard('nRF54L15', 'nrf54l15', 'qfn52-6x6-qgaa'))
+        f.write(text)
     print(' ', guard)
 
     for chip, soc, pkg in CHIPS:
         body = render_chip(chip, soc, pkg)
-        print(' ', write_example(f'pinmap_{chip}', f'{chip} 핀맵', body))
+        print(' ', write_example(f'pinmap_{chip}', f'{chip} pin map', body))
 
     for board, chip, soc, pkg, md, variant in BOARDS:
         body = render_board(board, chip, soc, pkg,
                             os.path.join(ROOT, 'docs/boards', md),
                             os.path.join(ROOT, 'nrf54l/variants', variant, 'variant.h')
                             if variant else None)
-        print(' ', write_example(f'pinmap_{board}', f'{board} 핀맵 ({chip})', body))
+        print(' ', write_example(f'pinmap_{board}', f'{board} pin map ({chip})', body))

@@ -1,4 +1,4 @@
-# 메모리 맵 — 칩별 (nRF54L05 / nRF54L15)
+# 메모리 맵 — 칩별 (nRF54L05 / nRF54L15 / nRF54LM20A)
 
 **이 문서는 칩 단위다.** 보드가 아니라 실장 칩이 배치를 정한다.
 보드별 핀맵은 `docs/boards/` 를 봐라.
@@ -8,6 +8,7 @@
 | NU54-DK | nRF54L05 | nRF54L05 절 |
 | NU54V-DK | nRF54L15 | nRF54L15 절 |
 | XIAO nRF54L15 / Sense | nRF54L15 | nRF54L15 절 (NU54V-DK 와 동일) |
+| XIAO nRF54LM20A / Sense | **nRF54LM20A** | nRF54LM20A 절 |
 
 NU54-DK 와 NU54V-DK 는 회로도·핀맵이 동일하고 실장 모듈만 다르다.
 메모리 배치만 다르므로 링커 스크립트와 SoftDevice hex 를 나눠 둔다.
@@ -34,6 +35,9 @@ NU54-DK 와 NU54V-DK 는 회로도·핀맵이 동일하고 실장 모듈만 다�
 > FICR INFO.RAM      @ 0x00FFC328   KB 단위. 0x60 = 96 KB(L05) / 0x100 = 256 KB(L15)
 > FICR INFO.RRAM     @ 0x00FFC32C   KB 단위. 0x1F4 = 500 KB(L05) / 0x5F4 = 1524 KB(L15)
 > ```
+>
+> nRF54LM20A 실측 (XIAO): PART `0x054BC20A` · PACKAGE `"PA"` · RAM `0x200` · RRAM `0x7F4`.
+> PART 형식이 L05/L15 와 다르다. **RAM `0x200`(512 KB)은 올림값이다** — 아래 nRF54LM20A 절.
 >
 > ⚠ 이 오프셋은 원래 RAM 을 `0x00FFC324`, `CODESIZE` 를 `0x00FFC328` 로
 > **4 바이트씩 앞당겨 적어 놓았다.** 그 자리는 실제로 `PACKAGE` / `RAM` 이라
@@ -301,6 +305,75 @@ s145_nrf54l15_10.0.1_softdevice.hex : :020000040015E5  -> 0x0015A800
 
 ---
 
+## XIAO nRF54LM20A — nRF54LM20A + S145 v10.0.1
+
+출처: sdk-nrf-bm v2.0.1
+`boards/nordic/bm_nrf54lm20dk/bm_nrf54lm20dk_nrf54lm20a_cpuapp_s145_softdevice.dts`
+(+ 같은 디렉토리의 `..._cpuapp_common.dtsi`)
+
+### RRAM (2036 KB = 0x1FD000)
+
+| 시작 | 크기 | 영역 |
+|---|---|---|
+| `0x00000000` | 1890 KB (`0x1D8800`) | **application (slot0)** |
+| `0x001D8800` | 4 KB | peer_manager |
+| `0x001D9800` | 4 KB | storage0 |
+| `0x001DA800` | 137 KB (`0x22400`) | **SoftDevice S145** |
+| `0x001FD000` | — | RRAM 끝 |
+
+`NRF_MEMORY_FLASH_SIZE 0x001FD000` 과 DTS `cpuapp_rram` 2036 K, FICR `INFO.RRAM 0x7F4` 가 일치한다.
+
+### RAM (**0x7FD40** — 1 KB 단위가 아니다)
+
+| 시작 | 크기 | 영역 |
+|---|---|---|
+| `0x20000000` | `0x8000` (32 KB) | **SoftDevice** |
+| `0x20008000` | `0x77D40` (490,816 B) | **application** |
+| `0x2007FD40` | — | **RAM 끝** |
+
+> ⚠ **RAM 끝은 `0x2007FD40` 이다.** DTS 가 `cpuapp_sram` 을 `0x20000080` 부터
+> `511K − 0x80 + 0x140` 으로 적고 "total size of SRAM is not 1kB aligned" 라고 달아 두었다.
+>
+> 이것을 "대략 512 KB" 로 읽어 끝을 `0x20080000` 에 잡았다가 **부팅 첫 명령에서
+> HardFault** 가 났다 (CFSR `0x9201` STKERR, BFAR `0x2007FFF8`). 다른 출처는 믿지 마라:
+>
+> | 출처 | 값 | |
+> |---|---|---|
+> | FICR `INFO.RAM` | `0x200` = 512 KB | KB 단위 올림 |
+> | MDK `NRF_MEMORY_RAM_SIZE` | `0x40000` = 256 KB | 틀림 (L15 헤더도 틀렸다) |
+> | MDK `.ld` | RAM `0x40000` + RAM1 `0x40000` | 명목값 |
+>
+> 기록: [HIL/M6-xiao-nrf54lm20a.md](HIL/M6-xiao-nrf54lm20a.md) §3
+
+**SoftDevice 요구량 실측 (XIAO nRF54LM20A, MTU 247): peripheral 4 + central 1 + 큐 3 =
+`0x20007F48`** — L15·L05 와 같다. LM20 용 S145 도 요구량은 설정만 따른다.
+예약 32 KB 에 184 B 가 남는다. RAM 이 넉넉하므로 링크 수를 늘리려면 예약을 키우면 된다.
+
+DTS 는 `0x20000000 ~ 0x20000080` 을 KMU 예약으로 뗀다. 코어는 KMU 를 쓰지 않고
+(CRACEN 은 TRNG 만) 그 영역은 SoftDevice 예약 안에 있다 — L15 와 같다.
+
+### 링커 스크립트 값
+
+```
+FLASH (rx)  : ORIGIN = 0x00000000, LENGTH = 0x1D8800
+RAM   (rwx) : ORIGIN = 0x20008000, LENGTH = 0x77D40
+```
+
+`boards.txt`:
+```
+upload.maximum_size      = 1935360   # 0x1D8800
+upload.maximum_data_size =  490816   # 0x77D40
+build.extra_flags        = -DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+```
+
+### SoftDevice hex
+
+`s145_nrf54lm20_10.0.1_softdevice.hex` (389,951 B, sha256 `d1d24495…ffd1`).
+실측 로드 범위 **`0x001DA800` ~ `0x001FC57C`** (135.4 KB). L15 용과 호환되지 않는다.
+`boards.txt` 의 `build.sd_soc=nrf54lm20` 이 이 파일을 고른다.
+
+---
+
 ## 참고 — nRF54L15 + S115 v10.0.1 (미채택)
 
 | 영역 | 값 |
@@ -340,7 +413,8 @@ Adafruit 코어의 `nrf52840_s140_v6.ld`(`FLASH ORIGIN = 0x26000`)를 그대로 
   nRF52 처럼 "MBR 이 상단의 부트로더를 찾아가는" 구조가 불가능하다
 - **애플리케이션은 위로 밀린다.** nRF52 와 정반대다
 - **SoftDevice 는 `0x0015A800` 고정.** hex 파일에 절대 주소로 박혀 있다
-  (실측: `0x0015A800` ~ `0x0017C4F8`, 135.2 KB). 옮길 수 없다
+  (실측: `0x0015A800` ~ `0x0017C4F8`, 135.2 KB). 옮길 수 없다.
+  칩마다 주소가 다르다 — L05 `0x0005A800`, **LM20A `0x001DA800`**
 - **본딩·스토리지는 이미 앱 파티션 밖이다** (`0x158800` ~ `0x15A800`).
   single-bank 업데이트로 날아가지 않는다. Nordic DTS 를 따른 결과다
 - **VTOR 재배치는 코어가 이미 처리한다.** `cores/nrf54l/wiring.c` 의 `init()` 이

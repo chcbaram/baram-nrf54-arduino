@@ -222,3 +222,83 @@ xiao_nrf54l15.menu.debug.l2=Level 2 (Full)
 xiao_nrf54l15.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
 
 xiao_nrf54l15.bootloader.tool=bootburn
+
+
+# =====================================================================
+# XIAO nRF54LM20A / XIAO nRF54LM20A Sense (Seeed Studio)
+#   회로도 분석 결과는 docs/boards/XIAO-nRF54LM20A.md 참조.
+#
+#   XIAO nRF54L15 와 폼팩터만 같고 **칩이 다르다** (nRF54LM20A, FCCSP98).
+#   RRAM 2 MB, GPIO 포트 넷(P3 추가), 헤더 D0~D27.
+#
+#   온보드 ATSAMD11D14A 가 CMSIS-DAP + USB CDC 를 겸한다 — 케이블 하나로
+#   업로드와 Serial 이 된다. `probe-rs list` 에
+#   "Seeed Studio XIAO nRF54LM20A CMSIS-DAP" 로 잡힌다 (2886:0068).
+#
+#   ⚠ 칩 안테나가 없다. u.FL 커넥터에 외부 안테나를 달아야 BLE 가 들린다.
+#     없어도 광고는 "정상" 으로 돌아서 코어 문제로 오진하기 쉽다.
+#
+#   Sense 모델은 IMU(LSM6DS3TR-C)와 PDM 마이크가 더 실장된 것뿐이라 항목을 공유한다.
+#   ⚠ 두 센서의 전원은 GPIO 가 아니라 nPM1300 의 LDO1 이다.
+#     보드 라이브러리 BOARD-XIAO-nRF54LM20A 로 켠다.
+#
+#   USB: 칩에 USBHS 가 있지만 이 보드의 USB-C 는 SAMD11 에 붙어 있다.
+#   코어도 USB 를 지원하지 않는다 (CLAUDE.md §4.2).
+# =====================================================================
+xiao_nrf54lm20a.name=XIAO nRF54LM20A / Sense (Seeed)
+
+xiao_nrf54lm20a.build.arch=NRF54L
+xiao_nrf54lm20a.build.board=XIAO_NRF54LM20A
+xiao_nrf54lm20a.build.core=nrf54l
+xiao_nrf54lm20a.build.variant=xiao_nrf54lm20a
+xiao_nrf54lm20a.build.chip=NRF54LM20A_XXAA
+# 인자 없는 Bluefruit.begin() 의 **기본값**이다. SoftDevice 예약이 L15 와 같은
+# 32 KB 이므로 같은 값으로 둔다 (linker/nrf54lm20a_s145_v10.ld).
+xiao_nrf54lm20a.build.extra_flags=-DSD_BLE_PERIPH_LINK_COUNT=4 -DSD_BLE_CENTRAL_LINK_COUNT=1 -DSD_BLE_HVN_TX_QUEUE_SIZE=3
+
+# probe-rs 타깃 이름 (`probe-rs chip list`). 컴파일러 define 과 표기가 다르다.
+xiao_nrf54lm20a.build.chip_probers=nRF54LM20A
+
+# 메모리 (linker/nrf54lm20a_s145_v10.ld)
+#   application 0x00000000 ~ 0x001D8800 (1890 KB)
+#   app RAM     0x20008000 ~ 0x2007FD40 (0x77D40)  — SD 예약 32 KB
+#   ⚠ RAM 끝은 0x2007FD40 이다 (1 KB 단위가 아니다). FICR 의 512 KB 는 올림값.
+xiao_nrf54lm20a.upload.maximum_size=1935360
+xiao_nrf54lm20a.upload.maximum_data_size=490816
+
+# ── SoftDevice ────────────────────────────────────────────────────────
+# hex 는 SoC 별 빌드다 (s145_nrf54lm20_…). API 헤더는 L15 와 같다 (CLAUDE.md §4.2).
+xiao_nrf54lm20a.menu.softdevice.s145v10=S145 10.0.1 (peripheral + central)
+xiao_nrf54lm20a.menu.softdevice.s145v10.build.sd_name=s145
+xiao_nrf54lm20a.menu.softdevice.s145v10.build.sd_soc=nrf54lm20
+xiao_nrf54lm20a.menu.softdevice.s145v10.build.sd_version=10.0.1
+xiao_nrf54lm20a.menu.softdevice.s145v10.build.sd_define=S145
+xiao_nrf54lm20a.menu.softdevice.s145v10.build.ldscript=nrf54lm20a_s145_v10.ld
+
+# ── 업로드 방식 ───────────────────────────────────────────────────────
+# 온보드 프로브라 보통 UID 지정이 필요 없다. 여러 대를 동시에 꽂을 때만 쓴다.
+xiao_nrf54lm20a.menu.upload_method.cmsisdap=CMSIS-DAP (probe-rs)
+xiao_nrf54lm20a.menu.upload_method.cmsisdap.upload.protocol=probers
+xiao_nrf54lm20a.menu.upload_method.cmsisdap.upload.tool=probers
+xiao_nrf54lm20a.menu.upload_method.cmsisdap.upload.tool.default=probers
+xiao_nrf54lm20a.menu.upload_method.cmsisdap.upload.use_1200bps_touch=false
+xiao_nrf54lm20a.menu.upload_method.cmsisdap.upload.wait_for_upload_port=false
+xiao_nrf54lm20a.menu.upload_method.cmsisdap.upload.native_usb=false
+
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid=CMSIS-DAP + Probe UID (probe-rs)
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid.upload.protocol=probers
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid.upload.tool=probers_uid
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid.upload.tool.default=probers_uid
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid.upload.use_1200bps_touch=false
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid.upload.wait_for_upload_port=false
+xiao_nrf54lm20a.menu.upload_method.cmsisdapuid.upload.native_usb=false
+
+# ── 디버그 레벨 ───────────────────────────────────────────────────────
+xiao_nrf54lm20a.menu.debug.l0=Level 0 (Release)
+xiao_nrf54lm20a.menu.debug.l0.build.debug_flags=-DCFG_DEBUG=0
+xiao_nrf54lm20a.menu.debug.l1=Level 1 (Errors)
+xiao_nrf54lm20a.menu.debug.l1.build.debug_flags=-DCFG_DEBUG=1
+xiao_nrf54lm20a.menu.debug.l2=Level 2 (Full)
+xiao_nrf54lm20a.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
+
+xiao_nrf54lm20a.bootloader.tool=bootburn
