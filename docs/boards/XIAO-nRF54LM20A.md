@@ -286,3 +286,24 @@ BLE 에는 문제없지만 크리스털 사양(±20 ppm)보다 크다. 음수 = 
 - [ ] PDM 마이크 — 코어에 PDM API 가 없다
 - [ ] 저전력 측정 (CLAUDE.md §7 F8 — 프로브 분리)
 - USB — 칩에 USBHS 가 있지만 **이 보드는 배선이 없어** 해당하지 않는다
+
+### 보드 라이브러리 예제 TODO
+
+지금 있는 것: `pmic` `imu` `flash_id` `rgb_led` `button` (실기 확인), `i2c_scan` (컴파일만).
+
+| | 예제 | 내용 | 준비 상태 |
+|---|---|---|---|
+| [ ] | `i2c_scan` 실기 확인 | Wire1 에서 IMU(0x6A)가 잡히고 `WHO_AM_I` 가 읽히는지 | 예제는 있다. 올려 보기만 하면 된다 |
+| [ ] | **`ble_imu`** | IMU 값을 BLE 로 보낸다 (BLEUart 또는 커스텀 서비스) | 바로 가능. Sense + BLE 를 함께 쓰는 대표 예제가 없다 |
+| [ ] | **`ble_battery`** | PMIC 배터리 전압 → `BLEBas` 잔량(%) | 바로 가능. 전압→% 는 대략 표로. HOGP 가 BAS 를 요구하는 과제(STATUS)와 이어진다 |
+| [ ] | **`flash_storage`** | 온보드 8 MB 플래시에 섹터 소거 → 쓰기 → 읽기 검증 | 바로 가능. 지금은 ID 만 읽는다 |
+| [ ] | `imu_wakeup` | INT1(P0.06)으로 움직임·탭을 감지해 대기에서 깨기, 센서 레일 on/off | ST 드라이버로 인터럽트 레지스터(TAP_CFG, WAKE_UP_THS, MD1_CFG 등) 확인이 먼저. 전류는 프로브를 떼고 잰다 (CLAUDE.md §7 F8) |
+| [ ] | 마이크 녹음·음량 | PDM 마이크 (Sense) | **코어에 PDM API 가 먼저 필요하다** |
+
+### IMU API TODO
+
+| | 항목 | 이유 |
+|---|---|---|
+| [ ] | `temperatureSampleRate()` 추가 | Arduino_LSM6DS3 과 메서드가 완전히 같아지는 마지막 한 개 |
+| [ ] | Arduino_LSM6DS3 의 필터 설정 따를지 검토 | 그쪽은 `CTRL1_XL 0x4A`(LPF1), `CTRL8_XL 0x09` 을 쓴다. 값의 잡음 특성이 달라진다 |
+| [ ] | Seeed `LSM6DS3` API 호환 검토 | XIAO nRF52840 Sense 스케치(`LSM6DS3 myIMU(I2C_MODE, 0x6A)`, `readFloatAccelX()`)를 옮기려면 필요. Seeed 라이브러리는 이 보드에서 `Wire`(헤더)를 쓰고 LDO1 도 안 켜서 그대로는 안 된다. ⚠ 호환 클래스를 만들면 Seeed 라이브러리를 함께 설치한 사용자에게 `LSM6DS3.h`·`LSM6DS3` 이름이 겹친다 |

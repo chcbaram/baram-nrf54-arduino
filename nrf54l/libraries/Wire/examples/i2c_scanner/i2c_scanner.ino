@@ -6,6 +6,10 @@
  and the IMU is read back to prove the bus really works rather than
  just acknowledging an address.
 
+ ⚠ On the XIAO nRF54LM20A use BOARD-XIAO-nRF54LM20A > i2c_scan instead.
+   That board powers its IMU bus from the PMIC, which this generic sketch
+   cannot switch on, so Wire1 would come up empty even on a Sense board.
+
  Which pins and which TWIM instance the bus uses is set by the variant.
  The instance is not a free choice: TWIM30 shares hardware with UARTE30,
  so a board whose Serial is UARTE30 cannot put Wire there, and there is

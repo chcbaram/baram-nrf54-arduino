@@ -1586,6 +1586,9 @@ SoftDevice(요구 RAM `0x20007F48` — L15 와 같음), **BLE 연결·MTU 247·N
 
 - LFXO −49 ppm — 크리스털 사양(±20) 밖. `LFXO_LOAD_CAP_FF` 17000 을 줄여 볼 것
 - PDM 마이크 API, TDM API, 저전력 측정
+- **보드 예제·IMU API TODO** — `ble_imu`, `ble_battery`, `flash_storage`, `imu_wakeup`,
+  `i2c_scan` 실기 확인, `temperatureSampleRate()`, Seeed LSM6DS3 호환 검토.
+  목록과 준비 상태는 `docs/boards/XIAO-nRF54LM20A.md` §4
 - `TwoWire` 에 버스 락이 없다 — 여러 태스크가 같은 `Wire` 를 쓰면 트랜잭션이 섞일 수 있다
 - nrfx 가 v4.6.0 으로 올라갔다 (동봉 v4.5.0)
 
